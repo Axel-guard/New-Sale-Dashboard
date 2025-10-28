@@ -760,5 +760,73 @@ addProductRowBtn.addEventListener('click', ()=>{
 
   // Expose downloadMergedJSON to header button
   window.downloadMergedJSON = downloadMergedJSON;
+function getWeekIndexInMonth(date){
+  const d = new Date(date);
+  if (isNaN(d)) return null;
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const day = d.getDate();
+  const firstDay = first.getDay();
+  return Math.floor((day + (firstDay||0) - 1) / 7) + 1;
+}
+
+function renderWeekByEmployeeTable(){
+  const wrap = document.getElementById('weekTableWrap');
+  const cur = filterByMonth(allSales, 'current');
+  const employees = Array.from(new Set(cur.map(s=>s.employee))).sort();
+  const matrix = {};
+  employees.forEach(e=>{ matrix[e] = {1:0,2:0,3:0,4:0,5:0,total:0}; });
+  cur.forEach(s=>{
+    const w = getWeekIndexInMonth(s.date);
+    if (!w) return;
+    matrix[s.employee][w] += s.total;
+    matrix[s.employee].total += s.total;
+  });
+  const weeks = [1,2,3,4,5];
+  let html = `<table class="simple"><thead><tr><th>Employee</th>${weeks.map(w=>`<th>Week ${w}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
+  employees.forEach(e=>{
+    html += `<tr><td>${e}</td>${weeks.map(w=>`<td>${matrix[e][w]}</td>`).join('')}<td><strong>${matrix[e].total}</strong></td></tr>`;
+  });
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+}
+// --- Order lookup ---
+document.getElementById('orderLookupBtn').onclick = ()=>{
+  const id = (document.getElementById('orderLookupId').value||'').trim();
+  const out = document.getElementById('orderResult');
+  if (!id) return out.textContent = 'Please enter an Order ID.';
+  const found = allSales.find(s => String(s.id) === id);
+  out.textContent = found ? JSON.stringify(found, null, 2) : 'No order found.';
+};
+
+// --- Courier calculator ---
+document.getElementById('ccCalcBtn').onclick = ()=>{
+  const mode = document.getElementById('ccMode').value;
+  const weight = Number(document.getElementById('ccWeight').value||0);
+  let base = Number(document.getElementById('ccBase').value||0);
+  let perKg = Number(document.getElementById('ccPerKg').value||0);
+  if (mode === 'air' && perKg <= 30) perKg = 60;
+  if (mode === 'air' && base <= 60) base = 120;
+  const amt = base + perKg * weight;
+  document.getElementById('ccResult').textContent = `Estimated ${mode.toUpperCase()} charge: ₹ ${amt.toFixed(2)}`;
+};
+
+// --- Customer details summary ---
+function renderCustomerSummary(){
+  const byCust = {};
+  allSales.forEach(s=>{
+    const key = s.cust_code || 'NA';
+    if (!byCust[key]) byCust[key] = { cust_code: key, orders: 0, total: 0, received: 0 };
+    byCust[key].orders += 1;
+    byCust[key].total += s.total;
+    byCust[key].received += paymentsSum(s.payments||[]);
+  });
+  const arr = Object.values(byCust).sort((a,b)=>b.total-a.total);
+  let html = `<table class="simple"><thead><tr><th>Customer Code</th><th>Orders</th><th>Total</th><th>Received</th><th>Balance</th></tr></thead><tbody>`;
+  arr.forEach(c=>{
+    html += `<tr><td>${c.cust_code}</td><td>${c.orders}</td><td>${c.total}</td><td>${c.received}</td><td>${c.total - c.received}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  document.getElementById('customerSummary').innerHTML = html;
+}
 
 })();
