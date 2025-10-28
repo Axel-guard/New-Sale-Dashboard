@@ -9,7 +9,7 @@ const SESSION_TOKEN_KEY = "gh_pat_for_sale_ui";
 (async function(){
   // ---- CONSTANTS ----
   // ✅ Use absolute URL for GitHub Pages fetch
-  const salesUrl = "https://axel-guard.github.io/New-Sale-Dashboard/data/sales.json";
+const salesUrl = "./data/sales.json";
 
   const CURRENCY_LOCALE = "en-IN";
   const CURRENCY_CODE   = "INR";
