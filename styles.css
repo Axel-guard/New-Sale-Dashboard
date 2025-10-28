@@ -1,4 +1,8 @@
 /* ===== Base Layout ===== */
+* {
+  box-sizing: border-box;
+}
+
 body {
   font-family: "Inter", system-ui, sans-serif;
   margin: 0;
@@ -9,6 +13,7 @@ body {
 
 h1, h2, h3 {
   margin: 0 0 10px;
+  font-weight: 600;
 }
 
 h2 {
@@ -22,10 +27,10 @@ h2 {
   justify-content: space-between;
   padding: 12px 16px;
   background: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 100;
 }
 
 .subnav {
@@ -34,17 +39,21 @@ h2 {
 }
 
 .tab-btn {
-  background: #eee;
-  border: 1px solid #ccc;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
   padding: 6px 10px;
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
+  transition: 0.2s;
 }
 .tab-btn.active {
   background: #2563eb;
   color: #fff;
   border-color: #2563eb;
+}
+.tab-btn:hover {
+  background: #e0e7ff;
 }
 
 .controls {
@@ -52,26 +61,41 @@ h2 {
   gap: 8px;
   align-items: center;
 }
-.controls input, .controls select, .controls button {
+.controls input,
+.controls select,
+.controls button {
   padding: 5px 8px;
-  border: 1px solid #ccc;
+  border: 1px solid #cbd5e1;
   border-radius: 4px;
   background: #fff;
+}
+.controls button {
+  cursor: pointer;
+}
+.controls button.accent {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+}
+.controls button.accent:hover {
+  background: #1d4ed8;
 }
 
 /* ===== Main Layout ===== */
 .layout {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   padding: 20px;
 }
 
 .sidebar {
-  flex: 0 0 240px;
+  flex: 0 0 250px;
   background: #fff;
   padding: 16px;
   border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  min-height: 500px;
 }
 
 .content {
@@ -79,7 +103,8 @@ h2 {
   background: #fff;
   padding: 16px;
   border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  min-width: 500px;
 }
 
 /* ===== Employee List ===== */
@@ -107,7 +132,7 @@ h2 {
 .summary {
   margin-top: 20px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 .kpi {
   background: #f8fafc;
@@ -116,17 +141,31 @@ h2 {
   padding: 10px;
   text-align: center;
 }
-.kpi .val {
+.kpi strong {
+  display: block;
   font-size: 1.2rem;
   font-weight: 700;
+  margin-top: 4px;
 }
 
 /* ===== Charts ===== */
 .charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 20px;
   margin-bottom: 20px;
+  justify-items: center;
+}
+
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+#pieEmployeeCurrent,
+#piePaymentStatus {
+  max-width: 180px;
+  max-height: 180px;
 }
 
 /* ===== Sales Table ===== */
@@ -134,14 +173,17 @@ h2 {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  margin-top: 10px;
 }
-.sales-table th, .sales-table td {
+.sales-table th,
+.sales-table td {
   border: 1px solid #e2e8f0;
   padding: 8px;
   text-align: left;
 }
 .sales-table th {
   background: #f1f5f9;
+  font-weight: 600;
 }
 .badge {
   display: inline-block;
@@ -166,54 +208,82 @@ h2 {
 /* ===== Modal ===== */
 .modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.3);
-  display: flex;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
   justify-content: center;
   align-items: center;
+  z-index: 999;
 }
+
+.modal.active {
+  display: flex;
+}
+
 .modal-content {
   background: #fff;
-  padding: 20px;
+  padding: 24px;
   width: 90%;
   max-width: 500px;
   border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  animation: fadeIn 0.3s ease;
 }
+
 .modal-content form {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
+
 .modal-content label {
   display: block;
   font-size: 0.9rem;
+  font-weight: 500;
 }
+
+.modal-close {
+  float: right;
+  border: none;
+  background: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
 .product-row {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr;
   gap: 10px;
   align-items: center;
 }
+
 .form-actions {
   display: flex;
   justify-content: space-between;
   margin-top: 10px;
 }
-button#accent, .accent {
-  background: #2563eb;
-  color: #fff;
-  border: none;
+
+button,
+input,
+select {
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+button {
+  cursor: pointer;
+  transition: 0.2s;
 }
 button:hover {
   opacity: 0.9;
 }
 
-/* ===== Pages visibility ===== */
-.page { display: none; }
-.page.visible { display: block; }
+/* ===== Pages Visibility ===== */
+.page {
+  display: none;
+}
+.page.visible {
+  display: block;
+}
 
 /* ===== Week Table ===== */
 .week-table {
@@ -223,7 +293,8 @@ button:hover {
   width: 100%;
   border-collapse: collapse;
 }
-.week-table th, .week-table td {
+.week-table th,
+.week-table td {
   border: 1px solid #e5e7eb;
   padding: 6px 8px;
   text-align: center;
@@ -242,4 +313,16 @@ hr {
   border: 1px solid #e2e8f0;
   max-height: 300px;
   overflow-y: auto;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
