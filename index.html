@@ -45,3 +45,108 @@
         </aside>
 
         <section class="content">
+          <div class="charts">
+            <canvas id="barChart"></canvas>
+            <canvas id="pieEmployeeCurrent"></canvas>
+            <canvas id="piePaymentStatus"></canvas>
+          </div>
+
+          <div id="weekTableWrap" class="week-table"></div>
+
+          <table id="salesTable" class="sales-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Employee</th>
+                <th>Products</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Payments</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </div>
+    </section>
+
+    <!-- PAGE: Order by ID -->
+    <section id="page-order" class="page">
+      <h2>Find Order by ID</h2>
+      <input id="orderLookupId" placeholder="Enter Order ID" />
+      <button id="orderLookupBtn">Search</button>
+      <pre id="orderResult" class="output"></pre>
+    </section>
+
+    <!-- PAGE: Courier Cost -->
+    <section id="page-courier" class="page">
+      <h2>Courier Cost Calculator</h2>
+      <label>Mode: 
+        <select id="ccMode">
+          <option value="road">Road</option>
+          <option value="air">Air</option>
+        </select>
+      </label>
+      <label>Weight (kg): <input id="ccWeight" type="number" /></label>
+      <label>Base cost: <input id="ccBase" type="number" value="100" /></label>
+      <label>Per KG: <input id="ccPerKg" type="number" value="30" /></label>
+      <button id="ccCalcBtn">Calculate</button>
+      <p id="ccResult"></p>
+    </section>
+
+    <!-- PAGE: Customer Details -->
+    <section id="page-customers" class="page">
+      <h2>Customer Summary</h2>
+      <div id="customerSummary"></div>
+    </section>
+  </main>
+
+  <!-- MODAL: Add Sale -->
+  <div id="addSaleModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h3>Add Sale Entry</h3>
+      <form id="addSaleForm">
+        <label>Customer Code: <input name="cust_code" required /></label>
+        <label>Date of Sale: <input type="date" name="date" required /></label>
+        <label>Employee: <input name="employee" required /></label>
+        <label>Amount Received: <input type="number" name="amount_received" /></label>
+        <label>Which Account:
+          <select name="account">
+            <option>IDFC 4828</option>
+            <option>IDFC 7455</option>
+            <option>Canara Bank</option>
+            <option>Cash</option>
+          </select>
+        </label>
+        <label>Payment Reference Number: <input name="payment_ref" /></label>
+        <label>Courier Cost: <input type="number" name="courier_cost" /></label>
+
+        <div id="productsContainer" class="product-list">
+          <div class="product-row">
+            <label>Product 1: <input name="product_1" /></label>
+            <label>Qty: <input type="number" name="qty_1" value="1" min="1" /></label>
+            <label>Price: <input type="number" name="price_1" value="0" min="0" /></label>
+          </div>
+        </div>
+        <button type="button" id="addProductRow">+ Add Product</button>
+
+        <label>Total: <input id="totalField" readonly /></label>
+        <div class="form-actions">
+          <button type="submit">Save</button>
+          <button type="button" id="closeAddSale">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TEMPLATE -->
+  <template id="paymentRowTemplate">
+    <tr class="payment-row">
+      <td colspan="7" class="payment-details"></td>
+    </tr>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
