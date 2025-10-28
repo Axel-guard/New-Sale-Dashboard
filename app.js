@@ -69,4 +69,150 @@ let charts = {};
 // ====== FUNCTIONS ======
 function buildMonthOptions() {
   const months = [...new Set(allSales.map(s => new Date(s.date).toISOString().slice(0, 7)))];
-  monthSelect.innerHTML = `<option value="all">All</option>` + months.map(m => `<opt
+  monthSelect.innerHTML = `<option value="all">All</option>` + months.map(m => `<option value="${m}">${m}</option>`).join("");
+  monthSelect.value = "all";
+}
+
+function buildEmployeeList() {
+  const employees = [...new Set(allSales.map(s => s.employee))].filter(Boolean);
+  employeeList.innerHTML = employees.map(emp => `<li>${emp}</li>`).join("");
+}
+
+function renderDashboard() {
+  const filtered = currentMonth === "all"
+    ? allSales
+    : allSales.filter(s => new Date(s.date).toISOString().slice(0, 7) === currentMonth);
+
+  if (!filtered.length) {
+    console.warn("⚠️ No sales data to display for:", currentMonth);
+    salesTableBody.innerHTML = `<tr><td colspan="7">No sales found for this month.</td></tr>`;
+    return;
+  }
+
+  renderSalesTable(filtered);
+  renderCharts(filtered);
+  renderKPIs(filtered);
+}
+
+function renderSalesTable(data) {
+  salesTableBody.innerHTML = data.map(s => {
+    const products = s.items?.map(i => `${i.product} (${i.qty}×${i.price})`).join(", ") || "";
+    const payments = s.payments?.map(p => `${p.method}: ₹${p.amount}`).join(", ") || "";
+    const paid = s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0;
+    const status = paid >= s.total ? "Full" : paid > 0 ? "Part" : "Pending";
+
+    return `
+      <tr>
+        <td>${s.customer}</td>
+        <td>${new Date(s.date).toLocaleDateString("en-IN")}</td>
+        <td>${s.employee}</td>
+        <td>${products}</td>
+        <td>₹${s.total.toLocaleString(CURRENCY_LOCALE)}</td>
+        <td>${status}</td>
+        <td>${payments}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderCharts(data) {
+  const ctxBar = barChartEl.getContext("2d");
+  const ctxPie1 = pieEmployeeEl.getContext("2d");
+  const ctxPie2 = piePaymentEl.getContext("2d");
+
+  const byEmp = {};
+  const payStatus = { Full: 0, Partial: 0, Pending: 0 };
+
+  data.forEach(s => {
+    byEmp[s.employee] = (byEmp[s.employee] || 0) + s.total;
+    const paid = s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0;
+    if (paid >= s.total) payStatus.Full++;
+    else if (paid > 0) payStatus.Partial++;
+    else payStatus.Pending++;
+  });
+
+  const empLabels = Object.keys(byEmp);
+  const empValues = Object.values(byEmp);
+
+  // Destroy old charts before re-render
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  charts.bar = new Chart(ctxBar, {
+    type: "bar",
+    data: {
+      labels: empLabels,
+      datasets: [{ label: "Sales by Employee", data: empValues, backgroundColor: "#007bff" }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+
+  charts.pieEmp = new Chart(ctxPie1, {
+    type: "pie",
+    data: {
+      labels: empLabels,
+      datasets: [{ data: empValues, backgroundColor: ["#007bff", "#ffc107", "#28a745", "#dc3545"] }]
+    },
+    options: { responsive: true }
+  });
+
+  charts.piePay = new Chart(ctxPie2, {
+    type: "doughnut",
+    data: {
+      labels: Object.keys(payStatus),
+      datasets: [{ data: Object.values(payStatus), backgroundColor: ["#28a745", "#ffc107", "#dc3545"] }]
+    },
+    options: { responsive: true }
+  });
+}
+
+function renderKPIs(data) {
+  const totalSales = data.reduce((a, s) => a + s.total, 0);
+  const totalPaid = data.reduce((a, s) => a + (s.payments?.reduce((x, y) => x + (y.amount || 0), 0) || 0), 0);
+  const totalOrders = data.length;
+
+  kpiBoxes.innerHTML = `
+    <div class="kpi">Total Orders<br/><strong>${totalOrders}</strong></div>
+    <div class="kpi">Total Sales<br/><strong>₹${totalSales.toLocaleString(CURRENCY_LOCALE)}</strong></div>
+    <div class="kpi">Received<br/><strong>₹${totalPaid.toLocaleString(CURRENCY_LOCALE)}</strong></div>
+  `;
+}
+
+// ====== EVENT LISTENERS ======
+monthSelect.addEventListener("change", e => {
+  currentMonth = e.target.value;
+  renderDashboard();
+});
+
+employeeSearch.addEventListener("input", e => {
+  const q = e.target.value.toLowerCase();
+  const filtered = allSales.filter(s => s.employee.toLowerCase().includes(q));
+  renderSalesTable(filtered);
+});
+
+openAddSaleBtn.addEventListener("click", () => addSaleModal.style.display = "block");
+closeAddSale.addEventListener("click", () => addSaleModal.style.display = "none");
+cancelAdd?.addEventListener("click", () => addSaleModal.style.display = "none");
+
+addProductRowBtn?.addEventListener("click", () => {
+  const count = addSaleForm.querySelectorAll(".product-row").length + 1;
+  const div = document.createElement("div");
+  div.classList.add("product-row");
+  div.innerHTML = `
+    <label>Product ${count}: <input name="product_${count}" /></label>
+    <label>Qty: <input type="number" name="qty_${count}" value="1" min="1" /></label>
+    <label>Price: <input type="number" name="price_${count}" value="0" min="0" /></label>
+  `;
+  addSaleForm.querySelector("#productsContainer").appendChild(div);
+});
+
+addSaleForm?.addEventListener("input", () => {
+  let total = 0;
+  const rows = addSaleForm.querySelectorAll(".product-row");
+  rows.forEach(r => {
+    const qty = +r.querySelector(`[name^="qty_"]`).value || 0;
+    const price = +r.querySelector(`[name^="price_"]`).value || 0;
+    total += qty * price;
+  });
+  totalField.value = total.toLocaleString(CURRENCY_LOCALE);
+});
