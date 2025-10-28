@@ -84,10 +84,159 @@ function renderDashboard() {
     : allSales.filter(s => new Date(s.date).toISOString().slice(0, 7) === currentMonth);
 
   if (!filtered.length) {
-    console.warn("⚠️ No sales data to display for:", currentMonth);
     salesTableBody.innerHTML = `<tr><td colspan="7">No sales found for this month.</td></tr>`;
+    if (charts.bar) charts.bar.destroy();
+    if (charts.pieEmp) charts.pieEmp.destroy();
+    if (charts.piePay) charts.piePay.destroy();
     return;
   }
+
+  renderSalesTable(filtered);
+  renderCharts(filtered);
+  renderKPIs(filtered);
+}
+
+// When Add Sale form submits, refresh the dashboard
+addSaleForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  const formData = new FormData(addSaleForm);
+  const obj = Object.fromEntries(formData.entries());
+
+  const newSale = {
+    id: Date.now(),
+    customer: "New Customer",
+    cust_code: obj.cust_code,
+    date: obj.date,
+    employee: obj.employee || "Unassigned",
+    items: [{
+      product: obj.product_1,
+      qty: Number(obj.qty_1 || 1),
+      price: Number(obj.price_1 || 0)
+    }],
+    total: Number(totalField.value.replace(/,/g, "")) || 0,
+    payments: [{
+      date: new Date().toISOString().split("T")[0],
+      amount: Number(obj.amount_received || 0),
+      method: obj.account
+    }]
+  };
+
+  allSales.push(newSale); // Add in-memory
+  renderDashboard(); // Refresh charts + tables instantly
+
+  addSaleModal.style.display = "none";
+  addSaleForm.reset();
+  alert("✅ Sale added successfully (temporary until GitHub save is enabled).");
+});
+
+function renderCharts(data) {
+  const ctxBar = barChartEl.getContext("2d");
+  const ctxPie1 = pieEmployeeEl.getContext("2d");
+  const ctxPie2 = piePaymentEl.getContext("2d");
+
+  const byEmp = {};
+  const payStatus = { Full: 0, Partial: 0, Pending: 0 };
+
+  data.forEach(s => {
+    byEmp[s.employee] = (byEmp[s.employee] || 0) + s.total;
+    const paid = s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0;
+    if (paid >= s.total) payStatus.Full++;
+    else if (paid > 0) payStatus.Partial++;
+    else payStatus.Pending++;
+  });
+
+  const empLabels = Object.keys(byEmp);
+  const empValues = Object.values(byEmp);
+
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  // Bar Chart (more readable labels)
+  charts.bar = new Chart(ctxBar, {
+    type: "bar",
+    data: {
+      labels: empLabels,
+      datasets: [{
+        label: "Sales by Employee",
+        data: empValues,
+        backgroundColor: "#3b82f6"
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: {
+          ticks: {
+            color: document.body.classList.contains("dark") ? "#f9fafb" : "#111",
+            font: { weight: "600", size: 13 }
+          },
+          grid: { display: false }
+        },
+        y: {
+          ticks: {
+            color: document.body.classList.contains("dark") ? "#f9fafb" : "#111",
+            font: { size: 12 }
+          },
+          grid: { color: document.body.classList.contains("dark") ? "#475569" : "#d1d5db" }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: true }
+      }
+    }
+  });
+
+  // Pie charts: closer alignment and smaller size
+  charts.pieEmp = new Chart(ctxPie1, {
+    type: "pie",
+    data: {
+      labels: empLabels,
+      datasets: [{
+        data: empValues,
+        backgroundColor: ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6"]
+      }]
+    },
+    options: {
+      responsive: true,
+      layout: { padding: 0 },
+      plugins: {
+        legend: {
+          position: "right",
+          labels: {
+            font: { size: 12, weight: "500" },
+            color: document.body.classList.contains("dark") ? "#f9fafb" : "#111"
+          }
+        }
+      }
+    }
+  });
+
+  charts.piePay = new Chart(ctxPie2, {
+    type: "doughnut",
+    data: {
+      labels: Object.keys(payStatus),
+      datasets: [{
+        data: Object.values(payStatus),
+        backgroundColor: ["#10b981", "#fbbf24", "#ef4444"]
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: "65%",
+      plugins: {
+        legend: {
+          position: "right",
+          labels: {
+            font: { size: 12, weight: "500" },
+            color: document.body.classList.contains("dark") ? "#f9fafb" : "#111"
+          }
+        }
+      }
+    }
+  });
+}
 
   renderSalesTable(filtered);
   renderCharts(filtered);
