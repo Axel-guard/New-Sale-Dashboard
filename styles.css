@@ -154,12 +154,14 @@ body {
   text-align: center;
 }
 
+/* ===== Charts Section ===== */
 .charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
+  grid-template-columns: 2fr 1fr 1fr;
+  align-items: center;
   justify-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 canvas {
@@ -167,11 +169,18 @@ canvas {
   height: auto;
 }
 
+#barChart {
+  width: 100%;
+  min-width: 300px;
+}
+
 #pieEmployeeCurrent,
 #piePaymentStatus {
-  max-width: 180px;
-  max-height: 180px;
+  max-width: 160px;
+  max-height: 160px;
+  margin-top: 20px;
 }
+
 
 /* ===== Table ===== */
 .sales-table {
