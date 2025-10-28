@@ -3,6 +3,11 @@
 (async function(){
   const salesUrl = 'data/sales.json';
 
+  // Configuration: change these to adjust currency/convert
+  const CURRENCY_LOCALE = 'en-IN'; // Indian formatting
+  const CURRENCY_CODE = 'INR';     // INR currency code
+  const CONVERSION_RATE = 1;      // set to 1 for no conversion. Set to ~83 to convert USD -> INR
+
   // DOM
   const monthSelect = document.getElementById('monthSelect');
   const employeeListEl = document.getElementById('employeeList');
@@ -30,7 +35,11 @@
     if (isNaN(dt)) return d;
     return dt.toLocaleDateString();
   }
-  function currency(n){ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(n); }
+  // Currency formatter using INR. CONVERSION_RATE will convert numbers if you set it.
+  function currency(n){
+    const val = Number(n || 0) * CONVERSION_RATE;
+    return new Intl.NumberFormat(CURRENCY_LOCALE, { style: 'currency', currency: CURRENCY_CODE }).format(val);
+  }
 
   // Load data
   try {
@@ -160,7 +169,7 @@
   function buildCharts(sales){
     const agg = aggregateByEmployee(sales);
     const labels = Object.keys(agg);
-    const data = labels.map(l=>agg[l]);
+    const data = labels.map(l=>agg[l] * CONVERSION_RATE);
 
     if (barChart) barChart.destroy();
     barChart = new Chart(barCtx, {
@@ -274,7 +283,7 @@
       const paid = paymentsSum(s.payments||[]);
       const status = paymentStatus(s);
       const payments = (s.payments||[]).map(p=>`${p.date}::${p.amount}::${p.method||''}`).join('|');
-      const line = [s.id, `"${s.customer}"`, s.date, s.employee, `"${products}"`, s.total, paid, status, `"${payments}"`];
+      const line = [s.id, `"${s.customer}"`, s.date, s.employee, `"${products}"`, s.total * CONVERSION_RATE, paid * CONVERSION_RATE, status, `"${payments}"`];
       rows.push(line.join(','));
     });
     const csv = rows.join('\n');
