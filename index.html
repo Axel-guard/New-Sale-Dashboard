@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sales Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Sales Dashboard</h1>
+    <div class="controls">
+      <label for="monthSelect">Month:</label>
+      <select id="monthSelect"></select>
+
+      <label for="employeeSearch" class="sr-only">Search employee</label>
+      <input id="employeeSearch" placeholder="Search employee" />
+      <button id="exportCsv">Export CSV</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <h2>Employees</h2>
+      <ul id="employeeList" class="employee-list"></ul>
+      <hr/>
+      <div class="summary" id="kpiBoxes">
+        <!-- KPI boxes inserted here -->
+      </div>
+    </aside>
+
+    <section class="content">
+      <section class="charts">
+        <div class="chart-card">
+          <h3>Sales by Employee</h3>
+          <canvas id="barChart" height="140"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Payment Status</h3>
+          <canvas id="doughnutChart" height="140"></canvas>
+        </div>
+      </section>
+
+      <section class="table-card">
+        <h3>Sales - Details</h3>
+        <div class="table-actions">
+          <label><input type="checkbox" id="showAllPayments" checked /> Show full payment rows</label>
+          <input id="globalSearch" placeholder="Search customer, product, employee..." />
+        </div>
+        <table id="salesTable">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Date</th>
+              <th>Employee</th>
+              <th>Products</th>
+              <th>Total</th>
+              <th>Payment Status</th>
+              <th>Payments</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <template id="paymentRowTemplate">
+    <tr class="payment-row">
+      <td colspan="7" class="payment-details"></td>
+    </tr>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

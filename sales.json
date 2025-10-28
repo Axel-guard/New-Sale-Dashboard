@@ -1,0 +1,116 @@
+[
+  {
+    "id": 101,
+    "customer": "Acme Corp",
+    "date": "2025-10-03T10:15:00Z",
+    "employee": "Alice",
+    "items": [
+      {"product":"Widget A","qty":2,"price":120},
+      {"product":"Widget B","qty":1,"price":80}
+    ],
+    "total": 320,
+    "payments": [
+      {"date":"2025-10-03T12:00:00Z","amount":320,"method":"Credit Card"}
+    ],
+    "notes": "Online order"
+  },
+  {
+    "id": 102,
+    "customer": "Beta Solutions",
+    "date": "2025-10-08T14:30:00Z",
+    "employee": "Bob",
+    "items": [
+      {"product":"Service X","qty":1,"price":500}
+    ],
+    "total": 500,
+    "payments": [
+      {"date":"2025-10-08T15:00:00Z","amount":200,"method":"Bank Transfer"},
+      {"date":"2025-10-20T09:00:00Z","amount":300,"method":"Bank Transfer"}
+    ],
+    "notes": "Paid partially, finished on 20th"
+  },
+  {
+    "id": 103,
+    "customer": "Gamma LLC",
+    "date": "2025-09-21T09:00:00Z",
+    "employee": "Carlos",
+    "items": [
+      {"product":"Hardware Kit","qty":3,"price":75}
+    ],
+    "total": 225,
+    "payments": [
+      {"date":"2025-09-21T10:00:00Z","amount":100,"method":"Cash"}
+    ],
+    "notes": ""
+  },
+  {
+    "id": 104,
+    "customer": "Delta Retail",
+    "date": "2025-08-15T11:00:00Z",
+    "employee": "Alice",
+    "items": [
+      {"product":"Widget A","qty":5,"price":120}
+    ],
+    "total": 600,
+    "payments": [
+      {"date":"2025-08-15T13:00:00Z","amount":600,"method":"Credit Card"}
+    ],
+    "notes": "Bulk order"
+  },
+  {
+    "id": 105,
+    "customer": "Echo Enterprises",
+    "date": "2025-10-12T16:45:00Z",
+    "employee": "Carlos",
+    "items": [
+      {"product":"Consulting","qty":2,"price":250}
+    ],
+    "total": 500,
+    "payments": [],
+    "notes": "Invoice sent"
+  },
+  {
+    "id": 106,
+    "customer": "Foxtrot Inc",
+    "date": "2025-07-02T09:20:00Z",
+    "employee": "Bob",
+    "items": [
+      {"product":"Subscription","qty":1,"price":150}
+    ],
+    "total": 150,
+    "payments": [
+      {"date":"2025-07-02T09:50:00Z","amount":150,"method":"Credit Card"}
+    ],
+    "notes": ""
+  },
+  {
+    "id": 107,
+    "customer": "Golf Traders",
+    "date": "2025-10-18T10:00:00Z",
+    "employee": "Alice",
+    "items": [
+      {"product":"Widget C","qty":4,"price":60}
+    ],
+    "total": 240,
+    "payments": [
+      {"date":"2025-10-18T10:30:00Z","amount":100,"method":"Cash"},
+      {"date":"2025-10-25T11:00:00Z","amount":140,"method":"Bank Transfer"}
+    ],
+    "notes": "Split payment"
+  },
+  {
+    "id": 108,
+    "customer": "Hotel Z",
+    "date": "2025-05-21T08:00:00Z",
+    "employee": "Carlos",
+    "items": [
+      {"product":"Large Kit","qty":1,"price":1200}
+    ],
+    "total": 1200,
+    "payments": [
+      {"date":"2025-05-22T09:00:00Z","amount":600,"method":"Bank Transfer"},
+      {"date":"2025-06-02T10:00:00Z","amount":600,"method":"Bank Transfer"}
+    ],
+    "notes": "Installments"
+  }
+]
