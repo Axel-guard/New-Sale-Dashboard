@@ -8,6 +8,59 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
+<!-- Add Sale Modal -->
+<div id="addSaleModal" class="modal" aria-hidden="true" style="display:none;">
+  <div class="modal-content">
+    <button id="closeAddSale" class="modal-close">✕</button>
+    <h2>Add Sale</h2>
+
+    <form id="addSaleForm">
+      <label>Customer Code<br /><input name="cust_code" required /></label>
+
+      <label>Sale Date<br /><input name="date" type="date" required /></label>
+
+      <label>Employee<br />
+        <select name="employee" required>
+          <option value="">-- select --</option>
+          <option>Akash Parashar</option>
+          <option>Mandeep Samal</option>
+          <option>Smruti Ranjan Nayak</option>
+        </select>
+      </label>
+
+      <label>Amount Received<br /><input name="amount_received" type="number" min="0" value="0" required /></label>
+
+      <label>Account<br />
+        <select name="account" required>
+          <option value="">-- select --</option>
+          <option>IDFC 4828</option>
+          <option>IDFC 7455</option>
+          <option>Canara Bank</option>
+          <option>Cash</option>
+        </select>
+      </label>
+
+      <label>Payment Reference<br /><input name="payment_ref" /></label>
+      <label>Courier Cost (₹)<br /><input name="courier_cost" type="number" min="0" value="0" /></label>
+
+      <div id="productsContainer">
+        <div class="product-row">
+          <label>Product 1<br /><input name="product_1" /></label>
+          <label>Qty<br /><input name="qty_1" type="number" min="1" value="1" /></label>
+          <label>Price<br /><input name="price_1" type="number" min="0" value="0" /></label>
+        </div>
+      </div>
+
+      <button id="addProductRow" type="button">Add Product</button>
+      <label>Total<br /><input id="totalField" name="total" readonly /></label>
+
+      <div class="form-actions">
+        <button type="submit" class="accent">Add & Save</button>
+        <button id="cancelAdd" type="button">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <body>
   <header class="topbar">
