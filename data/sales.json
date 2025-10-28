@@ -111,19 +111,21 @@
       {"date":"2025-05-22T09:00:00Z","amount":600,"method":"Bank Transfer"},
       {"date":"2025-06-02T10:00:00Z","amount":600,"method":"Bank Transfer"}
     ],
-    "notes": "Installments",{
-  "id": 109,
-  "customer": "India Pvt Ltd",
-  "date": "2025-10-27T10:00:00Z",
-  "employee": "Deepak",
-  "items": [
-    {"product":"Local Service","qty":1,"price":1000}
-  ],
-  "total": 1000,
-  "payments": [
-    {"date":"2025-10-27T12:00:00Z","amount":500,"method":"UPI"},
-    {"date":"2025-10-29T09:00:00Z","amount":500,"method":"Bank Transfer"}
-  ],
-  "notes": "Test entry in INR"
-}
+    "notes": "Installments"
+  },
+  {
+    "id": 109,
+    "customer": "India Pvt Ltd",
+    "date": "2025-10-27T10:00:00Z",
+    "employee": "Deepak",
+    "items": [
+      {"product":"Local Service","qty":1,"price":1000}
+    ],
+    "total": 1000,
+    "payments": [
+      {"date":"2025-10-27T12:00:00Z","amount":500,"method":"UPI"},
+      {"date":"2025-10-29T09:00:00Z","amount":500,"method":"Bank Transfer"}
+    ],
+    "notes": "Test entry in INR"
+  }
 ]
