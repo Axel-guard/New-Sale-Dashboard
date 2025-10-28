@@ -6,11 +6,13 @@
     "date": "2025-10-02T00:00:00Z",
     "employee": "Akash Parashar",
     "items": [
-      {"product": "AI MDVR 4CH", "qty": 2, "price": 9500},
-      {"product": "ADAS Camera", "qty": 1, "price": 4500}
+      { "product": "AI MDVR 4CH", "qty": 2, "price": 9500 },
+      { "product": "ADAS Camera", "qty": 1, "price": 4500 }
     ],
     "total": 23500,
-    "payments": [{"date": "2025-10-02", "amount": 23500, "method": "IDFC 4828"}]
+    "payments": [
+      { "date": "2025-10-02", "amount": 23500, "method": "IDFC 4828" }
+    ]
   },
   {
     "id": 102,
@@ -19,108 +21,11 @@
     "date": "2025-10-04T00:00:00Z",
     "employee": "Mandeep Samal",
     "items": [
-      {"product": "DSM Camera", "qty": 1, "price": 7800}
+      { "product": "DSM Camera", "qty": 1, "price": 7800 }
     ],
     "total": 7800,
-    "payments": [{"date": "2025-10-05", "amount": 4000, "method": "Cash"}]
-  },
-  {
-    "id": 103,
-    "customer": "Suresh Yadav",
-    "cust_code": "C003",
-    "date": "2025-09-27T00:00:00Z",
-    "employee": "Smruti Ranjan Nayak",
-    "items": [
-      {"product": "MDVR 8CH", "qty": 1, "price": 18500},
-      {"product": "HDD 1TB", "qty": 1, "price": 4200}
-    ],
-    "total": 22700,
-    "payments": [{"date": "2025-09-27", "amount": 22700, "method": "IDFC 7455"}]
-  },
-  {
-    "id": 104,
-    "customer": "Ankit Sharma",
-    "cust_code": "C004",
-    "date": "2025-09-29T00:00:00Z",
-    "employee": "Akash Parashar",
-    "items": [
-      {"product": "7-inch Monitor", "qty": 3, "price": 3500}
-    ],
-    "total": 10500,
-    "payments": [{"date": "2025-09-30", "amount": 7000, "method": "Canara Bank"}]
-  },
-  {
-    "id": 105,
-    "customer": "Vikas Singh",
-    "cust_code": "C005",
-    "date": "2025-09-30T00:00:00Z",
-    "employee": "Mandeep Samal",
-    "items": [
-      {"product": "BSD Sensor", "qty": 2, "price": 5600},
-      {"product": "Rear Camera", "qty": 2, "price": 2500}
-    ],
-    "total": 16200,
-    "payments": [{"date": "2025-10-01", "amount": 16200, "method": "IDFC 7455"}]
-  },
-  {
-    "id": 106,
-    "customer": "Rajeev Mehta",
-    "cust_code": "C006",
-    "date": "2025-08-20T00:00:00Z",
-    "employee": "Smruti Ranjan Nayak",
-    "items": [
-      {"product": "MDVR 4CH Lite", "qty": 3, "price": 6900}
-    ],
-    "total": 20700,
-    "payments": [{"date": "2025-08-22", "amount": 15000, "method": "Cash"}]
-  },
-  {
-    "id": 107,
-    "customer": "Deepak Tiwari",
-    "cust_code": "C007",
-    "date": "2025-08-26T00:00:00Z",
-    "employee": "Akash Parashar",
-    "items": [
-      {"product": "Fuel Sensor", "qty": 2, "price": 5800}
-    ],
-    "total": 11600,
-    "payments": [{"date": "2025-08-27", "amount": 11600, "method": "Canara Bank"}]
-  },
-  {
-    "id": 108,
-    "customer": "Mahesh Rao",
-    "cust_code": "C008",
-    "date": "2025-07-15T00:00:00Z",
-    "employee": "Mandeep Samal",
-    "items": [
-      {"product": "AHD Camera", "qty": 4, "price": 2900}
-    ],
-    "total": 11600,
-    "payments": [{"date": "2025-07-16", "amount": 11600, "method": "IDFC 4828"}]
-  },
-  {
-    "id": 109,
-    "customer": "Karan Verma",
-    "cust_code": "C009",
-    "date": "2025-10-06T00:00:00Z",
-    "employee": "Smruti Ranjan Nayak",
-    "items": [
-      {"product": "Driver Fatigue System", "qty": 1, "price": 12500}
-    ],
-    "total": 12500,
-    "payments": []
-  },
-  {
-    "id": 110,
-    "customer": "Ravi Chauhan",
-    "cust_code": "C010",
-    "date": "2025-10-07T00:00:00Z",
-    "employee": "Akash Parashar",
-    "items": [
-      {"product": "AI Dashcam", "qty": 1, "price": 9800},
-      {"product": "Micro SD 256GB", "qty": 1, "price": 1900}
-    ],
-    "total": 11700,
-    "payments": [{"date": "2025-10-07", "amount": 11700, "method": "IDFC 4828"}]
+    "payments": [
+      { "date": "2025-10-05", "amount": 4000, "method": "Cash" }
+    ]
   }
 ]
