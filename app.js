@@ -172,6 +172,9 @@ const salesUrl = "./data/sales.json";
 
   // ---- INITIALIZE ----
   allSales = await loadRemoteSales();
+  allSales = await loadRemoteSales();
+console.log("Fetched data →", allSales);
+alert("Loaded " + allSales.length + " sales records");
   buildEmployeeList();
   buildKPIs(allSales);
   buildCharts(allSales);
