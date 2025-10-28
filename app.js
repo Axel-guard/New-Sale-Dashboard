@@ -6,7 +6,7 @@ const GITHUB_PATH  = "data/sales.json";             // file to update
 const GITHUB_BRANCH = "main";                       // branch
 const SESSION_TOKEN_KEY = null; // not used anymore
 
-; // the file where you store data
+// the file where you store data
 // Sales dashboard with GitHub commit on submit, date-only input, employee dropdown, enhanced doughnut (3D-ish)
 // IMPORTANT: to allow commits the page prompts for a GitHub PAT (token) with repo contents permissions.
 // Token is stored in sessionStorage only (so it persists for the browser session) — revoke the token after use if desired.
