@@ -241,7 +241,6 @@ function applyTheme() {
   document.body.classList.toggle("dark", darkMode);
   themeToggle.textContent = darkMode ? "☀️" : "🌙";
   Object.values(charts).forEach((chart) => chart?.update?.());
-}
 
 themeToggle?.addEventListener("click", () => {
   darkMode = !darkMode;
