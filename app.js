@@ -1,4 +1,4 @@
-// Simple client-side sales dashboard
+// Simple client-side sales dashboard with a local "Add Sale" form
 // Loads data/sales.json and renders charts + table
 (async function(){
   const salesUrl = 'data/sales.json';
@@ -16,9 +16,13 @@
   const barCtx = document.getElementById('barChart').getContext('2d');
   const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
   const exportBtn = document.getElementById('exportCsv');
+  const downloadJsonBtn = document.getElementById('downloadJson');
+  const downloadSingleBtn = document.getElementById('downloadSingle');
   const showAllPayments = document.getElementById('showAllPayments');
   const globalSearch = document.getElementById('globalSearch');
   const employeeSearch = document.getElementById('employeeSearch');
+  const addSaleForm = document.getElementById('addSaleForm');
+  const totalField = document.getElementById('totalField');
 
   let allSales = [];
   let filteredSales = [];
@@ -41,6 +45,9 @@
     return new Intl.NumberFormat(CURRENCY_LOCALE, { style: 'currency', currency: CURRENCY_CODE }).format(val);
   }
 
+  // Local storage key for new entries you add from the form
+  const LS_KEY = 'sales_dashboard_added_sales_v1';
+
   // Load data
   try {
     const r = await fetch(salesUrl);
@@ -49,6 +56,20 @@
     console.error('Failed to load sales.json', e);
     allSales = [];
   }
+
+  // merge saved entries from localStorage so they show up in UI
+  function mergeLocalSaved(){
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const extra = JSON.parse(raw);
+      if (!Array.isArray(extra)) return;
+      // ensure IDs do not collide by keeping given ids or creating unique ids
+      allSales = allSales.concat(extra);
+    } catch(e){ console.error('failed to merge local entries', e); }
+  }
+
+  mergeLocalSaved();
 
   // Build month options from data (plus "current" default)
   function buildMonthOptions(){
@@ -296,6 +317,29 @@
     URL.revokeObjectURL(url);
   }
 
+  // Download entire merged JSON (original + local added entries)
+  function downloadMergedJSON(){
+    const merged = allSales.slice(); // allSales already has merged local entries on load
+    const blob = new Blob([JSON.stringify(merged, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sales.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Save added entries to localStorage (keeps them across reloads)
+  function saveAddedEntriesToLocalStorage(added){
+    try {
+      // read existing local saved ones
+      const raw = localStorage.getItem(LS_KEY);
+      const existing = raw ? JSON.parse(raw) : [];
+      const merged = existing.concat(added);
+      localStorage.setItem(LS_KEY, JSON.stringify(merged));
+    } catch(e){ console.error('failed to save to localStorage', e); }
+  }
+
   // Apply filters and refresh UI
   function refresh(){
     // month filter
@@ -319,6 +363,7 @@
     refresh();
   };
   exportBtn.onclick = ()=> exportCSV(filteredSales);
+  downloadJsonBtn.onclick = ()=> downloadMergedJSON();
   showAllPayments.onchange = ()=> renderTable(filteredSales);
   globalSearch.oninput = debounce(()=> renderTable(filteredSales), 300);
   employeeSearch.oninput = debounce(()=> { buildEmployeeListFiltered(); }, 300);
@@ -359,9 +404,94 @@
     return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), wait); };
   }
 
+  // ------------ Add Sale form handling ------------
+  // compute total when qty/price changes
+  function computeTotalFromForm(form){
+    const qty = Number(form.qty.value || 0);
+    const price = Number(form.price.value || 0);
+    return qty * price;
+  }
+
+  if (addSaleForm){
+    addSaleForm.qty.addEventListener('input', ()=> { totalField.value = computeTotalFromForm(addSaleForm); });
+    addSaleForm.price.addEventListener('input', ()=> { totalField.value = computeTotalFromForm(addSaleForm); });
+    // initialize total
+    totalField.value = computeTotalFromForm(addSaleForm);
+
+    addSaleForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const form = e.target;
+      const id = Date.now(); // simple unique id
+      const customer = form.customer.value.trim();
+      const dateVal = form.date.value;
+      // convert datetime-local to ISO (append Z if no timezone)
+      const isoDate = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
+      const employee = form.employee.value.trim();
+      const item = {
+        product: form.product.value.trim(),
+        qty: Number(form.qty.value || 0),
+        price: Number(form.price.value || 0)
+      };
+      const total = computeTotalFromForm(form);
+      const payments = [];
+      const p1 = Number(form.p_amount_1.value || 0);
+      if (p1 > 0) payments.push({date: isoDate, amount: p1, method: form.p_method_1.value || ''});
+
+      const saleObj = {
+        id,
+        customer,
+        date: isoDate,
+        employee,
+        items: [item],
+        total,
+        payments,
+        notes: 'Added via UI'
+      };
+
+      // add to runtime and save to localStorage
+      allSales.push(saleObj);
+      saveAddedEntriesToLocalStorage([saleObj]);
+
+      // update UI
+      buildMonthOptions();
+      buildEmployeeList();
+      refresh();
+
+      // close modal (simple approach)
+      document.getElementById('closeAddSale').click();
+      // reset form
+      form.reset();
+      totalField.value = '';
+    });
+
+    // immediate download of a single JSON object (useful for quick upload)
+    downloadSingleBtn.addEventListener('click', ()=>{
+      const form = addSaleForm;
+      const id = Date.now();
+      const dateVal = form.date.value;
+      const isoDate = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
+      const item = { product: form.product.value.trim(), qty: Number(form.qty.value||0), price: Number(form.price.value||0) };
+      const total = computeTotalFromForm(form);
+      const payments = [];
+      const p1 = Number(form.p_amount_1.value || 0);
+      if (p1 > 0) payments.push({date: isoDate, amount: p1, method: form.p_method_1.value || ''});
+      const saleObj = { id, customer: form.customer.value.trim(), date: isoDate, employee: form.employee.value.trim(), items:[item], total, payments, notes: 'Single download from UI' };
+      const blob = new Blob([JSON.stringify(saleObj, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sale-${id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
   // Initialize
   buildMonthOptions();
   buildEmployeeList();
   refresh();
+
+  // expose downloadMergedJSON for the button in index.html
+  window.downloadMergedJSON = downloadMergedJSON;
 
 })();
