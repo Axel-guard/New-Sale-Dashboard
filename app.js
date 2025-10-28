@@ -45,6 +45,22 @@ const SESSION_TOKEN_KEY = null; // not used anymore
   const showAllPayments = document.getElementById('showAllPayments');
   const globalSearch = document.getElementById('globalSearch');
   const employeeSearch = document.getElementById('employeeSearch');
+// --- page tabs ---
+const pages = {
+  dashboard: document.getElementById('page-dashboard'),
+  order: document.getElementById('page-order'),
+  courier: document.getElementById('page-courier'),
+  customers: document.getElementById('page-customers')
+};
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const key = btn.dataset.page;
+    Object.values(pages).forEach(p=>p.classList.remove('visible'));
+    pages[key].classList.add('visible');
+  };
+});
 
   let allSales = [];
   let filteredSales = [];
