@@ -93,7 +93,8 @@ const salesUrl = "./data/sales.json";
   }
 
   // ---- UI BUILD ----
-  function buildEmployeeList(){
+  if (!allSales.length) { alert("JSON loaded but array empty"); return; }
+    function buildEmployeeList(){
     const employees = [...new Set(allSales.map(s=>s.employee))].filter(Boolean).sort();
     employeeListEl.innerHTML = "";
     const allLi = document.createElement("li");
