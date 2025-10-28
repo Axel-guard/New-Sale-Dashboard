@@ -12,10 +12,8 @@ const totalField = document.getElementById("totalField");
 async function loadSalesData() {
   try {
     // ✅ Use absolute URL for GitHub Pages (adjust if you host elsewhere)
-    const res = await fetch(
-      "https://axel-guard.github.io/New-Sale-Dashboard/sales.json",
-      { cache: "no-store" }
-    );
+    const res = await fetch("data/sales.json", { cache: "no-store" });
+
 
     if (!res.ok) throw new Error("Cannot fetch sales.json");
 
