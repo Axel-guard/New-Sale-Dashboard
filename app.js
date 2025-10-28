@@ -216,3 +216,28 @@ addSaleForm?.addEventListener("input", () => {
   });
   totalField.value = total.toLocaleString(CURRENCY_LOCALE);
 });
+// ===== THEME TOGGLE (Light/Dark) =====
+const themeToggle = document.getElementById("themeToggle");
+let darkMode = localStorage.getItem("theme") === "dark";
+
+function applyTheme() {
+  document.body.classList.toggle("dark", darkMode);
+  themeToggle.textContent = darkMode ? "☀️" : "🌙";
+
+  // Update chart colors dynamically
+  Object.values(charts).forEach(chart => {
+    if (!chart?.options) return;
+    chart.options.plugins.legend.labels.color = darkMode ? "#f9fafb" : "#111827";
+    chart.options.scales?.x && (chart.options.scales.x.grid.color = darkMode ? "#475569" : "#d1d5db");
+    chart.options.scales?.y && (chart.options.scales.y.grid.color = darkMode ? "#475569" : "#d1d5db");
+    chart.update();
+  });
+}
+
+themeToggle.addEventListener("click", () => {
+  darkMode = !darkMode;
+  localStorage.setItem("theme", darkMode ? "dark" : "light");
+  applyTheme();
+});
+
+applyTheme(); // Apply saved theme on load
