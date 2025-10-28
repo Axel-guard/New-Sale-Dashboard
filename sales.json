@@ -125,5 +125,5 @@
     {"date":"2025-10-29T09:00:00Z","amount":500,"method":"Bank Transfer"}
   ],
   "notes": "Test entry in INR"
-},
+}
 ]
