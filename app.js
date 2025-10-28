@@ -242,38 +242,56 @@ const SESSION_TOKEN_KEY = null; // not used anymore
     }
   };
 
-  function buildCharts(sales){
-    const agg = aggregateByEmployee(sales);
-    const labels = Object.keys(agg);
-    const data = labels.map(l=>agg[l] * CONVERSION_RATE);
+  let barChart = null, doughnutChart = null, pieEmpCurrent = null, piePayStatus = null;
 
-    if (barChart) barChart.destroy();
-    barChart = new Chart(barCtx, {
-      type:'bar',
-      data:{ labels, datasets:[{ label:'Sales', data, backgroundColor: labels.map(()=> 'rgba(37,99,235,0.75)') }]},
-      options:{responsive:true, plugins:{legend:{display:false}}}
-    });
+function buildCharts(sales){
+  // bar (all filtered sales)
+  const agg = aggregateByEmployee(sales);
+  const labels = Object.keys(agg);
+  const data = labels.map(l=>agg[l] * CONVERSION_RATE);
 
-    const statusCounts = {paid:0,partial:0,due:0};
-    sales.forEach(s=> statusCounts[paymentStatus(s)]++);
+  if (barChart) barChart.destroy();
+  barChart = new Chart(barCtx, {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Sales', data, backgroundColor: labels.map(()=> 'rgba(37,99,235,0.75)') }]},
+    options:{responsive:true, plugins:{legend:{display:false}}}
+  });
 
-    if (doughnutChart) doughnutChart.destroy();
-    doughnutChart = new Chart(doughnutCtx, {
-      type:'doughnut',
-      data:{
-        labels:['Paid','Partial','Due'],
-        datasets:[{
-          data:[statusCounts.paid, statusCounts.partial, statusCounts.due],
-          backgroundColor:['#10b981','#f59e0b','#ef4444']
-        }]
-      },
-      options:{
-        plugins:{legend:{position:'bottom'}},
-        cutout: '35%'
-      },
-      plugins: [doughnut3DPlugin]
-    });
-  }
+  // payment status pie (3D-ish)
+  const statusCounts = {paid:0,partial:0,due:0};
+  sales.forEach(s=> statusCounts[paymentStatus(s)]++);
+
+  const pieEmpCanvas = document.getElementById('pieEmployeeCurrent').getContext('2d');
+  const piePayCanvas = document.getElementById('piePaymentStatus').getContext('2d');
+
+  // current month employee sales
+  const currentMonthSales = filterByMonth(allSales, 'current');
+  const byEmpCur = aggregateByEmployee(currentMonthSales);
+  const curLabels = Object.keys(byEmpCur);
+  const curData = curLabels.map(l=>byEmpCur[l] * CONVERSION_RATE);
+
+  if (pieEmpCurrent) pieEmpCurrent.destroy();
+  pieEmpCurrent = new Chart(pieEmpCanvas, {
+    type:'doughnut',
+    data:{ labels: curLabels, datasets:[{ data: curData }]},
+    options:{ plugins:{legend:{position:'bottom'}}, cutout:'35%', maintainAspectRatio:true },
+    plugins:[doughnut3DPlugin]
+  });
+
+  if (piePayStatus) piePayStatus.destroy();
+  piePayStatus = new Chart(piePayCanvas, {
+    type:'doughnut',
+    data:{
+      labels:['Paid','Partial','Due'],
+      datasets:[{ data:[statusCounts.paid, statusCounts.partial, statusCounts.due] }]
+    },
+    options:{ plugins:{legend:{position:'bottom'}}, cutout:'35%', maintainAspectRatio:true },
+    plugins:[doughnut3DPlugin]
+  });
+
+  // Week-wise table (current month)
+  renderWeekByEmployeeTable();
+}
 
   // Render table
   function renderTable(sales){
