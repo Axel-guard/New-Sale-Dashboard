@@ -1660,4 +1660,3 @@ function renderCustomerSummary(){
   document.getElementById('customerSummary').innerHTML = html;
 }
 
-})();
