@@ -171,4 +171,19 @@
     "payments": [],
     "notes": "Added via UI"
   }
+  [
+  {
+    "id": 1001,
+    "customer": "Test Customer",
+    "cust_code": "C001",
+    "date": "2025-10-01T00:00:00Z",
+    "employee": "Akash Parashar",
+    "items": [
+      {"product": "Demo Product", "qty": 2, "price": 5000}
+    ],
+    "total": 10000,
+    "payments": [{"date": "2025-10-01", "amount": 10000, "method": "Cash"}]
+  }
+    
+]
 ]
