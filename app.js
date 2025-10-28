@@ -1,3 +1,6 @@
+const GITHUB_TOKEN = "ghp_yourTokenHere"; // paste your real token here
+const REPO = "yourusername/New-Sale-Dashboard-main"; // replace with your GitHub repo path
+const FILE_PATH = "sales.json"; // the file where you store data
 // Sales dashboard with GitHub commit on submit, date-only input, employee dropdown, enhanced doughnut (3D-ish)
 // IMPORTANT: to allow commits the page prompts for a GitHub PAT (token) with repo contents permissions.
 // Token is stored in sessionStorage only (so it persists for the browser session) — revoke the token after use if desired.
