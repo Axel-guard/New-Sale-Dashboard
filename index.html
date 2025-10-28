@@ -8,61 +8,9 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-<!-- Add Sale Modal -->
-<div id="addSaleModal" class="modal" aria-hidden="true" style="display:none;">
-  <div class="modal-content">
-    <button id="closeAddSale" class="modal-close">✕</button>
-    <h2>Add Sale</h2>
-
-    <form id="addSaleForm">
-      <label>Customer Code<br /><input name="cust_code" required /></label>
-
-      <label>Sale Date<br /><input name="date" type="date" required /></label>
-
-      <label>Employee<br />
-        <select name="employee" required>
-          <option value="">-- select --</option>
-          <option>Akash Parashar</option>
-          <option>Mandeep Samal</option>
-          <option>Smruti Ranjan Nayak</option>
-        </select>
-      </label>
-
-      <label>Amount Received<br /><input name="amount_received" type="number" min="0" value="0" required /></label>
-
-      <label>Account<br />
-        <select name="account" required>
-          <option value="">-- select --</option>
-          <option>IDFC 4828</option>
-          <option>IDFC 7455</option>
-          <option>Canara Bank</option>
-          <option>Cash</option>
-        </select>
-      </label>
-
-      <label>Payment Reference<br /><input name="payment_ref" /></label>
-      <label>Courier Cost (₹)<br /><input name="courier_cost" type="number" min="0" value="0" /></label>
-
-      <div id="productsContainer">
-        <div class="product-row">
-          <label>Product 1<br /><input name="product_1" /></label>
-          <label>Qty<br /><input name="qty_1" type="number" min="1" value="1" /></label>
-          <label>Price<br /><input name="price_1" type="number" min="0" value="0" /></label>
-        </div>
-      </div>
-
-      <button id="addProductRow" type="button">Add Product</button>
-      <label>Total<br /><input id="totalField" name="total" readonly /></label>
-
-      <div class="form-actions">
-        <button type="submit" class="accent">Add & Save</button>
-        <button id="cancelAdd" type="button">Cancel</button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <body>
+  <!-- ================= HEADER ================= -->
   <header class="topbar">
     <nav class="subnav">
       <button class="tab-btn active" data-page="dashboard">Dashboard</button>
@@ -86,8 +34,9 @@
     </div>
   </header>
 
+  <!-- ================= MAIN CONTENT ================= -->
   <main>
-    <!-- PAGE: Dashboard -->
+    <!-- === PAGE: Dashboard === -->
     <section id="page-dashboard" class="page visible">
       <div class="layout">
         <aside class="sidebar">
@@ -124,7 +73,7 @@
       </div>
     </section>
 
-    <!-- PAGE: Order by ID -->
+    <!-- === PAGE: Order by ID === -->
     <section id="page-order" class="page">
       <h2>Find Order by ID</h2>
       <input id="orderLookupId" placeholder="Enter Order ID" />
@@ -132,10 +81,10 @@
       <pre id="orderResult" class="output"></pre>
     </section>
 
-    <!-- PAGE: Courier Cost -->
+    <!-- === PAGE: Courier Cost === -->
     <section id="page-courier" class="page">
       <h2>Courier Cost Calculator</h2>
-      <label>Mode: 
+      <label>Mode:
         <select id="ccMode">
           <option value="road">Road</option>
           <option value="air">Air</option>
@@ -148,58 +97,74 @@
       <p id="ccResult"></p>
     </section>
 
-    <!-- PAGE: Customer Details -->
+    <!-- === PAGE: Customer Details === -->
     <section id="page-customers" class="page">
       <h2>Customer Summary</h2>
       <div id="customerSummary"></div>
     </section>
   </main>
 
-  <!-- MODAL: Add Sale -->
-  <div id="addSaleModal" class="modal" style="display:none;">
+  <!-- ================= ADD SALE MODAL ================= -->
+  <div id="addSaleModal" class="modal" aria-hidden="true" style="display:none;">
     <div class="modal-content">
-      <h3>Add Sale Entry</h3>
+      <button id="closeAddSale" class="modal-close">✕</button>
+      <h2>Add Sale</h2>
+
       <form id="addSaleForm">
-        <label>Customer Code: <input name="cust_code" required /></label>
-        <label>Date of Sale: <input type="date" name="date" required /></label>
-        <label>Employee: <input name="employee" required /></label>
-        <label>Amount Received: <input type="number" name="amount_received" /></label>
-        <label>Which Account:
-          <select name="account">
+        <label>Customer Code<br /><input name="cust_code" required /></label>
+        <label>Sale Date<br /><input name="date" type="date" required /></label>
+
+        <label>Employee<br />
+          <select name="employee" required>
+            <option value="">-- select --</option>
+            <option>Akash Parashar</option>
+            <option>Mandeep Samal</option>
+            <option>Smruti Ranjan Nayak</option>
+          </select>
+        </label>
+
+        <label>Amount Received<br /><input name="amount_received" type="number" min="0" value="0" required /></label>
+
+        <label>Account<br />
+          <select name="account" required>
+            <option value="">-- select --</option>
             <option>IDFC 4828</option>
             <option>IDFC 7455</option>
             <option>Canara Bank</option>
             <option>Cash</option>
           </select>
         </label>
-        <label>Payment Reference Number: <input name="payment_ref" /></label>
-        <label>Courier Cost: <input type="number" name="courier_cost" /></label>
+
+        <label>Payment Reference<br /><input name="payment_ref" /></label>
+        <label>Courier Cost (₹)<br /><input name="courier_cost" type="number" min="0" value="0" /></label>
 
         <div id="productsContainer" class="product-list">
           <div class="product-row">
-            <label>Product 1: <input name="product_1" /></label>
-            <label>Qty: <input type="number" name="qty_1" value="1" min="1" /></label>
-            <label>Price: <input type="number" name="price_1" value="0" min="0" /></label>
+            <label>Product 1<br /><input name="product_1" /></label>
+            <label>Qty<br /><input name="qty_1" type="number" min="1" value="1" /></label>
+            <label>Price<br /><input name="price_1" type="number" min="0" value="0" /></label>
           </div>
         </div>
-        <button type="button" id="addProductRow">+ Add Product</button>
 
-        <label>Total: <input id="totalField" readonly /></label>
+        <button id="addProductRow" type="button">+ Add Product</button>
+        <label>Total<br /><input id="totalField" name="total" readonly /></label>
+
         <div class="form-actions">
-          <button type="submit">Save</button>
-          <button type="button" id="closeAddSale">Cancel</button>
+          <button type="submit" class="accent">Add & Save</button>
+          <button type="button" id="cancelAdd">Cancel</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- TEMPLATE -->
+  <!-- ================= TEMPLATE ================= -->
   <template id="paymentRowTemplate">
     <tr class="payment-row">
       <td colspan="7" class="payment-details"></td>
     </tr>
   </template>
 
+  <!-- ================= SCRIPT ================= -->
   <script src="app.js"></script>
 </body>
 </html>
