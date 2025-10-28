@@ -1,1 +1,174 @@
-[]
+[
+  {
+    "id": 1761651791416,
+    "customer": "Naveen",
+    "date": "2025-10-28T11:42:00.000Z",
+    "employee": "Bicky",
+    "items": [
+      {
+        "product": "dashcam",
+        "qty": 1,
+        "price": 1600
+      }
+    ],
+    "total": 1600,
+    "payments": [
+      {
+        "date": "2025-10-28T11:42:00.000Z",
+        "amount": 1500,
+        "method": "Online"
+      }
+    ],
+    "notes": "Added via UI"
+  },
+  {
+    "id": 1761651837190,
+    "customer": "Pankaj",
+    "date": "2025-10-28T11:43:00.000Z",
+    "employee": "Mandeep",
+    "items": [
+      {
+        "product": "MDVR",
+        "qty": 1,
+        "price": 4400
+      }
+    ],
+    "total": 4400,
+    "payments": [
+      {
+        "date": "2025-10-28T11:43:00.000Z",
+        "amount": 4400,
+        "method": "online"
+      }
+    ],
+    "notes": "Added via UI"
+  },
+  {
+    "id": 1761655425628,
+    "customer": "Pankaj",
+    "date": "2025-10-28T12:43:00.000Z",
+    "employee": "Akash Parashar",
+    "items": [
+      {
+        "product": "mdvr",
+        "qty": 1,
+        "price": 1500
+      }
+    ],
+    "total": 1500,
+    "payments": [],
+    "notes": "Added via UI"
+  },
+  {
+    "id": 1761656804886,
+    "customer": "jaswinder",
+    "mobile": "9971534835",
+    "company": "",
+    "cust_code": "781",
+    "date": "2025-10-28T00:00:00.000Z",
+    "employee": "Akash Parashar",
+    "items": [
+      {
+        "product": "mdvr",
+        "qty": 1,
+        "price": 4400
+      },
+      {
+        "product": "monitor",
+        "qty": 1,
+        "price": 4400
+      }
+    ],
+    "total": 8800,
+    "payments": [
+      {
+        "date": "2025-10-28T00:00:00.000Z",
+        "amount": 5500,
+        "method": "Online"
+      }
+    ],
+    "notes": "Added via UI"
+  },
+  {
+    "id": 1761656886103,
+    "customer": "aa",
+    "mobile": "",
+    "company": "",
+    "cust_code": "",
+    "date": "2025-10-28T00:00:00.000Z",
+    "employee": "Akash Parashar",
+    "items": [
+      {
+        "product": "mdvr",
+        "qty": 1,
+        "price": 500
+      }
+    ],
+    "total": 500,
+    "payments": [],
+    "notes": "Added via UI"
+  },
+  {
+    "id": 1761661084675,
+    "customer": "Akash Parashar",
+    "mobile": "08755311835",
+    "company": "50",
+    "cust_code": "781",
+    "date": "2025-10-28T00:00:00.000Z",
+    "employee": "Akash Parashar",
+    "items": [
+      {
+        "product": "mdvr",
+        "qty": 10,
+        "price": 4400
+      }
+    ],
+    "total": 44000,
+    "payments": [
+      {
+        "date": "2025-10-28T00:00:00.000Z",
+        "amount": 4400,
+        "method": "Online"
+      }
+    ],
+    "notes": "Added via UI"
+  },
+  {
+    "id": 1761661260401,
+    "customer": "Akash Parashar",
+    "mobile": "08755311835",
+    "company": "50",
+    "cust_code": "",
+    "date": "2025-10-28T00:00:00.000Z",
+    "employee": "Akash Parashar",
+    "items": [
+      {
+        "product": "mdvr",
+        "qty": 600,
+        "price": 70
+      }
+    ],
+    "total": 42000,
+    "payments": [],
+    "notes": "Added via UI"
+  },
+  {
+    "id": 1761661988998,
+    "customer": "Akash Parashar",
+    "mobile": "08755311835",
+    "company": "50",
+    "cust_code": "",
+    "date": "2025-10-28T00:00:00.000Z",
+    "employee": "Akash Parashar",
+    "items": [
+      {
+        "product": "mdvr",
+        "qty": 10,
+        "price": 4400
+      }
+    ],
+    "total": 44000,
+    "payments": [],
+    "notes": "Added via UI"
+  }
+]
