@@ -79,48 +79,57 @@
     <div class="modal-content">
       <button id="closeAddSale" class="modal-close">✕</button>
       <h2>Add Sale</h2>
-      <form id="addSaleForm">
-        <label>Customer Name<br/><input name="customer" required /></label>
-        <label>Customer Mobile<br/><input name="mobile" /></label>
-        <label>Company Name<br/><input name="company" /></label>
-        <label>Customer Code<br/><input name="cust_code" /></label>
+      <!-- BEGIN: simplified form -->
+<label>Customer Code<br/><input name="cust_code" required /></label>
 
-        <label>Sale Date (DD-MM-YYYY)<br/><input name="date" type="date" required /></label>
+<label>Sale Date<br/><input name="date" type="date" required /></label>
 
-        <label>Sale Done By (Employee)<br/>
-          <select name="employee" required>
-            <option value="">-- select --</option>
-            <option>Akash Parashar</option>
-            <option>Mandeep Samal</option>
-            <option>Smruti Ranjan Nayak</option>
-          </select>
-        </label>
+<label>Employee<br/>
+  <select name="employee" required>
+    <option value="">-- select --</option>
+    <option>Akash Parashar</option>
+    <option>Mandeep Samal</option>
+    <option>Smruti Ranjan Nayak</option>
+  </select>
+</label>
 
-        <div id="productsContainer">
-          <div class="product-row">
-            <label>Product 1 - Name<br/><input name="product_1" required /></label>
-            <label>Qty<br/><input name="qty_1" type="number" min="1" value="1" required /></label>
-            <label>Rate<br/><input name="price_1" type="number" min="0" value="0" required /></label>
-          </div>
-        </div>
+<div class="field-group">
+  <label>Amount Received<br/><input name="amount_received" type="number" min="0" value="0" required /></label>
+  <label>Which Account<br/>
+    <select name="account" required>
+      <option value="">-- select --</option>
+      <option>IDFC 4828</option>
+      <option>IDFC 7455</option>
+      <option>Canara Bank</option>
+      <option>Cash</option>
+    </select>
+  </label>
+</div>
 
-        <button id="addProductRow" type="button">Add another product</button>
+<label>Payment Reference Number<br/><input name="payment_ref" placeholder="UTR / Txn ID / Cash slip" /></label>
 
-        <label>Total (auto)<br/><input name="total" id="totalField" readonly /></label>
+<label>Courier Cost (₹)<br/><input name="courier_cost" type="number" min="0" value="0" /></label>
 
-        <div class="field-group">
-          <label>Payment 1 — Amount<br/><input name="p_amount_1" type="number" min="0" value="0" /></label>
-          <label>Method<br/><input name="p_method_1" /></label>
-        </div>
+<!-- PRODUCTS (up to 10) -->
+<div id="productsContainer">
+  <div class="product-row">
+    <label>Product 1 - Name<br/><input name="product_1" required /></label>
+    <label>Qty<br/><input name="qty_1" type="number" min="1" value="1" required /></label>
+    <label>Price<br/><input name="price_1" type="number" min="0" value="0" required /></label>
+  </div>
+</div>
+<button id="addProductRow" type="button">Add another product</button>
 
-        <div style="margin-top:10px;display:flex;gap:8px;">
-          <button type="submit">Add & Save to GitHub</button>
-          <button id="downloadSingle" type="button">Download Single JSON</button>
-          <button type="button" id="cancelAdd">Cancel</button>
-        </div>
+<label>Total (auto)<br/><input name="total" id="totalField" readonly /></label>
 
-        <p class="muted">On submit the page will prompt for a GitHub token (PAT) once and then commit the updated data/sales.json to your repository. If you prefer not to commit, use "Download Single JSON" and upload it manually.</p>
-      </form>
+<div style="margin-top:10px;display:flex;gap:8px;">
+  <button type="submit">Add & Save to GitHub</button>
+  <button id="downloadSingle" type="button">Download Single JSON</button>
+  <button type="button" id="cancelAdd">Cancel</button>
+</div>
+<p class="muted">This form keeps only the fields you requested. You can add up to 10 products.</p>
+<!-- END: simplified form -->
+
     </div>
   </div>
 
