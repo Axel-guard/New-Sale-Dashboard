@@ -551,16 +551,91 @@ function buildCharts(sales){
 
   // ---------- Add Sale form behavior ----------
   function computeTotalFromForm(form){
-    let total = 0;
-    const products = form.querySelectorAll('[name^="product_"]');
-    products.forEach((_, idx) => {
-      const i = idx + 1;
-      const qty = Number(form[`qty_${i}`]?.value || 0);
-      const price = Number(form[`price_${i}`]?.value || 0);
-      total += qty * price;
-    });
-    return total;
-  }
+  let total = 0;
+  const rows = form.querySelectorAll('.product-row');
+  rows.forEach((row, i) => {
+    const idx = i + 1;
+    const qty = Number(form[`qty_${idx}`]?.value || 0);
+    const price = Number(form[`price_${idx}`]?.value || 0);
+    total += qty * price;
+  });
+  const courier = Number(form.courier_cost.value || 0);
+  return total + courier;
+}
+
+// Add Sale submit (stores requested fields)
+addSaleForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const form = e.target;
+  const id = Date.now(); // simple order id
+  const dateISO = formatDateInputToISO(form.date.value);
+
+  // products (max 10)
+  const items = [];
+  const rows = form.querySelectorAll('.product-row');
+  rows.forEach((row, i) => {
+    const idx = i+1;
+    const prod = form[`product_${idx}`]?.value;
+    const qty = Number(form[`qty_${idx}`]?.value || 0);
+    const price = Number(form[`price_${idx}`]?.value || 0);
+    if (prod && qty>0) items.push({ product: prod, qty, price });
+  });
+
+  const total = computeTotalFromForm(form);
+  const received = Number(form.amount_received.value || 0);
+
+  const saleObj = {
+    id,
+    cust_code: form.cust_code.value.trim(),
+    date: dateISO,
+    employee: form.employee.value.trim(),
+    items,
+    courier_cost: Number(form.courier_cost.value || 0),
+    total,
+    payments: [{ date: dateISO, amount: received, method: form.account.value, ref: form.payment_ref.value.trim() }],
+    notes: 'Added via simplified form'
+  };
+
+  allSales.push(saleObj);
+  saveAddedEntriesToLocalStorage([saleObj]);
+
+  // reset filters & refresh UI
+  selectedMonth = 'all'; monthSelect.value = 'all';
+  selectedEmployee = null;
+  buildMonthOptions();
+  buildEmployeeList();
+  refresh();
+  renderCustomerSummary();
+
+  // commit to GitHub (uses your existing saveMergedToGitHubFlow)
+  const autoConfirm = confirm('Commit this change to GitHub now?');
+  if (autoConfirm) await saveMergedToGitHubFlow([]);
+
+  // close modal
+  document.getElementById('addSaleModal').style.display='none';
+  form.reset();
+  document.getElementById('totalField').value = '';
+});
+
+// keep total live
+addSaleForm.addEventListener('input', ()=> { totalField.value = computeTotalFromForm(addSaleForm); });
+
+// Add product rows capped at 10
+addProductRowBtn.addEventListener('click', ()=>{
+  const container = document.getElementById('productsContainer');
+  const rowCount = container.querySelectorAll('.product-row').length;
+  if (rowCount >= 10) return alert('Maximum 10 products supported.');
+  const next = rowCount + 1;
+  const div = document.createElement('div');
+  div.className = 'product-row';
+  div.innerHTML = `
+    <label>Product ${next} - Name<br/><input name="product_${next}" /></label>
+    <label>Qty<br/><input name="qty_${next}" type="number" min="1" value="1" /></label>
+    <label>Price<br/><input name="price_${next}" type="number" min="0" value="0" /></label>
+  `;
+  container.appendChild(div);
+});
+
 
   // add product row UI
   if (addProductRowBtn){
