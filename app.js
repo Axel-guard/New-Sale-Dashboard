@@ -1,18 +1,21 @@
-// Simple client-side sales dashboard with a local "Add Sale" form
-// Loads data/data/sales.json and renders charts + table
+// Sales dashboard with GitHub commit on submit, date-only input, employee dropdown, enhanced doughnut (3D-ish)
+// IMPORTANT: to allow commits the page prompts for a GitHub PAT (token) with repo contents permissions.
+// Token is stored in sessionStorage only (so it persists for the browser session) — revoke the token after use if desired.
+
 (async function(){
   const salesUrl = 'data/sales.json';
 
-  // Configuration: change these to adjust currency/convert
-  const CURRENCY_LOCALE = 'en-IN'; // Indian formatting
-  const CURRENCY_CODE = 'INR';     // INR currency code
-  const CONVERSION_RATE = 1;      // set to 1 for no conversion. Set to ~83 to convert USD -> INR
+  // Locale / currency
+  const CURRENCY_LOCALE = 'en-IN';
+  const CURRENCY_CODE = 'INR';
+  const CONVERSION_RATE = 1;
 
-  // GitHub commit config (used only when user supplies a PAT)
+  // GitHub repo info (change if you rename repo)
   const GITHUB_OWNER = 'Axel-guard';
   const GITHUB_REPO = 'New-Sale-Dashboard';
   const GITHUB_PATH = 'data/sales.json';
   const GITHUB_BRANCH = 'main';
+  const SESSION_TOKEN_KEY = 'gh_pat_for_sale_ui';
 
   // DOM
   const monthSelect = document.getElementById('monthSelect');
@@ -23,45 +26,49 @@
   const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
   const exportBtn = document.getElementById('exportCsv');
   const downloadJsonBtn = document.getElementById('downloadJson');
-  const saveToGitHubBtn = document.getElementById('saveToGitHub');
+  const openAddSaleBtn = document.getElementById('openAddSale');
+  const addSaleModal = document.getElementById('addSaleModal');
+  const closeAddSale = document.getElementById('closeAddSale');
+  const addSaleForm = document.getElementById('addSaleForm');
+  const totalField = document.getElementById('totalField');
+  const addProductRowBtn = document.getElementById('addProductRow');
   const downloadSingleBtn = document.getElementById('downloadSingle');
   const showAllPayments = document.getElementById('showAllPayments');
   const globalSearch = document.getElementById('globalSearch');
   const employeeSearch = document.getElementById('employeeSearch');
-  const addSaleForm = document.getElementById('addSaleForm');
-  const totalField = document.getElementById('totalField');
 
   let allSales = [];
   let filteredSales = [];
   let selectedEmployee = null;
   let selectedMonth = 'current';
-
-  // Charts
   let barChart = null;
   let doughnutChart = null;
 
-  // Utilities
-  function formatDate(d){
+  function formatDateInputToISO(dateInputValue){
+    // dateInputValue is YYYY-MM-DD from <input type="date">
+    if (!dateInputValue) return new Date().toISOString();
+    const d = new Date(dateInputValue + 'T00:00:00Z');
+    return d.toISOString();
+  }
+  function formatDateDDMMYYYY(d){
     const dt = new Date(d);
     if (isNaN(dt)) return d;
-    return dt.toLocaleDateString();
+    const dd = String(dt.getDate()).padStart(2,'0');
+    const mm = String(dt.getMonth()+1).padStart(2,'0');
+    const yy = String(dt.getFullYear());
+    return `${dd}-${mm}-${yy}`;
   }
-  // Currency formatter using INR. CONVERSION_RATE will convert numbers if you set it.
   function currency(n){
     const val = Number(n || 0) * CONVERSION_RATE;
     return new Intl.NumberFormat(CURRENCY_LOCALE, { style: 'currency', currency: CURRENCY_CODE }).format(val);
   }
 
-  // Local storage key for new entries you add from the form
-  const LS_KEY = 'sales_dashboard_added_sales_v1';
-
-  // Load data
+  // load remote sales.json
   async function loadRemoteSales(){
     try {
       const r = await fetch(salesUrl);
       if (!r.ok) throw new Error('Fetch failed: ' + r.status);
-      const json = await r.json();
-      return json;
+      return await r.json();
     } catch(e){
       console.error('Failed to load sales.json', e);
       return [];
@@ -70,40 +77,37 @@
 
   allSales = await loadRemoteSales();
 
-  // merge saved entries from localStorage so they show up in UI
+  // merge local saved (optional, keeps any previously-added entries)
+  const LS_KEY = 'sales_dashboard_added_sales_v1';
   function mergeLocalSaved(){
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (!raw) return;
       const extra = JSON.parse(raw);
       if (!Array.isArray(extra)) return;
-      // append extra entries
       allSales = allSales.concat(extra);
     } catch(e){ console.error('failed to merge local entries', e); }
   }
-
   mergeLocalSaved();
 
-  // Build month options from data (plus "current" default)
+  // Build month options
   function buildMonthOptions(){
     const months = new Set();
     allSales.forEach(s => {
       const d = new Date(s.date);
       if (!isNaN(d)) months.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
     });
-    const monthsArr = Array.from(months).sort((a,b)=>b.localeCompare(a)); // newest first
+    const monthsArr = Array.from(months).sort((a,b)=>b.localeCompare(a));
     monthSelect.innerHTML = '';
     const curOption = document.createElement('option');
     curOption.value = 'current';
     const now = new Date();
     curOption.textContent = `Current month (${now.toLocaleString(undefined,{month:'long'})} ${now.getFullYear()})`;
     monthSelect.appendChild(curOption);
-
     const allOpt = document.createElement('option');
     allOpt.value = 'all';
     allOpt.textContent = 'All time';
     monthSelect.appendChild(allOpt);
-
     monthsArr.forEach(m=>{
       const [y,mm] = m.split('-');
       const opt = document.createElement('option');
@@ -112,13 +116,11 @@
       opt.textContent = `${dt.toLocaleString(undefined,{month:'long'})} ${y}`;
       monthSelect.appendChild(opt);
     });
-
-    // set default to current
     selectedMonth = 'current';
     monthSelect.value = 'current';
   }
 
-  // Employees list
+  // Employee list
   function buildEmployeeList(){
     const employees = Array.from(new Set(allSales.map(s=>s.employee))).sort();
     employeeListEl.innerHTML = '';
@@ -132,7 +134,6 @@
       refresh();
     };
     employeeListEl.appendChild(allItem);
-
     employees.forEach(name=>{
       const li = document.createElement('li');
       li.textContent = name;
@@ -149,14 +150,12 @@
   function paymentsSum(payments){
     return payments.reduce((s,p)=>s+(p.amount||0),0);
   }
-
   function paymentStatus(sale){
     const paid = paymentsSum(sale.payments||[]);
     if (paid >= sale.total) return 'paid';
     if (paid > 0) return 'partial';
     return 'due';
   }
-
   function filterByMonth(sales, monthKey){
     if (monthKey === 'all') return sales.slice();
     const now = new Date();
@@ -175,7 +174,6 @@
     const totalSales = sales.reduce((acc,s)=>acc+s.total,0);
     const totalOrders = sales.length;
     const totalReceived = sales.reduce((acc,s)=>acc+paymentsSum(s.payments||[]),0);
-
     kpiBoxes.innerHTML = '';
     const kpis = [
       {label:'Orders', val: totalOrders},
@@ -190,7 +188,7 @@
     });
   }
 
-  // Charts data
+  // Aggregate by employee
   function aggregateByEmployee(sales){
     const agg = {};
     sales.forEach(s=>{
@@ -200,6 +198,41 @@
     return agg;
   }
 
+  // simple plugin to add a light "3D" shading to doughnut
+  const doughnut3DPlugin = {
+    id: 'doughnut3D',
+    beforeDraw(chart){
+      const ctx = chart.ctx;
+      const {width, height} = chart;
+      ctx.save();
+      // subtle vignette to give depth
+      const gradient = ctx.createLinearGradient(0,0,0,height);
+      gradient.addColorStop(0, 'rgba(255,255,255,0.05)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0.02)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0,0,width,height);
+      ctx.restore();
+    },
+    afterDatasetDraw(chart, args, options){
+      // draw a subtle highlight on top of each arc
+      const ctx = chart.ctx;
+      ctx.save();
+      chart.data.datasets[0].backgroundColor.forEach((c, i) => {
+        const meta = chart.getDatasetMeta(0);
+        const arc = meta.data[i];
+        if (arc) {
+          ctx.beginPath();
+          // draw a small ellipse highlight near top of arc
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          const center = arc.getCenterPoint();
+          ctx.ellipse(center.x, center.y - 6, (arc.outerRadius - arc.innerRadius) * 0.8, (arc.outerRadius - arc.innerRadius)*0.25, 0, 0, Math.PI*2);
+          ctx.fill();
+        }
+      });
+      ctx.restore();
+    }
+  };
+
   function buildCharts(sales){
     const agg = aggregateByEmployee(sales);
     const labels = Object.keys(agg);
@@ -208,24 +241,12 @@
     if (barChart) barChart.destroy();
     barChart = new Chart(barCtx, {
       type:'bar',
-      data:{
-        labels,
-        datasets:[{
-          label:'Sales',
-          data,
-          backgroundColor: labels.map(()=> 'rgba(37,99,235,0.75)'),
-        }]
-      },
-      options:{
-        responsive:true,
-        plugins:{legend:{display:false}}
-      }
+      data:{ labels, datasets:[{ label:'Sales', data, backgroundColor: labels.map(()=> 'rgba(37,99,235,0.75)') }]},
+      options:{responsive:true, plugins:{legend:{display:false}}}
     });
 
     const statusCounts = {paid:0,partial:0,due:0};
-    sales.forEach(s=>{
-      statusCounts[paymentStatus(s)]++;
-    });
+    sales.forEach(s=> statusCounts[paymentStatus(s)]++);
 
     if (doughnutChart) doughnutChart.destroy();
     doughnutChart = new Chart(doughnutCtx, {
@@ -237,31 +258,32 @@
           backgroundColor:['#10b981','#f59e0b','#ef4444']
         }]
       },
-      options:{plugins:{legend:{position:'bottom'}}}
+      options:{
+        plugins:{legend:{position:'bottom'}},
+        cutout: '35%'
+      },
+      plugins: [doughnut3DPlugin]
     });
   }
 
-  // Table rendering
+  // Render table
   function renderTable(sales){
     salesTableBody.innerHTML = '';
     const showPayments = showAllPayments.checked;
     const template = document.getElementById('paymentRowTemplate');
-
     const query = globalSearch.value.trim().toLowerCase();
 
     sales.forEach(s=>{
-      // search filter
       if (query){
         const hay = `${s.customer} ${s.employee} ${s.items.map(it=>it.product).join(' ')}`.toLowerCase();
         if (!hay.includes(query)) return;
       }
-
       const tr = document.createElement('tr');
       const productsText = s.items.map(it=>`${it.product} x${it.qty}`).join(', ');
       const status = paymentStatus(s);
       tr.innerHTML = `
-        <td><strong>${s.customer}</strong><div class="products"><small>${s.notes||''}</small></div></td>
-        <td>${formatDate(s.date)}</td>
+        <td><strong>${s.customer}</strong><div class="products"><small>${s.company||''} ${s.cust_code? ' | ' + s.cust_code : ''}</small></div></td>
+        <td>${formatDateDDMMYYYY(s.date)}</td>
         <td>${s.employee}</td>
         <td>${productsText}</td>
         <td>${currency(s.total)}</td>
@@ -274,65 +296,107 @@
 
       if (s.payments && s.payments.length>0 && showPayments){
         const clone = template.content.cloneNode(true);
-        const paymentRow = clone.querySelector('.payment-row');
         const detailsTd = clone.querySelector('.payment-details');
-        const rows = s.payments.map(p=>`<div>${formatDate(p.date)} — ${currency(p.amount)} ${p.method?`(${p.method})`:''}</div>`).join('');
+        const rows = s.payments.map(p=>`<div>${formatDateDDMMYYYY(p.date)} — ${currency(p.amount)} ${p.method?`(${p.method})`:''}</div>`).join('');
         detailsTd.innerHTML = `<strong>Payments:</strong><div>${rows}</div>`;
         salesTableBody.appendChild(clone);
       }
     });
 
-    // attach toggles for inline expand/collapse of payments
     document.querySelectorAll('.toggle-pay').forEach(btn=>{
-      btn.onclick = (e)=>{
+      btn.onclick = ()=>{
         const id = btn.getAttribute('data-id');
-        // find the sale row to toggle a detail row beneath
         const row = btn.closest('tr');
         const next = row.nextElementSibling;
-        if (next && next.classList.contains('payment-row')){
-          // toggle remove
-          next.remove();
-          return;
-        }
-        const sale = sales.find(x=>String(x.id) === String(id));
+        if (next && next.classList.contains('payment-row')){ next.remove(); return; }
+        const sale = allSales.find(x=>String(x.id) === String(id));
         if (!sale) return;
         const tr = document.createElement('tr');
         tr.className = 'payment-row';
         const td = document.createElement('td');
         td.colSpan = 7;
         td.className = 'payment-details';
-        td.innerHTML = `<strong>Payments:</strong>${sale.payments.map(p=>`<div>${formatDate(p.date)} — ${currency(p.amount)} ${p.method?`(${p.method})`:''}</div>`).join('')}`;
+        td.innerHTML = `<strong>Payments:</strong>${sale.payments.map(p=>`<div>${formatDateDDMMYYYY(p.date)} — ${currency(p.amount)} ${p.method?`(${p.method})`:''}</div>`).join('')}`;
         row.parentNode.insertBefore(tr, row.nextSibling);
       };
     });
   }
 
-  // Export CSV
-  function exportCSV(sales){
+  // Build the special CSV with requested columns (many blanks for missing fields)
+  function exportDetailedCSV(sales){
+    const columns = [
+      'S. No','Month','Order Id','Sale Date','Cust Code','Sale Done By','Company Name','Customer Name','Mobile Number','Bill Amount','Amount Rcd','Balnc Payment','Round Off','With Bill','Billing Status'
+      // then P1 Code, 1st Product, P1 Qtty, P1 Rate... through P10
+    ];
+    // add dynamic product columns (P1..P10): for each product: Code, Name, Qty, Rate
+    for (let p=1;p<=10;p++){
+      columns.push(`P${p} Code`);
+      columns.push(`${p}th Product`);
+      columns.push(`P${p} Qtty`);
+      columns.push(`P${p} Rate`);
+    }
+    // add trailing payment columns and extras
+    columns.push('Courier');
+    columns.push('Total Sale Amount');
+    columns.push('Transaction Reference Number');
+    columns.push('Remarks');
+    for (let i=1;i<=6;i++) columns.push(`Payment ${i} received`);
+
+    // header
     const rows = [];
-    const header = ['id','customer','date','employee','products','total','paid','status','payments'];
-    rows.push(header.join(','));
+    rows.push(columns.join('\t'));
+
+    let idx=1;
     sales.forEach(s=>{
-      const products = s.items.map(it=>`${it.product} x${it.qty}`).join(' | ').replace(/,/g,'');
-      const paid = paymentsSum(s.payments||[]);
-      const status = paymentStatus(s);
-      const payments = (s.payments||[]).map(p=>`${p.date}::${p.amount}::${p.method||''}`).join('|');
-      const line = [s.id, `"${s.customer}"`, s.date, s.employee, `"${products}"`, s.total * CONVERSION_RATE, paid * CONVERSION_RATE, status, `"${payments}"`];
-      rows.push(line.join(','));
+      const month = (()=>{ const dt=new Date(s.date); return dt.toLocaleString('en-US',{month:'short',year:'2-digit'}); })();
+      const orderId = s.id || '';
+      const saleDate = formatDateDDMMYYYY(s.date);
+      const custCode = s.cust_code || '';
+      const saleBy = s.employee || '';
+      const company = s.company || '';
+      const custName = s.customer || '';
+      const mobile = s.mobile || '';
+      const billAmt = s.total || 0;
+      const amtRcd = paymentsSum(s.payments||[]);
+      const bal = billAmt - amtRcd;
+      const roundOff = 0;
+      const withBill = 'No';
+      const billingStatus = s.notes || '';
+
+      const base = [idx,month,orderId,saleDate,custCode,saleBy,company,custName,mobile,billAmt,amtRcd,bal,roundOff,withBill,billingStatus];
+
+      // product columns up to 10
+      const prods = s.items || [];
+      for (let p=0;p<10;p++){
+        if (prods[p]){
+          base.push('', prods[p].product || '', prods[p].qty || '', prods[p].price || '');
+        } else {
+          base.push('','','','');
+        }
+      }
+      base.push('', billAmt, '', s.notes || '');
+      // payments 1..6
+      for (let i=0;i<6;i++){
+        base.push((s.payments && s.payments[i]) ? s.payments[i].amount : '');
+      }
+
+      // join by tab to handle many columns
+      rows.push(base.join('\t'));
+      idx++;
     });
-    const csv = rows.join('\n');
-    const blob = new Blob([csv], {type:'text/csv'});
-    const url = URL.createObjectURL(blob);
+
+    const tsv = rows.join('\n');
+    const blob = new Blob([tsv], {type:'text/tab-separated-values'});
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sales-export.csv';
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sales-report.tsv';
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(a.href);
   }
 
-  // Download entire merged JSON (original + local added entries)
+  // Download merged JSON
   function downloadMergedJSON(){
-    const merged = allSales.slice(); // allSales already has merged local entries on load
+    const merged = allSales.slice();
     const blob = new Blob([JSON.stringify(merged, null, 2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -342,10 +406,8 @@
     URL.revokeObjectURL(url);
   }
 
-  // Save added entries to localStorage (keeps them across reloads)
   function saveAddedEntriesToLocalStorage(added){
     try {
-      // read existing local saved ones
       const raw = localStorage.getItem(LS_KEY);
       const existing = raw ? JSON.parse(raw) : [];
       const merged = existing.concat(added);
@@ -353,17 +415,15 @@
     } catch(e){ console.error('failed to save to localStorage', e); }
   }
 
-  // ---------- GitHub commit helpers (requires PAT) ----------
-  // Note: Using a PAT in the browser is sensitive. Create a short-lived PAT with 'repo' scope, paste it when prompted, and revoke it after use.
+  // GitHub helpers
   async function githubGetFileSha(token){
     const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_PATH)}?ref=${GITHUB_BRANCH}`;
     const r = await fetch(url, { headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }});
-    if (r.status === 404) return null; // file doesn't exist yet
-    if (!r.ok) throw new Error(`GitHub GET failed: ${r.status}`);
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('GitHub GET failed: ' + r.status);
     const data = await r.json();
     return data.sha;
   }
-
   async function githubPutFile(token, contentStr, sha){
     const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_PATH)}`;
     const body = {
@@ -384,63 +444,49 @@
     return await r.json();
   }
 
-  // Handler invoked when user wants to save merged JSON directly to GitHub
-  async function saveMergedToGitHubFlow(){
+  // Save merged to GitHub (prompt for PAT if needed)
+  async function saveMergedToGitHubFlow(merged){
     try {
-      // confirm intention
-      const proceed = confirm('This will update data/sales.json in your GitHub repository. You will be prompted to paste a Personal Access Token (PAT) with repo permissions. Do you want to continue?');
-      if (!proceed) return;
-
-      const token = prompt('Paste a GitHub Personal Access Token (PAT) with repo scope. This token will NOT be stored. Create one at https://github.com/settings/tokens');
-      if (!token) {
-        alert('No token provided. Aborting save.');
-        return;
+      let token = sessionStorage.getItem(SESSION_TOKEN_KEY);
+      if (!token){
+        const ok = confirm('To save to GitHub the page needs a Personal Access Token (PAT). Create one with repo/content permission (short expiry recommended). Do you want to paste a token now?');
+        if (!ok) { alert('Save cancelled. Use Download JSON to save locally.'); return; }
+        token = prompt('Paste your GitHub Personal Access Token (PAT) with repo permissions. It will be kept for this browser session only (sessionStorage).');
+        if (!token) { alert('No token provided. Aborting.'); return; }
+        sessionStorage.setItem(SESSION_TOKEN_KEY, token);
       }
-
-      // prepare merged JSON (reload remote one to reduce collisions)
+      // fetch remote again to reduce overwrite collisions
       const remote = await loadRemoteSales();
-      // also merge localStorage extras
+      // merge remote + local extras
       const rawExtra = localStorage.getItem(LS_KEY);
       const extras = rawExtra ? JSON.parse(rawExtra) : [];
-      const merged = remote.concat(extras);
-
-      // get existing file sha (if any)
+      const mergedFinal = remote.concat(extras).concat(merged || []);
       const sha = await githubGetFileSha(token);
-      const contentStr = JSON.stringify(merged, null, 2);
-      // push the file
-      await githubPutFile(token, contentStr, sha);
-      alert('Saved to GitHub successfully. The Pages site will update after GitHub publishes the change (give it a minute).');
-    } catch (err) {
+      await githubPutFile(token, JSON.stringify(mergedFinal, null, 2), sha);
+      alert('Saved to GitHub successfully. Wait a minute and refresh the Pages site.');
+    } catch(err){
+      // if PAT invalid remove it to re-prompt next time
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
       console.error(err);
-      alert('Failed to save to GitHub: ' + err.message);
+      alert('Failed to save to GitHub: ' + (err.message || err));
     }
   }
 
   // Apply filters and refresh UI
   function refresh(){
-    // month filter
     filteredSales = filterByMonth(allSales, selectedMonth);
-    // employee filter
     if (selectedEmployee) filteredSales = filteredSales.filter(s=>s.employee === selectedEmployee);
-    // employeeSearch filter
     const es = employeeSearch.value.trim().toLowerCase();
-    if (es){
-      filteredSales = filteredSales.filter(s=>s.employee.toLowerCase().includes(es));
-    }
-
+    if (es) filteredSales = filteredSales.filter(s=>s.employee.toLowerCase().includes(es));
     buildKPIs(filteredSales);
     buildCharts(filteredSales);
     renderTable(filteredSales);
   }
 
   // Event bindings
-  monthSelect.onchange = (e)=>{
-    selectedMonth = e.target.value;
-    refresh();
-  };
-  exportBtn.onclick = ()=> exportCSV(filteredSales);
+  monthSelect.onchange = e=>{ selectedMonth = e.target.value; refresh(); };
+  exportBtn.onclick = ()=> exportDetailedCSV(filteredSales);
   downloadJsonBtn.onclick = ()=> downloadMergedJSON();
-  saveToGitHubBtn.onclick = ()=> saveMergedToGitHubFlow();
   showAllPayments.onchange = ()=> renderTable(filteredSales);
   globalSearch.oninput = debounce(()=> renderTable(filteredSales), 300);
   employeeSearch.oninput = debounce(()=> { buildEmployeeListFiltered(); }, 300);
@@ -449,7 +495,6 @@
     const q = employeeSearch.value.trim().toLowerCase();
     const employees = Array.from(new Set(allSales.map(s=>s.employee))).sort();
     employeeListEl.innerHTML = '';
-
     const allItem = document.createElement('li');
     allItem.textContent = 'All employees';
     allItem.classList.toggle('active', selectedEmployee === null);
@@ -460,7 +505,6 @@
       refresh();
     };
     employeeListEl.appendChild(allItem);
-
     employees.filter(n => n.toLowerCase().includes(q)).forEach(name=>{
       const li = document.createElement('li');
       li.textContent = name;
@@ -476,108 +520,127 @@
   }
 
   // small debounce
-  function debounce(fn, wait=200){
-    let t;
-    return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), wait); };
+  function debounce(fn, wait=200){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), wait); }; }
+
+  // ---------- Add Sale form behavior ----------
+  function computeTotalFromForm(form){
+    let total = 0;
+    const products = form.querySelectorAll('[name^="product_"]');
+    products.forEach((_, idx) => {
+      const i = idx + 1;
+      const qty = Number(form[`qty_${i}`]?.value || 0);
+      const price = Number(form[`price_${i}`]?.value || 0);
+      total += qty * price;
+    });
+    return total;
   }
 
-  // ------------ Add Sale form handling ------------
-  // compute total when qty/price changes
-  function computeTotalFromForm(form){
-    const qty = Number(form.qty.value || 0);
-    const price = Number(form.price.value || 0);
-    return qty * price;
+  // add product row UI
+  if (addProductRowBtn){
+    addProductRowBtn.addEventListener('click', ()=>{
+      const container = document.getElementById('productsContainer');
+      const rowCount = container.querySelectorAll('.product-row').length;
+      if (rowCount >= 10) return alert('Maximum 10 products supported for report export.');
+      const next = rowCount + 1;
+      const div = document.createElement('div');
+      div.className = 'product-row';
+      div.innerHTML = `
+        <label>Product ${next} - Name<br/><input name="product_${next}" /></label>
+        <label>Qty<br/><input name="qty_${next}" type="number" min="1" value="1" /></label>
+        <label>Rate<br/><input name="price_${next}" type="number" min="0" value="0" /></label>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  // modal open/close
+  if (openAddSaleBtn){
+    openAddSaleBtn.onclick = ()=> { addSaleModal.style.display='flex'; addSaleModal.setAttribute('aria-hidden','false'); };
+    closeAddSale.onclick = ()=> { addSaleModal.style.display='none'; addSaleModal.setAttribute('aria-hidden','true'); };
+    document.getElementById('cancelAdd').onclick = ()=> { addSaleModal.style.display='none'; };
+    addSaleModal.addEventListener('click', (e)=>{ if (e.target === addSaleModal) { addSaleModal.style.display='none'; } });
   }
 
   if (addSaleForm){
-    addSaleForm.qty.addEventListener('input', ()=> { totalField.value = computeTotalFromForm(addSaleForm); });
-    addSaleForm.price.addEventListener('input', ()=> { totalField.value = computeTotalFromForm(addSaleForm); });
-    // initialize total
-    totalField.value = computeTotalFromForm(addSaleForm);
+    // update total live
+    addSaleForm.addEventListener('input', ()=> { totalField.value = computeTotalFromForm(addSaleForm); });
 
-    addSaleForm.addEventListener('submit', (e)=>{
+    addSaleForm.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const form = e.target;
-      const id = Date.now(); // simple unique id
+      const id = Date.now();
       const customer = form.customer.value.trim();
-      const dateVal = form.date.value;
-      // convert datetime-local to ISO (append Z if no timezone)
-      const isoDate = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
+      const mobile = form.mobile.value.trim();
+      const company = form.company.value.trim();
+      const cust_code = form.cust_code.value.trim();
+      const dateISO = formatDateInputToISO(form.date.value);
       const employee = form.employee.value.trim();
-      const item = {
-        product: form.product.value.trim(),
-        qty: Number(form.qty.value || 0),
-        price: Number(form.price.value || 0)
-      };
+      // collect products
+      const items = [];
+      const rows = form.querySelectorAll('.product-row');
+      rows.forEach((row, i) => {
+        const idx = i+1;
+        const prod = form[`product_${idx}`]?.value;
+        const qty = Number(form[`qty_${idx}`]?.value || 0);
+        const price = Number(form[`price_${idx}`]?.value || 0);
+        if (prod && qty>0) items.push({ product: prod, qty, price });
+      });
       const total = computeTotalFromForm(form);
       const payments = [];
       const p1 = Number(form.p_amount_1.value || 0);
-      if (p1 > 0) payments.push({date: isoDate, amount: p1, method: form.p_method_1.value || ''});
+      if (p1>0) payments.push({ date: dateISO, amount: p1, method: form.p_method_1.value || '' });
 
       const saleObj = {
-        id,
-        customer,
-        date: isoDate,
-        employee,
-        items: [item],
-        total,
-        payments,
-        notes: 'Added via UI'
+        id, customer, mobile, company, cust_code, date: dateISO, employee, items, total, payments, notes: 'Added via UI'
       };
 
-      // add to runtime and save to localStorage
       allSales.push(saleObj);
       saveAddedEntriesToLocalStorage([saleObj]);
 
-      // ensure newly added sale is visible immediately: show all months & employees
-      selectedMonth = 'all';
-      monthSelect.value = 'all';
+      // ensure visible
+      selectedMonth = 'all'; monthSelect.value = 'all';
       selectedEmployee = null;
-      // remove active class from employee items and set the first (All employees) active
-      document.querySelectorAll('#employeeList li').forEach(li => li.classList.remove('active'));
-      const first = document.querySelector('#employeeList li');
-      if (first) first.classList.add('active');
+      document.querySelectorAll('#employeeList li').forEach(li=>li.classList.remove('active'));
+      const first = document.querySelector('#employeeList li'); if (first) first.classList.add('active');
 
-      // update UI
       buildMonthOptions();
       buildEmployeeList();
       refresh();
 
-      // close modal (simple approach)
-      document.getElementById('closeAddSale').click();
-      // reset form
+      // try to commit automatically (prompt for PAT if needed)
+      const autoConfirm = confirm('Do you want to commit this change to GitHub now? (You will be asked to paste a PAT once.)');
+      if (autoConfirm) {
+        await saveMergedToGitHubFlow([]);
+      }
+
+      // close modal and reset
+      addSaleModal.style.display='none';
       form.reset();
       totalField.value = '';
     });
 
-    // immediate download of a single JSON object (useful for quick upload)
-    downloadSingleBtn.addEventListener('click', ()=>{
-      const form = addSaleForm;
-      const id = Date.now();
-      const dateVal = form.date.value;
-      const isoDate = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
-      const item = { product: form.product.value.trim(), qty: Number(form.qty.value||0), price: Number(form.price.value||0) };
-      const total = computeTotalFromForm(form);
-      const payments = [];
-      const p1 = Number(form.p_amount_1.value || 0);
-      if (p1 > 0) payments.push({date: isoDate, amount: p1, method: form.p_method_1.value || ''});
-      const saleObj = { id, customer: form.customer.value.trim(), date: isoDate, employee: form.employee.value.trim(), items:[item], total, payments, notes: 'Single download from UI' };
-      const blob = new Blob([JSON.stringify(saleObj, null, 2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sale-${id}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
+    // Download single JSON entry
+    if (downloadSingleBtn){
+      downloadSingleBtn.addEventListener('click', ()=>{
+        const form = addSaleForm;
+        const id = Date.now();
+        const dateISO = formatDateInputToISO(form.date.value);
+        const rows = form.querySelectorAll('.product-row');
+        const items = [];
+        rows.forEach((row,i)=>{ const idx=i+1; const prod=form[`product_${idx}`]?.value; const qty=Number(form[`qty_${idx}`]?.value||0); const price=Number(form[`price_${idx}`]?.value||0); if(prod) items.push({product:prod,qty,price}); });
+        const saleObj = { id, customer: form.customer.value.trim(), mobile: form.mobile.value.trim(), company: form.company.value.trim(), cust_code: form.cust_code.value.trim(), date: dateISO, employee: form.employee.value.trim(), items, total: computeTotalFromForm(form), payments: [], notes:'Single download from UI' };
+        const blob = new Blob([JSON.stringify(saleObj, null, 2)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `sale-${id}.json`; a.click(); URL.revokeObjectURL(a.href);
+      });
+    }
   }
 
-  // Initialize
+  // Initialize UI
   buildMonthOptions();
   buildEmployeeList();
   refresh();
 
-  // expose downloadMergedJSON for the button in index.html
+  // Expose downloadMergedJSON to header button
   window.downloadMergedJSON = downloadMergedJSON;
 
 })();
