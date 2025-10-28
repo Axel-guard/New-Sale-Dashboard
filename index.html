@@ -8,22 +8,25 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
+
 <body>
   <header class="topbar">
     <nav class="subnav">
-  <button class="tab-btn active" data-page="dashboard">Dashboard</button>
-  <button class="tab-btn" data-page="order">Order by ID</button>
-  <button class="tab-btn" data-page="courier">Courier Cost</button>
-  <button class="tab-btn" data-page="customers">Customer Details</button>
-</nav>
+      <button class="tab-btn active" data-page="dashboard">Dashboard</button>
+      <button class="tab-btn" data-page="order">Order by ID</button>
+      <button class="tab-btn" data-page="courier">Courier Cost</button>
+      <button class="tab-btn" data-page="customers">Customer Details</button>
+    </nav>
 
     <h1>Sales Dashboard</h1>
+
     <div class="controls">
       <label for="monthSelect">Month:</label>
       <select id="monthSelect"></select>
 
       <label for="employeeSearch" class="sr-only">Search employee</label>
       <input id="employeeSearch" placeholder="Search employee" />
+
       <button id="exportCsv">Export CSV</button>
       <button id="downloadJson" title="Download updated sales.json">Download JSON</button>
       <button id="openAddSale" class="accent">Add Sale</button>
@@ -31,194 +34,14 @@
   </header>
 
   <main>
-  <!-- PAGE: Dashboard -->
-  <section id="page-dashboard" class="page visible">
-    <div class="layout">
-      <aside class="sidebar">
-        <h2>Employees</h2>
-        <ul id="employeeList" class="employee-list"></ul>
-        <hr/>
-        <div class="summary" id="kpiBoxes"></div>
-      </aside>
+    <!-- PAGE: Dashboard -->
+    <section id="page-dashboard" class="page visible">
+      <div class="layout">
+        <aside class="sidebar">
+          <h2>Employees</h2>
+          <ul id="employeeList" class="employee-list"></ul>
+          <hr />
+          <div class="summary" id="kpiBoxes"></div>
+        </aside>
 
-      <section class="content">
-        <section class="charts">
-          <div class="chart-card">
-            <h3>Sales by Employee (Bar)</h3>
-            <canvas id="barChart" height="140"></canvas>
-          </div>
-
-          <div class="chart-card small">
-            <h3>Current Month — Sales by Employee (3D Pie)</h3>
-            <canvas id="pieEmployeeCurrent" height="140"></canvas>
-          </div>
-
-          <div class="chart-card small">
-            <h3>Payment Status (3D Pie)</h3>
-            <canvas id="piePaymentStatus" height="140"></canvas>
-          </div>
-        </section>
-
-        <section class="table-card">
-          <h3>Sales — Details</h3>
-          <div class="table-actions">
-            <label><input type="checkbox" id="showAllPayments" checked /> Show full payment rows</label>
-            <input id="globalSearch" placeholder="Search customer, product, employee..." />
-          </div>
-          <table id="salesTable">
-            <thead>
-              <tr>
-                <th>Customer</th>
-                <th>Date</th>
-                <th>Employee</th>
-                <th>Products</th>
-                <th>Total</th>
-                <th>Payment Status</th>
-                <th>Payments</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </section>
-
-        <section class="table-card">
-          <h3>Week-wise Sales by Employee (Current Month)</h3>
-          <div id="weekTableWrap"></div>
-        </section>
-      </section>
-    </div>
-  </section>
-
-  <!-- PAGE: Order by ID -->
-  <section id="page-order" class="page">
-    <div class="card">
-      <h3>Lookup Order</h3>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input id="orderLookupId" placeholder="Enter Order ID" />
-        <button id="orderLookupBtn">Find</button>
-      </div>
-      <pre id="orderResult" class="mono" style="margin-top:10px;background:#f8fafc;padding:10px;border-radius:8px;max-width:100%;overflow:auto"></pre>
-    </div>
-  </section>
-
-  <!-- PAGE: Courier Cost -->
-  <section id="page-courier" class="page">
-    <div class="card">
-      <h3>Courier Cost Calculator</h3>
-      <div class="grid2">
-        <label>Mode
-          <select id="ccMode">
-            <option value="surface">Surface</option>
-            <option value="air">Air</option>
-          </select>
-        </label>
-        <label>Total Volumetric Weight (kg)
-          <input id="ccWeight" type="number" min="0" step="0.1" value="1" />
-        </label>
-        <label>Base (editable)
-          <input id="ccBase" type="number" min="0" value="60" />
-        </label>
-        <label>Per Kg (editable)
-          <input id="ccPerKg" type="number" min="0" value="30" />
-        </label>
-      </div>
-      <button id="ccCalcBtn" style="margin-top:8px;">Calculate</button>
-      <div id="ccResult" style="margin-top:12px;font-weight:600;"></div>
-      <p class="muted">Tip: Set your own base/per-kg rates above. For Air, many users use higher values.</p>
-    </div>
-  </section>
-
-  <!-- PAGE: Customer Details -->
-  <section id="page-customers" class="page">
-    <div class="card">
-      <h3>Customer Summary</h3>
-      <div id="customerSummary"></div>
-    </div>
-  </section>
-</main>
-
-
-  <!-- Payment details template -->
-  <template id="paymentRowTemplate">
-    <tr class="payment-row">
-      <td colspan="7" class="payment-details"></td>
-    </tr>
-  </template>
-
-  <!-- Add Sale Modal (popup) -->
-  <div id="addSaleModal" class="modal" aria-hidden="true" style="display:none;">
-    <div class="modal-content">
-      <button id="closeAddSale" class="modal-close">✕</button>
-      <h2>Add Sale</h2>
-      <!-- BEGIN: simplified form -->
-<label>Customer Code<br/><input name="cust_code" required /></label>
-
-<label>Sale Date<br/><input name="date" type="date" required /></label>
-
-<label>Employee<br/>
-  <select name="employee" required>
-    <option value="">-- select --</option>
-    <option>Akash Parashar</option>
-    <option>Mandeep Samal</option>
-    <option>Smruti Ranjan Nayak</option>
-  </select>
-</label>
-
-<div class="field-group">
-  <label>Amount Received<br/><input name="amount_received" type="number" min="0" value="0" required /></label>
-  <label>Which Account<br/>
-    <select name="account" required>
-      <option value="">-- select --</option>
-      <option>IDFC 4828</option>
-      <option>IDFC 7455</option>
-      <option>Canara Bank</option>
-      <option>Cash</option>
-    </select>
-  </label>
-</div>
-
-<label>Payment Reference Number<br/><input name="payment_ref" placeholder="UTR / Txn ID / Cash slip" /></label>
-
-<label>Courier Cost (₹)<br/><input name="courier_cost" type="number" min="0" value="0" /></label>
-
-<!-- PRODUCTS (up to 10) -->
-<div id="productsContainer">
-  <div class="product-row">
-    <label>Product 1 - Name<br/><input name="product_1" required /></label>
-    <label>Qty<br/><input name="qty_1" type="number" min="1" value="1" required /></label>
-    <label>Price<br/><input name="price_1" type="number" min="0" value="0" required /></label>
-  </div>
-</div>
-<button id="addProductRow" type="button">Add another product</button>
-
-<label>Total (auto)<br/><input name="total" id="totalField" readonly /></label>
-
-<div style="margin-top:10px;display:flex;gap:8px;">
-  <button type="submit">Add & Save to GitHub</button>
-  <button id="downloadSingle" type="button">Download Single JSON</button>
-  <button type="button" id="cancelAdd">Cancel</button>
-</div>
-<p class="muted">This form keeps only the fields you requested. You can add up to 10 products.</p>
-<!-- END: simplified form -->
-
-    </div>
-  </div>
-
-  <script src="app.js"></script>
-
-  <style>
-    /* small modal styles */
-    .subnav{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:64px;z-index:20}
-.tab-btn{padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc;cursor:pointer}
-.tab-btn.active{background:#2563eb;color:#fff;border-color:#2563eb}
-
-.page{display:none;padding:12px}
-.page.visible{display:block}
-
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px}
-.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-
-.chart-card.small{max-width:420px}
-.chart-card.small canvas{max-width:380px}
+        <section class="content">
