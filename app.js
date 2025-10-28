@@ -1,6 +1,12 @@
-const GITHUB_TOKEN = "ghp_yourTokenHere"; // paste your real token here
-const REPO = "yourusername/New-Sale-Dashboard-main"; // replace with your GitHub repo path
-const FILE_PATH = "sales.json"; // the file where you store data
+// ====== GITHUB DIRECT SAVE CONFIG (no backend needed) ======
+const GITHUB_TOKEN = "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"; // paste the token you sent me here
+const GITHUB_OWNER = "Axel-guard";                  // your GitHub username/org
+const GITHUB_REPO  = "New-Sale-Dashboard";          // your repo name
+const GITHUB_PATH  = "data/sales.json";             // file to update
+const GITHUB_BRANCH = "main";                       // branch
+const SESSION_TOKEN_KEY = null; // not used anymore
+
+; // the file where you store data
 // Sales dashboard with GitHub commit on submit, date-only input, employee dropdown, enhanced doughnut (3D-ish)
 // IMPORTANT: to allow commits the page prompts for a GitHub PAT (token) with repo contents permissions.
 // Token is stored in sessionStorage only (so it persists for the browser session) — revoke the token after use if desired.
