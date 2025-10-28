@@ -11,11 +11,21 @@ const totalField = document.getElementById("totalField");
 // ===== LOAD SALES DATA =====
 async function loadSalesData() {
   try {
-    const res = await fetch("sales.json", { cache: "no-store" });
+    // ✅ Use absolute URL for GitHub Pages (adjust if you host elsewhere)
+    const res = await fetch(
+      "https://axel-guard.github.io/New-Sale-Dashboard/sales.json",
+      { cache: "no-store" }
+    );
+
     if (!res.ok) throw new Error("Cannot fetch sales.json");
-    const data = await res.json();
+
+    const text = await res.text();
+    if (!text.trim()) throw new Error("Empty JSON file");
+    const data = JSON.parse(text);
+
     window.allSales = Array.isArray(data) ? data : data.sales || [];
     console.log("✅ Loaded", allSales.length, "records");
+
     renderDashboard();
   } catch (err) {
     console.error("❌ Error loading sales.json:", err);
@@ -37,6 +47,7 @@ function renderDashboard() {
   if (!filtered.length) {
     salesTableBody.innerHTML = `<tr><td colspan="7">No sales found for this month.</td></tr>`;
     Object.values(charts).forEach((c) => c?.destroy?.());
+    document.getElementById("kpiBoxes").innerHTML = "";
     return;
   }
 
@@ -55,9 +66,10 @@ function renderSalesTable(data) {
         <td>${s.date}</td>
         <td>${s.employee}</td>
         <td>${s.items?.map((i) => i.product).join(", ")}</td>
-        <td>₹${s.total.toLocaleString()}</td>
+        <td>₹${(s.total || 0).toLocaleString()}</td>
         <td>${
-          (s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0) >= s.total
+          (s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0) >=
+          (s.total || 0)
             ? '<span class="badge paid">Full</span>'
             : '<span class="badge partial">Partial</span>'
         }</td>
@@ -72,7 +84,8 @@ function renderKPIs(data) {
   const totalOrders = data.length;
   const totalSales = data.reduce((a, s) => a + (s.total || 0), 0);
   const totalReceived = data.reduce(
-    (a, s) => a + (s.payments?.reduce((x, y) => x + (y.amount || 0), 0) || 0),
+    (a, s) =>
+      a + (s.payments?.reduce((x, y) => x + (y.amount || 0), 0) || 0),
     0
   );
   document.getElementById("kpiBoxes").innerHTML = `
@@ -119,18 +132,20 @@ addSaleForm?.addEventListener("submit", (e) => {
 
 // ===== RENDER CHARTS =====
 function renderCharts(data) {
-  const ctxBar = document.getElementById("barChart").getContext("2d");
-  const ctxPie1 = document.getElementById("pieEmployeeCurrent").getContext("2d");
-  const ctxPie2 = document.getElementById("piePaymentStatus").getContext("2d");
+  const ctxBar = document.getElementById("barChart")?.getContext("2d");
+  const ctxPie1 = document.getElementById("pieEmployeeCurrent")?.getContext("2d");
+  const ctxPie2 = document.getElementById("piePaymentStatus")?.getContext("2d");
+
+  if (!ctxBar || !ctxPie1 || !ctxPie2) return;
 
   const byEmp = {};
   const payStatus = { Full: 0, Partial: 0, Pending: 0 };
 
   data.forEach((s) => {
-    byEmp[s.employee] = (byEmp[s.employee] || 0) + s.total;
+    byEmp[s.employee] = (byEmp[s.employee] || 0) + (s.total || 0);
     const paid =
       s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0;
-    if (paid >= s.total) payStatus.Full++;
+    if (paid >= (s.total || 0)) payStatus.Full++;
     else if (paid > 0) payStatus.Partial++;
     else payStatus.Pending++;
   });
@@ -151,7 +166,7 @@ function renderCharts(data) {
         {
           label: "Sales by Employee",
           data: empValues,
-          backgroundColor: "#3b82f6",
+          backgroundColor: dark ? "#60a5fa" : "#3b82f6",
         },
       ],
     },
@@ -175,7 +190,6 @@ function renderCharts(data) {
       },
       plugins: {
         legend: { display: false },
-        tooltip: { enabled: true },
       },
     },
   });
@@ -192,13 +206,10 @@ function renderCharts(data) {
       ],
     },
     options: {
-      responsive: true,
-      layout: { padding: 0 },
       plugins: {
         legend: {
           position: "right",
           labels: {
-            font: { size: 12, weight: "500" },
             color: dark ? "#f9fafb" : "#111827",
           },
         },
@@ -218,13 +229,11 @@ function renderCharts(data) {
       ],
     },
     options: {
-      responsive: true,
       cutout: "65%",
       plugins: {
         legend: {
           position: "right",
           labels: {
-            font: { size: 12, weight: "500" },
             color: dark ? "#f9fafb" : "#111827",
           },
         },
@@ -241,6 +250,7 @@ function applyTheme() {
   document.body.classList.toggle("dark", darkMode);
   themeToggle.textContent = darkMode ? "☀️" : "🌙";
   Object.values(charts).forEach((chart) => chart?.update?.());
+} // ✅ properly closed function
 
 themeToggle?.addEventListener("click", () => {
   darkMode = !darkMode;
