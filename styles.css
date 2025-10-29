@@ -37,7 +37,18 @@ body {
 
 /* ===== Topbar ===== */
 .topbar {
-  /* ===== Sidebar Navigation ===== */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--card-bg);
+  box-shadow: 0 2px 4px var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* ===== Sidebar Navigation ===== */
 .nav-sidebar {
   position: fixed;
   top: 65px;
