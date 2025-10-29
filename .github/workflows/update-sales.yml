@@ -1,0 +1,23 @@
+name: Update Sales JSON
+
+on:
+  repository_dispatch:
+    types: [update-sales]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update sales.json
+        run: |
+          echo "${{ github.event.client_payload.sales_json }}" | base64 --decode > data/sales.json
+          git config user.name "AxelGuard Bot"
+          git config user.email "bot@axelguard.com"
+          git add data/sales.json
+          git commit -m "Update sales.json via web dashboard" || echo "No changes to commit"
+          git push
