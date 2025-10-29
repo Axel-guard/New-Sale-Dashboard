@@ -47,29 +47,34 @@ function isEl(x) {
 /* ==============================
    LOAD SALES
 ============================== */
-async function loadSalesData() {
-  try {
-    const res = await fetch(SALES_URL, { cache: "no-store" });
-    if (!res.ok) throw new Error("Cannot fetch sales.json");
+async function saveSalesToGitHub(updatedSales) {
+  const payload = {
+    event_type: "update-sales",
+    client_payload: {
+      sales_json: btoa(JSON.stringify(updatedSales, null, 2)),
+    },
+  };
 
-    const text = await res.text();
-    if (!text.trim()) throw new Error("Empty JSON file");
-
-    const data = JSON.parse(text);
-    allSales = Array.isArray(data) ? data : data.sales || [];
-
-    console.log("✅ Loaded", allSales.length, "records");
-    initMonthSelect(allSales);
-    renderDashboard();
-  } catch (err) {
-    console.error("❌ Error loading sales.json:", err);
-    if (isEl(salesTableBody)) {
-      salesTableBody.innerHTML =
-        `<tr><td colspan="7">Failed to load data.</td></tr>`;
+  const response = await fetch(
+    "https://api.github.com/repos/axel-guard/New-Sale-Dashboard/dispatches",
+    {
+      method: "POST",
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": "token ACTION_TRIGGER_TOKEN", // replace this string only if testing locally
+      },
+      body: JSON.stringify(payload),
     }
-    if (isEl(kpiBoxes)) kpiBoxes.innerHTML = "";
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`GitHub dispatch failed: ${response.status}\n${text}`);
   }
+
+  alert("✅ Sales update triggered on GitHub. File will update within ~20 sec.");
 }
+
 
 /* Build Month dropdown from data */
 function initMonthSelect(data) {
