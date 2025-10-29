@@ -33,9 +33,15 @@ body {
   background: var(--bg);
   color: var(--fg);
   transition: background 0.3s ease, color 0.3s ease;
-  padding-left: 70px; /* leaves room for collapsed sidebar */
-  transition: padding-left 0.3s ease;
+  padding-left: 70px;
 }
+
+.nav-sidebar:hover ~ main,
+.nav-sidebar:hover ~ header {
+  margin-left: 130px;
+  transition: margin-left 0.3s ease;
+}
+
 
 /* ===== Topbar ===== */
 .topbar {
