@@ -93,6 +93,24 @@ function renderKPIs(data) {
 }
 
 // ===== ADD SALE =====
+// ===== ADD SALE =====
+// ===== ADD SALE =====
+const openAddSaleBtn = document.getElementById("openAddSale");
+const closeAddSaleBtn = document.getElementById("closeAddSale");
+const cancelAddBtn = document.getElementById("cancelAdd");
+
+openAddSaleBtn?.addEventListener("click", () => {
+  addSaleModal.style.display = "flex";
+});
+
+closeAddSaleBtn?.addEventListener("click", () => {
+  addSaleModal.style.display = "none";
+});
+
+cancelAddBtn?.addEventListener("click", () => {
+  addSaleModal.style.display = "none";
+});
+
 addSaleForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   const formData = new FormData(addSaleForm);
@@ -125,8 +143,9 @@ addSaleForm?.addEventListener("submit", (e) => {
   renderDashboard();
   addSaleModal.style.display = "none";
   addSaleForm.reset();
-  alert("✅ Sale added (temporary — not yet saved to GitHub).");
+  alert("✅ Sale added successfully (temporary — not yet saved to GitHub).");
 });
+
 
 // ===== RENDER CHARTS =====
 function renderCharts(data) {
