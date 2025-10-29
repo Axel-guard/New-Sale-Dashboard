@@ -10,7 +10,7 @@
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --border: #e5e7eb;
-  --shadow: rgba(0,0,0,0.05);
+  --shadow: rgba(0, 0, 0, 0.05);
   --muted: #6b7280;
   --chart-grid: #d1d5db;
 }
@@ -33,15 +33,15 @@ body {
   background: var(--bg);
   color: var(--fg);
   transition: background 0.3s ease, color 0.3s ease;
-  padding-left: 70px;
+  padding-left: 80px;
 }
 
+/* Smooth content shift on hover */
 .nav-sidebar:hover ~ main,
 .nav-sidebar:hover ~ header {
   margin-left: 130px;
   transition: margin-left 0.3s ease;
 }
-
 
 /* ===== Topbar ===== */
 .topbar {
@@ -57,19 +57,18 @@ body {
   transition: margin-left 0.3s ease;
 }
 
-/* ===== Sidebar Navigation ===== */
-/* ===== Sidebar Navigation (Auto-hide with Slide) ===== */
+/* ===== Sidebar Navigation (Smart Expand, Clean Look) ===== */
 .nav-sidebar {
   position: fixed;
   top: 0;
   left: 0;
   height: 100vh;
-  width: 65px;
+  width: 70px;
   background: var(--card-bg);
   border-right: 1px solid var(--border);
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
-  z-index: 9;
-  overflow-x: hidden;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.08);
+  z-index: 11;
+  overflow: hidden;
   transition: width 0.35s ease, background 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -85,7 +84,7 @@ body {
   background: transparent;
   border: none;
   text-align: left;
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-radius: 8px;
   font-weight: 500;
   color: var(--fg);
@@ -164,13 +163,14 @@ body {
   text-align: center;
 }
 
+/* === Charts Section === */
 .charts {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  display: flex;
+  justify-content: center;
   align-items: center;
-  justify-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 30px;
+  text-align: center;
 }
 
 canvas {
@@ -187,17 +187,8 @@ canvas {
 #piePaymentStatus {
   width: 240px !important;
   height: 240px !important;
-  margin-top: 20px;
+  margin-top: 10px;
   display: block;
-}
-
-.charts {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 30px;
-  text-align: center;
 }
 
 .chart-container {
@@ -207,7 +198,6 @@ canvas {
   gap: 10px;
   max-width: 260px;
 }
-
 
 /* ===== Table ===== */
 .sales-table {
