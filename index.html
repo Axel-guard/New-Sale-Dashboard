@@ -12,28 +12,24 @@
 <body>
   <!-- ================= HEADER ================= -->
   <header class="topbar">
-    <nav class="subnav">
-      <button class="tab-btn active" data-page="dashboard">Dashboard</button>
-      <button class="tab-btn" data-page="order">Order by ID</button>
-      <button class="tab-btn" data-page="courier">Courier Cost</button>
-      <button class="tab-btn" data-page="customers">Customer Details</button>
-    </nav>
+  <h1>Sales Dashboard</h1>
+  <button id="themeToggle" class="theme-btn" title="Toggle Dark Mode">🌙</button>
+  <div class="controls">
+    <label for="monthSelect">Month:</label>
+    <select id="monthSelect"></select>
+    <button id="exportCsv">Export CSV</button>
+    <button id="downloadJson">Download JSON</button>
+    <button id="openAddSale" class="accent">Add Sale</button>
+  </div>
+</header>
 
-<h1>Sales Dashboard</h1>
-<button id="themeToggle" class="theme-btn" title="Toggle Dark Mode">🌙</button>
+<aside class="nav-sidebar">
+  <button class="tab-btn active" data-page="dashboard">Dashboard</button>
+  <button class="tab-btn" data-page="order">Order by ID</button>
+  <button class="tab-btn" data-page="courier">Courier Cost</button>
+  <button class="tab-btn" data-page="customers">Customer Details</button>
+</aside>
 
-    <div class="controls">
-      <label for="monthSelect">Month:</label>
-      <select id="monthSelect"></select>
-
-      <label for="employeeSearch" class="sr-only">Search employee</label>
-      <input id="employeeSearch" placeholder="Search employee" />
-
-      <button id="exportCsv">Export CSV</button>
-      <button id="downloadJson" title="Download updated sales.json">Download JSON</button>
-      <button id="openAddSale" class="accent">Add Sale</button>
-    </div>
-  </header>
 
   <!-- ================= MAIN CONTENT ================= -->
   <main>
