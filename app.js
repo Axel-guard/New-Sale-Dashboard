@@ -7,7 +7,7 @@
 const SALES_URL = "./data/sales.json";
 
 // GitHub write-back (OFF by default for safety)
-const SAVE_TO_GITHUB = false; // set true only if you really want to commit from browser
+const SAVE_TO_GITHUB = true; // set true only if you really want to commit from browser
 const GH_USERNAME = "axel-guard";
 const GH_REPO = "New-Sale-Dashboard";
 const GH_FILE_PATH = "data/sales.json";
