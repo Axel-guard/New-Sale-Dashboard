@@ -185,10 +185,29 @@ canvas {
 
 #pieEmployeeCurrent,
 #piePaymentStatus {
-  max-width: 160px;
-  max-height: 160px;
+  width: 240px !important;
+  height: 240px !important;
   margin-top: 20px;
+  display: block;
 }
+
+.charts {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 30px;
+  text-align: center;
+}
+
+.chart-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 260px;
+}
+
 
 /* ===== Table ===== */
 .sales-table {
