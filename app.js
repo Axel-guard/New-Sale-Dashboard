@@ -1,13 +1,39 @@
 // ===== GLOBAL VARIABLES =====
-window.allSales = [];
-let charts = {};
-let currentMonth = "all";
+async function saveSalesToGitHub(updatedSales) {
+  const username = "axel-guard"; // your GitHub username
+  const repo = "New-Sale-Dashboard"; // your repository name
+  const filePath = "data/sales.json"; // file path inside repo
+  const token = "YOUR_PERSONAL_ACCESS_TOKEN"; // replace this safely
 
-const monthSelect = document.getElementById("monthSelect");
-const salesTableBody = document.querySelector("#salesTable tbody");
-const addSaleForm = document.getElementById("addSaleForm");
-const addSaleModal = document.getElementById("addSaleModal");
-const totalField = document.getElementById("totalField");
+  const apiUrl = `https://api.github.com/repos/${username}/${repo}/contents/${filePath}`;
+
+  // Get current file SHA
+  const response = await fetch(apiUrl, {
+    headers: { Authorization: `token ${token}` },
+  });
+  const fileData = await response.json();
+
+  const updatedContent = btoa(JSON.stringify(updatedSales, null, 2)); // encode to base64
+
+  const updateResponse = await fetch(apiUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: `Update sales.json (${new Date().toISOString()})`,
+      content: updatedContent,
+      sha: fileData.sha,
+    }),
+  });
+
+  if (updateResponse.ok) {
+    alert("✅ Sale saved successfully to GitHub!");
+  } else {
+    alert("❌ Failed to save sale to GitHub");
+  }
+}
 
 // ===== LOAD SALES DATA =====
 const SALES_URL = "./data/sales.json";
