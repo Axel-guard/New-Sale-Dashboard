@@ -37,6 +37,34 @@ body {
 
 /* ===== Topbar ===== */
 .topbar {
+  /* ===== Sidebar Navigation ===== */
+.nav-sidebar {
+  position: fixed;
+  top: 65px;
+  left: 0;
+  height: calc(100vh - 65px);
+  width: 180px;
+  background: var(--card-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  gap: 8px;
+  box-shadow: 2px 0 4px var(--shadow);
+  z-index: 9;
+}
+
+.nav-sidebar .tab-btn {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.layout {
+  margin-left: 200px;
+}
+
   display: flex;
   align-items: center;
   justify-content: space-between;
