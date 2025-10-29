@@ -48,6 +48,9 @@ function isEl(x) {
    LOAD SALES
 ============================== */
 async function saveSalesToGitHub(updatedSales) {
+  const GH_REPO = "axel-guard/New-Sale-Dashboard";
+  const DISPATCH_URL = `https://api.github.com/repos/${GH_REPO}/dispatches`;
+
   const payload = {
     event_type: "update-sales",
     client_payload: {
@@ -55,17 +58,24 @@ async function saveSalesToGitHub(updatedSales) {
     },
   };
 
-  const response = await fetch(
-    "https://api.github.com/repos/axel-guard/New-Sale-Dashboard/dispatches",
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.github+json",
-        "Authorization": "token ACTION_TRIGGER_TOKEN", // replace this string only if testing locally
-      },
-      body: JSON.stringify(payload),
-    }
-  );
+  const response = await fetch(DISPATCH_URL, {
+    method: "POST",
+    headers: {
+      "Accept": "application/vnd.github+json",
+      "Authorization": "Bearer YOUR_PERSONAL_ACCESS_TOKEN",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (response.ok) {
+    alert("✅ Sales update triggered on GitHub! File will update within 20–30 seconds.");
+  } else {
+    const err = await response.text();
+    console.error("GitHub dispatch failed:", err);
+    alert("❌ Failed to trigger GitHub update. Check console for details.");
+  }
+}
 
   if (!response.ok) {
     const text = await response.text();
