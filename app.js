@@ -9,10 +9,11 @@ const addSaleModal = document.getElementById("addSaleModal");
 const totalField = document.getElementById("totalField");
 
 // ===== LOAD SALES DATA =====
+const SALES_URL = "./data/sales.json";
 async function loadSalesData() {
   try {
-    // ✅ Use absolute URL for GitHub Pages (adjust if you host elsewhere)
-    const res = await fetch("https://axel-guard.github.io/New-Sale-Dashboard/Data/sales.json ", { cache: "no-store" });
+    const res = await fetch(SALES_URL, { cache: "no-store" });
+
 
 
     if (!res.ok) throw new Error("Cannot fetch sales.json");
