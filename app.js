@@ -2,6 +2,7 @@
 window.allSales = [];
 let charts = {};
 let currentMonth = "all";
+
 const monthSelect = document.getElementById("monthSelect");
 const salesTableBody = document.querySelector("#salesTable tbody");
 const addSaleForm = document.getElementById("addSaleForm");
@@ -13,18 +14,15 @@ const SALES_URL = "./data/sales.json";
 async function loadSalesData() {
   try {
     const res = await fetch(SALES_URL, { cache: "no-store" });
-
-
-
     if (!res.ok) throw new Error("Cannot fetch sales.json");
 
     const text = await res.text();
     if (!text.trim()) throw new Error("Empty JSON file");
+
     const data = JSON.parse(text);
-
     window.allSales = Array.isArray(data) ? data : data.sales || [];
-    console.log("✅ Loaded", allSales.length, "records");
 
+    console.log("✅ Loaded", allSales.length, "records");
     renderDashboard();
   } catch (err) {
     console.error("❌ Error loading sales.json:", err);
@@ -83,19 +81,19 @@ function renderKPIs(data) {
   const totalOrders = data.length;
   const totalSales = data.reduce((a, s) => a + (s.total || 0), 0);
   const totalReceived = data.reduce(
-    (a, s) =>
-      a + (s.payments?.reduce((x, y) => x + (y.amount || 0), 0) || 0),
+    (a, s) => a + (s.payments?.reduce((x, y) => x + (y.amount || 0), 0) || 0),
     0
   );
+  const balance = Math.max(0, totalSales - totalReceived);
+
   document.getElementById("kpiBoxes").innerHTML = `
-    <div class="kpi"><div class="val">${totalOrders}</div>Total Orders</div>
+    <div class="kpi"><div class="val">${totalOrders}</div>Current Month Orders</div>
     <div class="kpi"><div class="val">₹${totalSales.toLocaleString()}</div>Total Sales</div>
-    <div class="kpi"><div class="val">₹${totalReceived.toLocaleString()}</div>Received</div>`;
+    <div class="kpi"><div class="val">₹${totalReceived.toLocaleString()}</div>Received</div>
+    <div class="kpi"><div class="val">₹${balance.toLocaleString()}</div>Balance Payment</div>`;
 }
 
-// ===== ADD SALE =====
-// ===== ADD SALE =====
-// ===== ADD SALE =====
+// ===== ADD SALE (MODAL) =====
 const openAddSaleBtn = document.getElementById("openAddSale");
 const closeAddSaleBtn = document.getElementById("closeAddSale");
 const cancelAddBtn = document.getElementById("cancelAdd");
@@ -130,7 +128,7 @@ addSaleForm?.addEventListener("submit", (e) => {
         price: Number(obj.price_1 || 0),
       },
     ],
-    total: Number(totalField.value.replace(/,/g, "")) || 0,
+    total: Number((document.getElementById("totalField")?.value || "0").replace(/,/g, "")) || 0,
     payments: [
       {
         date: new Date().toISOString().split("T")[0],
@@ -147,13 +145,11 @@ addSaleForm?.addEventListener("submit", (e) => {
   alert("✅ Sale added successfully (temporary — not yet saved to GitHub).");
 });
 
-
 // ===== RENDER CHARTS =====
 function renderCharts(data) {
   const ctxBar = document.getElementById("barChart")?.getContext("2d");
   const ctxPie1 = document.getElementById("pieEmployeeCurrent")?.getContext("2d");
   const ctxPie2 = document.getElementById("piePaymentStatus")?.getContext("2d");
-
   if (!ctxBar || !ctxPie1 || !ctxPie2) return;
 
   const byEmp = {};
@@ -161,8 +157,7 @@ function renderCharts(data) {
 
   data.forEach((s) => {
     byEmp[s.employee] = (byEmp[s.employee] || 0) + (s.total || 0);
-    const paid =
-      s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0;
+    const paid = s.payments?.reduce((a, b) => a + (b.amount || 0), 0) || 0;
     if (paid >= (s.total || 0)) payStatus.Full++;
     else if (paid > 0) payStatus.Partial++;
     else payStatus.Pending++;
@@ -206,9 +201,7 @@ function renderCharts(data) {
           grid: { color: dark ? "#475569" : "#d1d5db" },
         },
       },
-      plugins: {
-        legend: { display: false },
-      },
+      plugins: { legend: { display: false } },
     },
   });
 
@@ -227,9 +220,7 @@ function renderCharts(data) {
       plugins: {
         legend: {
           position: "right",
-          labels: {
-            color: dark ? "#f9fafb" : "#111827",
-          },
+          labels: { color: dark ? "#f9fafb" : "#111827" },
         },
       },
     },
@@ -251,9 +242,7 @@ function renderCharts(data) {
       plugins: {
         legend: {
           position: "right",
-          labels: {
-            color: dark ? "#f9fafb" : "#111827",
-          },
+          labels: { color: dark ? "#f9fafb" : "#111827" },
         },
       },
     },
@@ -268,7 +257,7 @@ function applyTheme() {
   document.body.classList.toggle("dark", darkMode);
   themeToggle.textContent = darkMode ? "☀️" : "🌙";
   Object.values(charts).forEach((chart) => chart?.update?.());
-} // ✅ properly closed function
+}
 
 themeToggle?.addEventListener("click", () => {
   darkMode = !darkMode;
