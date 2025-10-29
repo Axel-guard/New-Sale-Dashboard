@@ -12,7 +12,7 @@ const GH_USERNAME = "axel-guard";
 const GH_REPO = "New-Sale-Dashboard";
 const GH_FILE_PATH = "data/sales.json";
 // ⚠️ For production, DO NOT put tokens in client JS. Use a serverless function instead.
-const GH_TOKEN = "YOUR_PERSONAL_ACCESS_TOKEN";
+const GH_TOKEN = "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";
 
 /* ==============================
    STATE & DOM
