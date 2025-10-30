@@ -321,6 +321,143 @@ app.get('/api/reports/incentives', async (c) => {
   }
 });
 
+// Get incentive history (past 12 months)
+app.get('/api/reports/incentive-history', async (c) => {
+  const { env } = c;
+  
+  try {
+    const incentiveHistory = await env.DB.prepare(`
+      SELECT 
+        employee_name,
+        month,
+        year,
+        total_sales_without_tax,
+        target_amount,
+        incentive_earned,
+        incentive_percentage,
+        created_at
+      FROM incentives
+      ORDER BY year DESC, month DESC, employee_name ASC
+      LIMIT 100
+    `).all();
+    
+    const formattedHistory = incentiveHistory.results.map(inc => {
+      const achievement = inc.target_amount > 0 
+        ? (inc.total_sales_without_tax / inc.target_amount * 100).toFixed(2)
+        : 0;
+      
+      return {
+        employee_name: inc.employee_name,
+        month: inc.month,
+        year: inc.year,
+        sales_without_tax: inc.total_sales_without_tax,
+        target_amount: inc.target_amount,
+        achievement_percentage: parseFloat(achievement),
+        incentive_earned: inc.incentive_earned,
+        status: inc.incentive_earned > 0 ? 'Paid' : 'Not Achieved',
+        created_at: inc.created_at
+      };
+    });
+    
+    return c.json({ success: true, data: formattedHistory });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch incentive history' }, 500);
+  }
+});
+
+// Save incentive record (for month-end processing)
+app.post('/api/reports/save-incentive', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { employee_name, month, year, total_sales_without_tax, target_amount, incentive_earned } = body;
+    
+    // Check if record already exists for this employee/month/year
+    const existing = await env.DB.prepare(`
+      SELECT id FROM incentives 
+      WHERE employee_name = ? AND month = ? AND year = ?
+    `).bind(employee_name, month, year).first();
+    
+    if (existing) {
+      // Update existing record
+      await env.DB.prepare(`
+        UPDATE incentives 
+        SET total_sales_without_tax = ?, target_amount = ?, incentive_earned = ?
+        WHERE id = ?
+      `).bind(total_sales_without_tax, target_amount, incentive_earned, existing.id).run();
+    } else {
+      // Insert new record
+      await env.DB.prepare(`
+        INSERT INTO incentives (employee_name, month, year, total_sales_without_tax, target_amount, incentive_earned, incentive_percentage)
+        VALUES (?, ?, ?, ?, ?, ?, 1.0)
+      `).bind(employee_name, month, year, total_sales_without_tax, target_amount, incentive_earned).run();
+    }
+    
+    return c.json({ success: true, message: 'Incentive record saved' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to save incentive' }, 500);
+  }
+});
+
+// Get product-wise sales analysis
+app.get('/api/reports/product-analysis', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const productAnalysis = await env.DB.prepare(`
+      SELECT 
+        si.product_name,
+        SUM(si.quantity) as total_quantity,
+        SUM(si.quantity * si.unit_price) as total_revenue,
+        ROUND(AVG(si.unit_price), 2) as average_price,
+        COUNT(DISTINCT s.order_id) as order_count
+      FROM sale_items si
+      JOIN sales s ON si.order_id = s.order_id
+      WHERE DATE(s.sale_date) >= DATE(?) AND s.sale_type = 'With'
+      GROUP BY si.product_name
+      ORDER BY total_revenue DESC
+      LIMIT 50
+    `).bind(currentMonthStart.toISOString()).all();
+    
+    return c.json({ success: true, data: productAnalysis.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch product analysis' }, 500);
+  }
+});
+
+// Get customer-wise sales analysis
+app.get('/api/reports/customer-analysis', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const customerAnalysis = await env.DB.prepare(`
+      SELECT 
+        customer_name,
+        company_name,
+        SUM(total_amount) as total_purchases,
+        COUNT(*) as order_count,
+        ROUND(AVG(total_amount), 2) as avg_order_value,
+        SUM(balance_amount) as balance_pending
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      GROUP BY customer_name, company_name
+      ORDER BY total_purchases DESC
+      LIMIT 50
+    `).bind(currentMonthStart.toISOString()).all();
+    
+    return c.json({ success: true, data: customerAnalysis.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch customer analysis' }, 500);
+  }
+});
+
 // Get dashboard summary data
 app.get('/api/dashboard/summary', async (c) => {
   const { env } = c;
@@ -2074,6 +2211,57 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 
+                <!-- Product-wise Sales Analysis -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-box"></i> Product-wise Sales Analysis (Current Month)
+                        </h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>Total Quantity Sold</th>
+                                    <th>Total Revenue</th>
+                                    <th>Average Price</th>
+                                    <th>Number of Orders</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productReportTableBody">
+                                <tr><td colspan="5" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Customer-wise Sales Analysis -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-users"></i> Top Customers (Current Month)
+                        </h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Customer Name</th>
+                                    <th>Company</th>
+                                    <th>Total Purchases</th>
+                                    <th>Number of Orders</th>
+                                    <th>Average Order Value</th>
+                                    <th>Balance Pending</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerReportTableBody">
+                                <tr><td colspan="6" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
                 <!-- Incentive Calculation -->
                 <div class="card">
                     <div class="card-header">
@@ -2098,6 +2286,36 @@ app.get('/', (c) => {
                             </thead>
                             <tbody id="incentiveTableBody">
                                 <tr><td colspan="6" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Incentive History -->
+                <div class="card" style="margin-top: 30px;">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-history"></i> Previous Incentive History
+                        </h3>
+                        <p style="color: #6b7280; font-size: 14px; margin-top: 5px;">
+                            Historical incentive records for all employees (past 12 months)
+                        </p>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Month & Year</th>
+                                    <th>Employee Name</th>
+                                    <th>Sales without Tax</th>
+                                    <th>Target Amount</th>
+                                    <th>Achievement %</th>
+                                    <th>Incentive Earned</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="incentiveHistoryTableBody">
+                                <tr><td colspan="7" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -4298,6 +4516,13 @@ app.get('/', (c) => {
                     const incentives = incentiveResponse.data.data;
                     
                     renderIncentiveTable(incentives);
+                    
+                    // Load incentive history
+                    loadIncentiveHistory();
+                    
+                    // Load product and customer analysis
+                    loadProductAnalysis();
+                    loadCustomerAnalysis();
                 } catch (error) {
                     console.error('Error loading reports:', error);
                 }
@@ -4411,6 +4636,111 @@ app.get('/', (c) => {
                         </td>
                     </tr>
                 \`).join('');
+            }
+            
+            async function loadIncentiveHistory() {
+                try {
+                    const response = await axios.get('/api/reports/incentive-history');
+                    const history = response.data.data;
+                    
+                    const tbody = document.getElementById('incentiveHistoryTableBody');
+                    
+                    if (!history || history.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #6b7280;">No historical data available</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = history.map(inc => {
+                        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                          'July', 'August', 'September', 'October', 'November', 'December'];
+                        const monthName = monthNames[parseInt(inc.month) - 1];
+                        
+                        return \`
+                        <tr>
+                            <td><strong>\${monthName} \${inc.year}</strong></td>
+                            <td>\${inc.employee_name}</td>
+                            <td>₹\${inc.sales_without_tax.toLocaleString()}</td>
+                            <td>₹\${inc.target_amount.toLocaleString()}</td>
+                            <td>
+                                <span class="badge \${inc.achievement_percentage >= 100 ? 'badge-success' : 'badge-warning'}">
+                                    \${inc.achievement_percentage.toFixed(1)}%
+                                </span>
+                            </td>
+                            <td style="font-weight: 700; color: \${inc.incentive_earned > 0 ? '#10b981' : '#6b7280'};">
+                                ₹\${inc.incentive_earned.toLocaleString()}
+                            </td>
+                            <td>
+                                <span class="badge \${inc.status === 'Paid' ? 'badge-success' : 'badge-error'}">
+                                    \${inc.status}
+                                </span>
+                            </td>
+                        </tr>
+                    \`;
+                    }).join('');
+                } catch (error) {
+                    console.error('Error loading incentive history:', error);
+                    const tbody = document.getElementById('incentiveHistoryTableBody');
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #dc2626;">Error loading history</td></tr>';
+                }
+            }
+            
+            async function loadProductAnalysis() {
+                try {
+                    const response = await axios.get('/api/reports/product-analysis');
+                    const products = response.data.data;
+                    
+                    const tbody = document.getElementById('productReportTableBody');
+                    
+                    if (!products || products.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">No product data available</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = products.map(prod => \`
+                        <tr>
+                            <td><strong>\${prod.product_name}</strong></td>
+                            <td>\${prod.total_quantity}</td>
+                            <td>₹\${prod.total_revenue.toLocaleString()}</td>
+                            <td>₹\${prod.average_price.toLocaleString()}</td>
+                            <td>\${prod.order_count}</td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading product analysis:', error);
+                    const tbody = document.getElementById('productReportTableBody');
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc2626;">Error loading data</td></tr>';
+                }
+            }
+            
+            async function loadCustomerAnalysis() {
+                try {
+                    const response = await axios.get('/api/reports/customer-analysis');
+                    const customers = response.data.data;
+                    
+                    const tbody = document.getElementById('customerReportTableBody');
+                    
+                    if (!customers || customers.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No customer data available</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = customers.map(cust => \`
+                        <tr>
+                            <td><strong>\${cust.customer_name}</strong></td>
+                            <td>\${cust.company_name || '-'}</td>
+                            <td>₹\${cust.total_purchases.toLocaleString()}</td>
+                            <td>\${cust.order_count}</td>
+                            <td>₹\${cust.avg_order_value.toLocaleString()}</td>
+                            <td style="color: \${cust.balance_pending > 0 ? '#dc2626' : '#10b981'}; font-weight: 600;">
+                                ₹\${cust.balance_pending.toLocaleString()}
+                            </td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading customer analysis:', error);
+                    const tbody = document.getElementById('customerReportTableBody');
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #dc2626;">Error loading data</td></tr>';
+                }
             }
             
             // Change Password Functions
