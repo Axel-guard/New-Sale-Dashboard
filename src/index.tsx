@@ -730,7 +730,7 @@ app.get('/', (c) => {
             
             .product-row {
                 display: grid;
-                grid-template-columns: 2fr 1fr 1fr 1fr auto;
+                grid-template-columns: 1.5fr 2fr 1fr 0.8fr 0.8fr 1fr 1fr auto;
                 gap: 10px;
                 align-items: end;
                 margin-bottom: 10px;
@@ -1260,6 +1260,124 @@ app.get('/', (c) => {
             let paymentChart = null;
             let employeeChart = null;
             let productCount = 0;
+            
+            // Product Catalog with Categories
+            const productCatalog = {
+                'A-MDVR': [
+                    { name: '4ch 1080p SD Card MDVR (MR9504EC)', code: 'AXG01', weight: 1 },
+                    { name: '4ch 1080p HDD MDVR (MR9704C)', code: 'AXG02', weight: 2 },
+                    { name: '4ch 1080p SD, 4G, GPS MDVR (MR9504E)', code: 'AXG03', weight: 1 },
+                    { name: '4ch 1080p SD, 4G, GPS MDVR (MR9504E-A3)', code: 'AXG73', weight: 1 },
+                    { name: '4ch 1080p HDD, 4G, GPS MDVR (MR9704E)', code: 'AXG04', weight: 2 },
+                    { name: '4ch 1080p SD, 4G, wifi, GPS MDVR (MA9504ED)', code: 'AXG58', weight: 1 },
+                    { name: 'TVS 4ch 1080p SD, 4G, GPS MDVR', code: 'TVS43', weight: 1 },
+                    { name: '5ch MDVR SD 4g + GPS + LAN + RS232 + RS485', code: 'AXG46', weight: 1 },
+                    { name: '5ch MDVR HDD 4g + GPS + LAN + RS232 + RS485', code: 'AXG47', weight: 2.2 },
+                    { name: '8ch HDD 4g+GPS MDVR (MR9708C)', code: 'AXG74', weight: 3 },
+                    { name: 'AI MDVR with (DSM + ADAS) (SD+ 4g + GPS)', code: 'AXG38', weight: 2 },
+                    { name: 'AI MDVR with (DSM + ADAS) (SD+HDD+ 4g + GPS)', code: 'AXG72', weight: 3 }
+                ],
+                'B-Monitors & Monitor Kit': [
+                    { name: '7" AV Monitor', code: 'AXGAA', weight: 1 },
+                    { name: '7" VGA Monitor', code: 'AXGAB', weight: 1 },
+                    { name: '7" HDMI Monitor', code: 'AXGB1', weight: 1 },
+                    { name: '7inch Heavy Duty VGA Monitor', code: 'AXGAC', weight: 1 },
+                    { name: '4inch AV monitor', code: 'AXGAD', weight: 0.6 },
+                    { name: '4k Recording monitor kit', code: 'AXGAE', weight: 3 },
+                    { name: '720 2ch Recording Monitor Kit', code: 'AXGAF', weight: 3 },
+                    { name: '4k Recording monitor kit 4ch', code: 'AXGAG', weight: 2 },
+                    { name: '4k Recording monitor kit 2ch', code: 'AXGAH', weight: 2 }
+                ],
+                'C-Cameras': [
+                    { name: '2 MP IR indoor Dome Camera', code: 'AXGBA', weight: 0.4 },
+                    { name: '2 MP IR Outdoor Bullet Camera', code: 'AXGBB', weight: 0.4 },
+                    { name: '2 MP Heavy Duty Bullet Camera', code: 'AXGBC', weight: 0.5 },
+                    { name: '2 MP Heavy Duty Dome Camera', code: 'AXGBD', weight: 0.5 },
+                    { name: 'PTZ Camera', code: 'AXGBE', weight: 1 },
+                    { name: '4k Monitor Camera', code: 'AXGBF', weight: 0.3 },
+                    { name: 'Replacement Bullet Camera 2mp', code: 'AXGBG', weight: 0.3 },
+                    { name: 'Replacement Dome Camera 2 mp', code: 'AXGBH', weight: 0.3 },
+                    { name: 'Replacement Dome Audio Camera', code: 'AXGBI', weight: 0.3 },
+                    { name: 'Reverse Camera', code: 'AXGBJ', weight: 0.3 },
+                    { name: '2mp IR Audio Camera', code: 'AXGBK', weight: 0.3 },
+                    { name: 'DFMS Camera', code: 'AXGBL', weight: 0.3 },
+                    { name: 'ADAS Camera', code: 'AXGBM', weight: 0.3 },
+                    { name: 'BSD Camera', code: 'AXGBN', weight: 0.3 },
+                    { name: 'MDVR IP Camera 2mp', code: 'AXGBO', weight: 0.3 },
+                    { name: '2mp IP Dome Audio Camera', code: 'AXGBP', weight: 0.3 },
+                    { name: '2 MP IP Camera', code: 'AXGBQ', weight: 0.3 },
+                    { name: '2mp Heavy Duty Dome Camera (Waterproof)', code: 'AXGBR', weight: 0.3 }
+                ],
+                'D-Dashcam': [
+                    { name: '4 Inch 2 Ch Dashcam', code: 'AXGCA', weight: 0.4 },
+                    { name: '10 inch 2 Ch Full Touch Dashcam', code: 'AXGCB', weight: 0.75 },
+                    { name: '10 inch 2 Ch 4g, GPS, Android Dashcam', code: 'AXGCD', weight: 0.75 },
+                    { name: '4k Dashcam 12 inch', code: 'AXGCE', weight: 0.75 },
+                    { name: '2k 12 inch Dashcam', code: 'AXGCF', weight: 0.75 },
+                    { name: '2ch 4g Dashcam MT95L', code: 'AXGCG', weight: 1 },
+                    { name: '3ch 4g Dahscam with Rear Camera (MT95L-A3)', code: 'AXGCH', weight: 1 },
+                    { name: '3ch AI Dashcam ADAS + DSM (MT95L-A3)', code: 'AXGCI', weight: 1 },
+                    { name: '3ch AI Dashcam ADAS + DSM (MT95C)', code: 'AXGCJ', weight: 1 },
+                    { name: '2CH AI Dashcam ADAS+ DSM (C6 Lite)', code: 'AXGCN', weight: 1.25 },
+                    { name: 'Wifi Dash Cam', code: 'AXGCK', weight: 0.3 },
+                    { name: '4 inch 3 camera Dash Cam', code: 'AXGCL', weight: 0.4 },
+                    { name: '4inch Android Dashcam', code: 'AXGCM', weight: 0.5 }
+                ],
+                'E-GPS': [
+                    { name: 'RealTrack GPS', code: 'AXGDA', weight: 0.2 },
+                    { name: 'GPS Renewal', code: 'AXGDB', weight: 0 }
+                ],
+                'F-Storage': [
+                    { name: 'Surveillance Grade 64GB SD Card', code: 'AXGEA', weight: 0.05 },
+                    { name: 'Surveillance Grade 128GB SD Card', code: 'AXGEB', weight: 0.05 },
+                    { name: 'Surveillance Grade 256GB SD Card', code: 'AXGEC', weight: 0.05 },
+                    { name: 'Surveillance Grade 512GB SD Card', code: 'AXGED', weight: 0.05 },
+                    { name: 'HDD 1 TB', code: 'AXGEE', weight: 0.2 }
+                ],
+                'G-RFID Tags': [
+                    { name: '2.4G RFID Animal Ear Tag', code: 'AXGFA', weight: 0.01 },
+                    { name: '2.4G Active Tag (Card Type) HX607', code: 'AXGFB', weight: 0.02 },
+                    { name: 'MR 6700A UHF Passive Electronic tag', code: 'AXGFC', weight: 0.02 },
+                    { name: 'UHF Windshield Tag MR6740A', code: 'AXGFD', weight: 0.02 }
+                ],
+                'H-RFID Reader': [
+                    { name: '2.4 GHZ RFID Active Reader (Bus)', code: 'AXGGA', weight: 2 },
+                    { name: '2.4 GHZ RFID Active Reader (Campus)', code: 'AXGGB', weight: 2.5 },
+                    { name: '2.4G IOT Smart RFID Reader (ZR7901P)', code: 'AXGGC', weight: 2 },
+                    { name: '2.4 G-Hz Omni-directional RFID Reader (MR3102E)', code: 'AXGGD', weight: 2 },
+                    { name: 'RFID UHF Long Range Integrated Reader (MR6211E)', code: 'AXGGE', weight: 2 }
+                ],
+                'I-MDVR Accessories': [
+                    { name: 'MDVR Loud Audio Speaker', code: 'AXGHA', weight: 0.5 },
+                    { name: '2 way Communication Device', code: 'AXGHB', weight: 0.2 },
+                    { name: 'MDVR Maintenance Tool', code: 'AXGHC', weight: 0.1 },
+                    { name: 'MDVR Remote', code: 'AXGHD', weight: 0.1 },
+                    { name: 'MDVR Panic Button', code: 'AXGHE', weight: 0.1 },
+                    { name: 'MDVR Server', code: 'AXGHF', weight: 2 },
+                    { name: 'RS 232 Adaptor', code: 'AXGHG', weight: 0.1 },
+                    { name: '5mt Cable', code: 'AXGHH', weight: 0.3 },
+                    { name: '15mt Cable', code: 'AXGHI', weight: 0.8 },
+                    { name: '10mt Cable', code: 'AXGHJ', weight: 0.6 },
+                    { name: 'VGA Cable', code: 'AXGHK', weight: 0.2 },
+                    { name: 'Alcohol Tester', code: 'AXGHL', weight: 1 },
+                    { name: 'Ultra Sonic Fuel Sensor', code: 'AXGHM', weight: 0.5 },
+                    { name: 'Rod Type Fuel Sensor', code: 'AXGHQ', weight: 0.5 },
+                    { name: '1mt Cable', code: 'AXGHN', weight: 0.2 },
+                    { name: '3mt Cable', code: 'AXGHO', weight: 0.3 },
+                    { name: 'Panic Button', code: 'AXGHP', weight: 0.1 },
+                    { name: 'Male Connector', code: 'AXGHR', weight: 0.05 }
+                ],
+                'J-Other Products': [
+                    { name: 'Courier', code: 'AXGIA', weight: 0 },
+                    { name: 'Leaser Printer', code: 'AXGIB', weight: 5 },
+                    { name: 'D link Wire Bundle', code: 'AXGIC', weight: 1 },
+                    { name: 'Wireless Receiver Transmitter', code: 'AXGID', weight: 0.5 },
+                    { name: 'Parking Sensor', code: 'AXGIE', weight: 1 },
+                    { name: 'MDVR Installation', code: 'AXGIF', weight: 0 },
+                    { name: 'GPS Installation', code: 'AXGIG', weight: 0 },
+                    { name: 'Annual Maintenance Charges', code: 'AXGIH', weight: 0 }
+                ]
+            };
 
             // Set today's date as default
             document.addEventListener('DOMContentLoaded', () => {
@@ -1496,13 +1614,34 @@ app.get('/', (c) => {
                 row.id = \`product-\${productCount}\`;
                 row.innerHTML = \`
                     <div class="form-group" style="margin: 0;">
-                        <label>Product Name</label>
-                        <select name="items[\${productCount}][product_name]" onchange="calculateSaleTotal()">
-                            <option value="">Select Product</option>
-                            <option value="MDVR">MDVR</option>
-                            <option value="Dashcam">Dashcam</option>
-                            <option value="Camera">Camera</option>
+                        <label>Category</label>
+                        <select class="product-category" onchange="updateProductOptions(\${productCount})">
+                            <option value="">Select Category</option>
+                            <option value="A-MDVR">A - MDVR</option>
+                            <option value="B-Monitors & Monitor Kit">B - Monitors & Monitor Kit</option>
+                            <option value="C-Cameras">C - Cameras</option>
+                            <option value="D-Dashcam">D - Dashcam</option>
+                            <option value="E-GPS">E - GPS</option>
+                            <option value="F-Storage">F - Storage</option>
+                            <option value="G-RFID Tags">G - RFID Tags</option>
+                            <option value="H-RFID Reader">H - RFID Reader</option>
+                            <option value="I-MDVR Accessories">I - MDVR Accessories</option>
+                            <option value="J-Other Products">J - Other Products</option>
                         </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Product Name</label>
+                        <select class="product-name" name="items[\${productCount}][product_name]" onchange="updateProductDetails(\${productCount})">
+                            <option value="">Select Category First</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Product Code</label>
+                        <input type="text" class="product-code" name="items[\${productCount}][product_code]" readonly style="background: #f9fafb;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Weight (kg)</label>
+                        <input type="number" class="product-weight" name="items[\${productCount}][weight]" readonly style="background: #f9fafb;" step="0.01" value="0">
                     </div>
                     <div class="form-group" style="margin: 0;">
                         <label>Quantity</label>
@@ -1521,6 +1660,48 @@ app.get('/', (c) => {
                     </button>
                 \`;
                 container.appendChild(row);
+            }
+            
+            function updateProductOptions(rowId) {
+                const row = document.getElementById(\`product-\${rowId}\`);
+                const categorySelect = row.querySelector('.product-category');
+                const productSelect = row.querySelector('.product-name');
+                const category = categorySelect.value;
+                
+                // Clear product selection
+                productSelect.innerHTML = '<option value="">Select Product</option>';
+                
+                if (category && productCatalog[category]) {
+                    productCatalog[category].forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.code;
+                        option.textContent = product.name;
+                        option.dataset.code = product.code;
+                        option.dataset.weight = product.weight;
+                        productSelect.appendChild(option);
+                    });
+                }
+                
+                // Clear product details
+                row.querySelector('.product-code').value = '';
+                row.querySelector('.product-weight').value = '0';
+                calculateSaleTotal();
+            }
+            
+            function updateProductDetails(rowId) {
+                const row = document.getElementById(\`product-\${rowId}\`);
+                const productSelect = row.querySelector('.product-name');
+                const selectedOption = productSelect.options[productSelect.selectedIndex];
+                
+                if (selectedOption.value) {
+                    row.querySelector('.product-code').value = selectedOption.dataset.code || selectedOption.value;
+                    row.querySelector('.product-weight').value = selectedOption.dataset.weight || '0';
+                } else {
+                    row.querySelector('.product-code').value = '';
+                    row.querySelector('.product-weight').value = '0';
+                }
+                
+                calculateSaleTotal();
             }
 
             function removeProductRow(id) {
@@ -1602,13 +1783,18 @@ app.get('/', (c) => {
                 // Build items array
                 const items = [];
                 document.querySelectorAll('.product-row').forEach((row) => {
-                    const product = row.querySelector('select[name*="product_name"]').value;
+                    const productSelect = row.querySelector('select[name*="product_name"]');
+                    const productCode = productSelect.value;
+                    const productName = productSelect.options[productSelect.selectedIndex].text;
+                    const productWeight = parseFloat(row.querySelector('input[name*="weight"]').value) || 0;
                     const qty = parseFloat(row.querySelector('input[name*="quantity"]').value) || 0;
                     const price = parseFloat(row.querySelector('input[name*="unit_price"]').value) || 0;
                     
-                    if (product && qty > 0 && price > 0) {
+                    if (productCode && qty > 0 && price > 0) {
                         items.push({
-                            product_name: product,
+                            product_name: productName,
+                            product_code: productCode,
+                            weight: productWeight,
                             quantity: qty,
                             unit_price: price
                         });
