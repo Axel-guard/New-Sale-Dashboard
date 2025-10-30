@@ -502,6 +502,38 @@ app.get('/', (c) => {
                 box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
             }
             
+            .btn-view {
+                background: #3b82f6;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.2s;
+            }
+            
+            .btn-view:hover {
+                background: #2563eb;
+                transform: scale(1.05);
+            }
+            
+            .btn-update {
+                background: #f59e0b;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.2s;
+            }
+            
+            .btn-update:hover {
+                background: #d97706;
+                transform: scale(1.05);
+            }
+            
             .action-menu {
                 display: none;
                 position: absolute;
@@ -897,9 +929,11 @@ app.get('/', (c) => {
                         <table id="salesTable">
                             <thead>
                                 <tr>
+                                    <th>Action</th>
                                     <th>Order ID</th>
                                     <th>Date</th>
-                                    <th>Customer</th>
+                                    <th>Customer Name</th>
+                                    <th>Company Name</th>
                                     <th>Employee</th>
                                     <th>Products</th>
                                     <th>Sale Type</th>
@@ -909,11 +943,11 @@ app.get('/', (c) => {
                                     <th>Received</th>
                                     <th>Balance</th>
                                     <th>Payments</th>
-                                    <th>Remarks</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="salesTableBody">
-                                <tr><td colspan="13" class="loading">Loading...</td></tr>
+                                <tr><td colspan="15" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1061,6 +1095,19 @@ app.get('/', (c) => {
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sale Details Modal -->
+        <div class="modal" id="saleDetailsModal">
+            <div class="modal-content" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Sale Details</h2>
+                    <span class="close" onclick="closeSaleDetailsModal()">&times;</span>
+                </div>
+                <div id="saleDetailsContent">
+                    <div class="loading">Loading...</div>
                 </div>
             </div>
         </div>
@@ -1579,9 +1626,15 @@ app.get('/', (c) => {
                         const payments = sale.payments.length;
                         return \`
                         <tr>
+                            <td>
+                                <button class="btn-view" onclick="viewSaleDetails('\${sale.order_id}')" title="View Full Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
                             <td><strong>\${sale.order_id}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
-                            <td>\${sale.customer_code}<br><small>\${sale.customer_contact || ''}</small></td>
+                            <td>\${sale.customer_name || sale.customer_code}</td>
+                            <td>\${sale.company_name || '-'}</td>
                             <td>\${sale.employee_name}</td>
                             <td><small>\${products}</small></td>
                             <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
@@ -1591,7 +1644,9 @@ app.get('/', (c) => {
                             <td>₹\${sale.amount_received.toLocaleString()}</td>
                             <td>\${sale.balance_amount > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>'}</td>
                             <td><small>\${payments} payment(s)</small></td>
-                            <td><small>\${sale.remarks || '-'}</small></td>
+                            <td>
+                                \${sale.balance_amount > 0 ? '<button class="btn-update" onclick="openUpdateBalanceModal(\\'' + sale.order_id + '\\')" title="Update Balance Payment"><i class="fas fa-money-bill-wave"></i></button>' : '-'}
+                            </td>
                         </tr>
                     \`;
                     }).join('');
@@ -1617,16 +1672,16 @@ app.get('/', (c) => {
                         <label>Category</label>
                         <select class="product-category" onchange="updateProductOptions(\${productCount})">
                             <option value="">Select Category</option>
-                            <option value="A-MDVR">A - MDVR</option>
-                            <option value="B-Monitors & Monitor Kit">B - Monitors & Monitor Kit</option>
-                            <option value="C-Cameras">C - Cameras</option>
-                            <option value="D-Dashcam">D - Dashcam</option>
-                            <option value="E-GPS">E - GPS</option>
-                            <option value="F-Storage">F - Storage</option>
-                            <option value="G-RFID Tags">G - RFID Tags</option>
-                            <option value="H-RFID Reader">H - RFID Reader</option>
-                            <option value="I-MDVR Accessories">I - MDVR Accessories</option>
-                            <option value="J-Other Products">J - Other Products</option>
+                            <option value="A-MDVR">MDVR</option>
+                            <option value="B-Monitors & Monitor Kit">Monitors & Monitor Kit</option>
+                            <option value="C-Cameras">Cameras</option>
+                            <option value="D-Dashcam">Dashcam</option>
+                            <option value="E-GPS">GPS</option>
+                            <option value="F-Storage">Storage</option>
+                            <option value="G-RFID Tags">RFID Tags</option>
+                            <option value="H-RFID Reader">RFID Reader</option>
+                            <option value="I-MDVR Accessories">MDVR Accessories</option>
+                            <option value="J-Other Products">Other Products</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin: 0;">
@@ -1771,6 +1826,159 @@ app.get('/', (c) => {
             function closeNewLeadModal() {
                 document.getElementById('newLeadModal').classList.remove('show');
                 document.getElementById('newLeadForm').reset();
+            }
+
+            // View Sale Details
+            async function viewSaleDetails(orderId) {
+                try {
+                    const modal = document.getElementById('saleDetailsModal');
+                    const content = document.getElementById('saleDetailsContent');
+                    
+                    modal.classList.add('show');
+                    content.innerHTML = '<div class="loading">Loading...</div>';
+                    
+                    const response = await axios.get(\`/api/sales/order/\${orderId}\`);
+                    const sale = response.data.data;
+                    
+                    const productsTable = sale.items.map(item => \`
+                        <tr>
+                            <td>\${item.product_name}</td>
+                            <td>\${item.product_code || '-'}</td>
+                            <td>\${item.quantity}</td>
+                            <td>₹\${item.unit_price.toLocaleString()}</td>
+                            <td>₹\${item.total_price.toLocaleString()}</td>
+                        </tr>
+                    \`).join('');
+                    
+                    const paymentsTable = sale.payments.map(payment => \`
+                        <tr>
+                            <td>\${new Date(payment.payment_date).toLocaleDateString()}</td>
+                            <td>₹\${payment.amount.toLocaleString()}</td>
+                            <td>\${payment.payment_reference || '-'}</td>
+                            <td>\${payment.account_received || '-'}</td>
+                        </tr>
+                    \`).join('');
+                    
+                    content.innerHTML = \`
+                        <div style="margin-bottom: 20px;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Order ID</label>
+                                    <div style="font-size: 16px; font-weight: 600;">\${sale.order_id}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Date</label>
+                                    <div>\${new Date(sale.sale_date).toLocaleDateString()}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Customer Name</label>
+                                    <div>\${sale.customer_name || sale.customer_code}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Company Name</label>
+                                    <div>\${sale.company_name || '-'}</div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Employee</label>
+                                    <div>\${sale.employee_name}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Contact</label>
+                                    <div>\${sale.customer_contact || '-'}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Sale Type</label>
+                                    <div><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Products</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Product Name</th>
+                                        <th>Product Code</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    \${productsTable}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Payment Summary</h3>
+                        <div class="form-row" style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Subtotal</label>
+                                <div style="font-size: 16px;">₹\${sale.subtotal.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Courier Cost</label>
+                                <div style="font-size: 16px;">₹\${sale.courier_cost.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">GST (18%)</label>
+                                <div style="font-size: 16px;">₹\${sale.gst_amount.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Total Amount</label>
+                                <div style="font-size: 18px; font-weight: 600; color: #667eea;">₹\${sale.total_amount.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row" style="background: \${sale.balance_amount > 0 ? '#fef3c7' : '#d1fae5'}; padding: 15px; border-radius: 8px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Amount Received</label>
+                                <div style="font-size: 16px; color: #10b981; font-weight: 600;">₹\${sale.amount_received.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Balance Amount</label>
+                                <div style="font-size: 18px; font-weight: 700; color: \${sale.balance_amount > 0 ? '#dc2626' : '#10b981'};">
+                                    \${sale.balance_amount > 0 ? '₹' + sale.balance_amount.toLocaleString() : 'PAID'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Payment History (\${sale.payments.length} payment(s))</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Amount</th>
+                                        <th>Reference</th>
+                                        <th>Account</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    \${paymentsTable || '<tr><td colspan="4" style="text-align: center; color: #9ca3af;">No payments recorded</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        \${sale.remarks ? '<div style="margin-top: 15px;"><label style="font-weight: 600; color: #6b7280;">Remarks:</label><div style="padding: 10px; background: #f9fafb; border-radius: 6px; margin-top: 5px;">' + sale.remarks + '</div></div>' : ''}
+                    \`;
+                } catch (error) {
+                    console.error('Error loading sale details:', error);
+                    alert('Error loading sale details');
+                }
+            }
+            
+            function closeSaleDetailsModal() {
+                document.getElementById('saleDetailsModal').classList.remove('show');
+            }
+            
+            // Open Update Balance Modal with pre-filled Order ID
+            function openUpdateBalanceModal(orderId) {
+                openBalancePaymentModal();
+                document.getElementById('balancePaymentForm').order_id.value = orderId;
             }
 
             // Submit New Sale
