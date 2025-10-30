@@ -3424,6 +3424,8 @@ app.get('/', (c) => {
                 const values = data.map(d => d.count);
                 const colors = ['#10b981', '#f59e0b', '#ef4444'];
                 
+                const amounts = data.map(d => d.total_amount || 0);
+                
                 paymentChart = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
@@ -3440,6 +3442,16 @@ app.get('/', (c) => {
                         plugins: {
                             legend: {
                                 position: 'bottom',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const amount = amounts[context.dataIndex] || 0;
+                                        return label + ': ' + value + ' sales (₹' + amount.toLocaleString() + ')';
+                                    }
+                                }
                             }
                         }
                     }
@@ -3487,6 +3499,7 @@ app.get('/', (c) => {
                             <td><small>\${payments} payment(s)</small></td>
                             <td>
                                 \${sale.balance_amount > 0 ? '<button class="btn-update" onclick="openUpdateBalanceModal(\\'' + sale.order_id + '\\')" title="Update Balance Payment"><i class="fas fa-money-bill-wave"></i></button>' : '-'}
+                                \${currentUser && currentUser.role === 'admin' ? '<button class="btn-danger" style="margin-left: 5px; padding: 5px 8px;" onclick="deleteSale(\\'' + sale.order_id + '\\')" title="Delete Sale"><i class="fas fa-trash"></i></button>' : ''}
                             </td>
                         </tr>
                     \`;
@@ -4151,17 +4164,24 @@ app.get('/', (c) => {
 
             async function loadAllSales() {
                 try {
-                    const response = await axios.get('/api/sales');
+                    const response = await axios.get('/api/sales/current-month?page=1&limit=1000');
                     const sales = response.data.data;
                     
                     const tbody = document.getElementById('allSalesTableBody');
                     const isAdmin = currentUser && currentUser.role === 'admin';
-                    tbody.innerHTML = sales.map(sale => \`
+                    tbody.innerHTML = sales.map(sale => {
+                        const items = sale.items || [];
+                        const products = items.length > 0 
+                            ? items.map(item => \`\${item.product_name} (x\${item.quantity})\`).join(', ')
+                            : 'No products';
+                        
+                        return \`
                         <tr>
                             <td><strong>\${sale.order_id}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
-                            <td>\${sale.customer_code}</td>
+                            <td>\${sale.customer_name || sale.customer_code}</td>
                             <td>\${sale.employee_name}</td>
+                            <td><small>\${products}</small></td>
                             <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
                             <td>₹\${sale.total_amount.toLocaleString()}</td>
                             <td>₹\${sale.balance_amount.toLocaleString()}</td>
@@ -4169,7 +4189,8 @@ app.get('/', (c) => {
                                 \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editSale('\${sale.order_id}')"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="deleteSale('\${sale.order_id}')"><i class="fas fa-trash"></i></button>\` : '-'}
                             </td>
                         </tr>
-                    \`).join('');
+                        \`;
+                    }).join('');
                 } catch (error) {
                     console.error('Error loading all sales:', error);
                 }
