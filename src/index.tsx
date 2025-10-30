@@ -355,6 +355,149 @@ app.post('/api/leads', async (c) => {
   }
 });
 
+// Get single sale by ID
+app.get('/api/sales/:orderId', async (c) => {
+  const { env } = c;
+  const orderId = c.req.param('orderId');
+  
+  try {
+    const sale = await env.DB.prepare(`
+      SELECT * FROM sales WHERE order_id = ?
+    `).bind(orderId).first();
+    
+    if (!sale) {
+      return c.json({ success: false, error: 'Sale not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: sale });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch sale' }, 500);
+  }
+});
+
+// Get sale items by order ID
+app.get('/api/sales/:orderId/items', async (c) => {
+  const { env } = c;
+  const orderId = c.req.param('orderId');
+  
+  try {
+    const items = await env.DB.prepare(`
+      SELECT * FROM sale_items WHERE order_id = ?
+    `).bind(orderId).all();
+    
+    return c.json({ success: true, data: items.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch sale items' }, 500);
+  }
+});
+
+// Update sale
+app.put('/api/sales/:orderId', async (c) => {
+  const { env } = c;
+  const orderId = c.req.param('orderId');
+  
+  try {
+    const body = await c.req.json();
+    const {
+      customer_code,
+      sale_date,
+      employee_name,
+      sale_type,
+      courier_cost,
+      amount_received,
+      account_received,
+      payment_reference,
+      remarks,
+      items
+    } = body;
+    
+    // Calculate totals
+    let subtotal = 0;
+    items.forEach(item => {
+      subtotal += item.quantity * item.unit_price;
+    });
+    
+    const gstAmount = sale_type === 'With' ? subtotal * 0.18 : 0;
+    const totalAmount = subtotal + (courier_cost || 0) + gstAmount;
+    const balanceAmount = totalAmount - (amount_received || 0);
+    
+    // Update sale
+    await env.DB.prepare(`
+      UPDATE sales SET
+        customer_code = ?,
+        sale_date = ?,
+        employee_name = ?,
+        sale_type = ?,
+        courier_cost = ?,
+        amount_received = ?,
+        account_received = ?,
+        payment_reference = ?,
+        remarks = ?,
+        subtotal = ?,
+        gst_amount = ?,
+        total_amount = ?,
+        balance_amount = ?
+      WHERE order_id = ?
+    `).bind(
+      customer_code,
+      sale_date,
+      employee_name,
+      sale_type,
+      courier_cost || 0,
+      amount_received || 0,
+      account_received,
+      payment_reference || null,
+      remarks || null,
+      subtotal,
+      gstAmount,
+      totalAmount,
+      balanceAmount,
+      orderId
+    ).run();
+    
+    // Delete existing items
+    await env.DB.prepare(`DELETE FROM sale_items WHERE order_id = ?`).bind(orderId).run();
+    
+    // Insert new items
+    for (const item of items) {
+      await env.DB.prepare(`
+        INSERT INTO sale_items (order_id, product_name, quantity, unit_price, total_price)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        orderId,
+        item.product_name,
+        item.quantity,
+        item.unit_price,
+        item.quantity * item.unit_price
+      ).run();
+    }
+    
+    return c.json({ success: true, message: 'Sale updated successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to update sale' }, 500);
+  }
+});
+
+// Upload Excel data for sales (placeholder - Excel parsing needs additional libraries)
+app.post('/api/sales/upload-excel', async (c) => {
+  // Note: Excel parsing would require libraries like xlsx which may not work in Cloudflare Workers
+  // This is a placeholder that returns a message
+  return c.json({ 
+    success: false, 
+    error: 'Excel upload feature requires server-side Excel parsing library. Please convert Excel to CSV and use alternative import method.' 
+  }, 501);
+});
+
+// Upload Excel data for leads (placeholder - Excel parsing needs additional libraries)
+app.post('/api/leads/upload-excel', async (c) => {
+  // Note: Excel parsing would require libraries like xlsx which may not work in Cloudflare Workers
+  // This is a placeholder that returns a message
+  return c.json({ 
+    success: false, 
+    error: 'Excel upload feature requires server-side Excel parsing library. Please convert Excel to CSV and use alternative import method.' 
+  }, 501);
+});
+
 // Get all customers
 app.get('/api/customers', async (c) => {
   const { env } = c;
@@ -849,11 +992,11 @@ app.get('/', (c) => {
             </div>
             <div class="sidebar-item" onclick="showPage('courier-calculation')">
                 <i class="fas fa-shipping-fast"></i>
-                <span>Courier Calculation</span>
+                <span>Courier Charges Calculator</span>
             </div>
             <div class="sidebar-item" onclick="showPage('order-details')">
                 <i class="fas fa-search"></i>
-                <span>Order Details by ID</span>
+                <span>Order Details by Order ID</span>
             </div>
             <div class="sidebar-item" onclick="showPage('customer-details')">
                 <i class="fas fa-users"></i>
@@ -861,19 +1004,23 @@ app.get('/', (c) => {
             </div>
             <div class="sidebar-item" onclick="showPage('current-month-sale')">
                 <i class="fas fa-calendar-alt"></i>
-                <span>Current Month Sale</span>
-            </div>
-            <div class="sidebar-item" onclick="showPage('sale-database')">
-                <i class="fas fa-database"></i>
-                <span>Sale Database</span>
+                <span>Current Months Sale</span>
             </div>
             <div class="sidebar-item" onclick="showPage('balance-payment')">
                 <i class="fas fa-money-bill-wave"></i>
                 <span>Balance Payment</span>
             </div>
+            <div class="sidebar-item" onclick="showPage('sale-database')">
+                <i class="fas fa-database"></i>
+                <span>Sale Database</span>
+            </div>
             <div class="sidebar-item" onclick="showPage('leads')">
                 <i class="fas fa-user-plus"></i>
-                <span>Leads</span>
+                <span>Leads Database</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('excel-upload')">
+                <i class="fas fa-file-excel"></i>
+                <span>Upload Excel Data</span>
             </div>
         </div>
 
@@ -1098,10 +1245,11 @@ app.get('/', (c) => {
                                     <th>Sale Type</th>
                                     <th>Total Amount</th>
                                     <th>Balance</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="allSalesTableBody">
-                                <tr><td colspan="7" class="loading">Loading...</td></tr>
+                                <tr><td colspan="8" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1136,7 +1284,7 @@ app.get('/', (c) => {
 
             <div class="page-content" id="leads-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Leads Management</h2>
+                    <h2 class="card-title" style="margin-bottom: 20px;">Leads Database</h2>
                     <div class="table-container">
                         <table>
                             <thead>
@@ -1156,6 +1304,80 @@ app.get('/', (c) => {
                                 <tr><td colspan="9" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="excel-upload-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Upload Excel Data</h2>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                        <!-- Sales Upload Section -->
+                        <div style="border: 2px dashed #e5e7eb; border-radius: 8px; padding: 30px; background: #f9fafb;">
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <i class="fas fa-file-excel" style="font-size: 48px; color: #10b981; margin-bottom: 15px;"></i>
+                                <h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Upload Sales Data</h3>
+                                <p style="color: #6b7280; font-size: 14px;">Upload Excel file containing sales records</p>
+                            </div>
+                            <form id="salesExcelForm" onsubmit="uploadSalesExcel(event)">
+                                <div class="form-group">
+                                    <label>Select Excel File *</label>
+                                    <input type="file" name="salesFile" accept=".xlsx,.xls" required style="padding: 8px;">
+                                </div>
+                                <button type="submit" class="btn-primary" style="width: 100%;">
+                                    <i class="fas fa-upload"></i> Upload Sales Data
+                                </button>
+                            </form>
+                            <div id="salesUploadStatus" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none;"></div>
+                            
+                            <div style="margin-top: 25px; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Expected Format:</h4>
+                                <ul style="font-size: 13px; color: #6b7280; line-height: 1.8; margin-left: 20px;">
+                                    <li>Customer Code/Contact</li>
+                                    <li>Date of Sale</li>
+                                    <li>Employee Name</li>
+                                    <li>Product Name</li>
+                                    <li>Quantity</li>
+                                    <li>Unit Price</li>
+                                    <li>Sale Type (With/Without GST)</li>
+                                    <li>Account Received</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <!-- Leads Upload Section -->
+                        <div style="border: 2px dashed #e5e7eb; border-radius: 8px; padding: 30px; background: #f9fafb;">
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <i class="fas fa-file-excel" style="font-size: 48px; color: #3b82f6; margin-bottom: 15px;"></i>
+                                <h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Upload Leads Data</h3>
+                                <p style="color: #6b7280; font-size: 14px;">Upload Excel file containing lead records</p>
+                            </div>
+                            <form id="leadsExcelForm" onsubmit="uploadLeadsExcel(event)">
+                                <div class="form-group">
+                                    <label>Select Excel File *</label>
+                                    <input type="file" name="leadsFile" accept=".xlsx,.xls" required style="padding: 8px;">
+                                </div>
+                                <button type="submit" class="btn-primary" style="width: 100%;">
+                                    <i class="fas fa-upload"></i> Upload Leads Data
+                                </button>
+                            </form>
+                            <div id="leadsUploadStatus" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none;"></div>
+                            
+                            <div style="margin-top: 25px; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Expected Format:</h4>
+                                <ul style="font-size: 13px; color: #6b7280; line-height: 1.8; margin-left: 20px;">
+                                    <li>Customer Name</li>
+                                    <li>Mobile Number</li>
+                                    <li>Alternate Mobile</li>
+                                    <li>Location</li>
+                                    <li>Company Name</li>
+                                    <li>GST Number</li>
+                                    <li>Email</li>
+                                    <li>Status</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1179,17 +1401,13 @@ app.get('/', (c) => {
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 style="font-size: 20px; font-weight: 600;">Add New Sale</h2>
-                    <span class="close" onclick="closeNewSaleModal()">&times;</span>
+                    <span class="close" onclick="document.getElementById('newSaleModal').classList.remove('show')">&times;</span>
                 </div>
                 <form id="newSaleForm" onsubmit="submitNewSale(event)">
                     <div class="form-row">
                         <div class="form-group">
                             <label>Customer Code / Contact Number *</label>
-                            <input type="text" name="customer_code" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Customer Contact</label>
-                            <input type="tel" name="customer_contact">
+                            <input type="text" name="customer_code" required placeholder="Enter customer code or contact">
                         </div>
                         <div class="form-group">
                             <label>Date of Sale *</label>
@@ -1217,32 +1435,32 @@ app.get('/', (c) => {
                         </div>
                         <div class="form-group">
                             <label>Courier Cost</label>
-                            <input type="number" name="courier_cost" min="0" step="0.01" value="0" onchange="calculateSaleTotal()">
+                            <input type="number" name="courier_cost" min="0" step="0.01" value="0" onchange="calculateSaleTotal()" placeholder="0.00">
                         </div>
                         <div class="form-group">
                             <label>Amount Received</label>
-                            <input type="number" name="amount_received" min="0" step="0.01" value="0">
-                        </div>
-                        <div class="form-group">
-                            <label>In Account Received *</label>
-                            <select name="account_received" required>
-                                <option value="">Select Account</option>
-                                <option value="IDFC4828">IDFC4828</option>
-                                <option value="IDFC7455">IDFC7455</option>
-                                <option value="Canara">Canara</option>
-                                <option value="Cash">Cash</option>
-                            </select>
+                            <input type="number" name="amount_received" min="0" step="0.01" value="0" placeholder="0.00">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
+                            <label>In Account Received *</label>
+                            <select name="account_received" required>
+                                <option value="">Select Account</option>
+                                <option value="IDFC(4828)">IDFC (4828)</option>
+                                <option value="IDFC(7455)">IDFC (7455)</option>
+                                <option value="Canara">Canara</option>
+                                <option value="Cash">Cash</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label>Payment Reference Number</label>
-                            <input type="text" name="payment_reference">
+                            <input type="text" name="payment_reference" placeholder="Enter reference number">
                         </div>
                         <div class="form-group">
                             <label>Remarks</label>
-                            <textarea name="remarks" rows="3"></textarea>
+                            <textarea name="remarks" rows="3" placeholder="Add any additional notes"></textarea>
                         </div>
                     </div>
 
@@ -1285,7 +1503,7 @@ app.get('/', (c) => {
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
                     <h2 style="font-size: 20px; font-weight: 600;">Update Balance Payment</h2>
-                    <span class="close" onclick="closeBalancePaymentModal()">&times;</span>
+                    <span class="close" onclick="document.getElementById('balancePaymentModal').classList.remove('show')">&times;</span>
                 </div>
                 <form id="balancePaymentForm" onsubmit="submitBalancePayment(event)">
                     <div class="form-group">
@@ -1316,7 +1534,7 @@ app.get('/', (c) => {
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 style="font-size: 20px; font-weight: 600;">Add New Lead</h2>
-                    <span class="close" onclick="closeNewLeadModal()">&times;</span>
+                    <span class="close" onclick="document.getElementById('newLeadModal').classList.remove('show')">&times;</span>
                 </div>
                 <form id="newLeadForm" onsubmit="submitNewLead(event)">
                     <div class="form-row">
@@ -1359,6 +1577,107 @@ app.get('/', (c) => {
                     </div>
                     <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
                         <i class="fas fa-save"></i> Save Lead
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Sale Modal -->
+        <div class="modal" id="editSaleModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Edit Sale</h2>
+                    <span class="close" onclick="document.getElementById('editSaleModal').classList.remove('show')">&times;</span>
+                </div>
+                <form id="editSaleForm" onsubmit="submitEditSale(event)">
+                    <input type="hidden" name="order_id" id="editOrderId">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Code / Contact Number *</label>
+                            <input type="text" name="customer_code" id="editCustomerCode" required placeholder="Enter customer code or contact">
+                        </div>
+                        <div class="form-group">
+                            <label>Date of Sale *</label>
+                            <input type="date" name="sale_date" id="editSaleDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Employee Name *</label>
+                            <select name="employee_name" id="editEmployeeName" required>
+                                <option value="">Select Employee</option>
+                                <option value="Akash Parashar">Akash Parashar</option>
+                                <option value="Mandeep Samal">Mandeep Samal</option>
+                                <option value="Smruti Ranjan Nayak">Smruti Ranjan Nayak</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Sale Type *</label>
+                            <select name="sale_type" id="editSaleType" required onchange="calculateEditSaleTotal()">
+                                <option value="">Select Type</option>
+                                <option value="With">With GST</option>
+                                <option value="Without">Without GST</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Courier Cost</label>
+                            <input type="number" name="courier_cost" id="editCourierCost" min="0" step="0.01" value="0" onchange="calculateEditSaleTotal()" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Amount Received</label>
+                            <input type="number" name="amount_received" id="editAmountReceived" min="0" step="0.01" value="0" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>In Account Received *</label>
+                            <select name="account_received" id="editAccountReceived" required>
+                                <option value="">Select Account</option>
+                                <option value="IDFC(4828)">IDFC (4828)</option>
+                                <option value="IDFC(7455)">IDFC (7455)</option>
+                                <option value="Canara">Canara</option>
+                                <option value="Cash">Cash</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Payment Reference Number</label>
+                            <input type="text" name="payment_reference" id="editPaymentReference" placeholder="Enter reference number">
+                        </div>
+                        <div class="form-group">
+                            <label>Remarks</label>
+                            <textarea name="remarks" id="editRemarks" rows="3" placeholder="Add any additional notes"></textarea>
+                        </div>
+                    </div>
+
+                    <h3 style="margin: 20px 0 15px 0; font-size: 16px; font-weight: 600; color: #374151;">Product Details</h3>
+                    <div id="editProductRows">
+                        <!-- Product rows will be loaded here -->
+                    </div>
+
+                    <div class="total-summary">
+                        <div class="total-row">
+                            <span>Subtotal:</span>
+                            <span id="editSubtotalDisplay">₹0.00</span>
+                        </div>
+                        <div class="total-row">
+                            <span>Courier Cost:</span>
+                            <span id="editCourierDisplay">₹0.00</span>
+                        </div>
+                        <div class="total-row">
+                            <span>GST (18%):</span>
+                            <span id="editGstDisplay">₹0.00</span>
+                        </div>
+                        <div class="total-row final">
+                            <span>Total Amount:</span>
+                            <span id="editTotalDisplay">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 20px;">
+                        <i class="fas fa-save"></i> Update Sale
                     </button>
                 </form>
             </div>
@@ -2263,7 +2582,40 @@ app.get('/', (c) => {
             }
 
             async function loadCurrentMonthSales() {
-                // Similar implementation
+                try {
+                    const response = await axios.get('/api/sales/current-month');
+                    const sales = response.data.data;
+                    
+                    const tbody = document.getElementById('currentMonthTableBody');
+                    tbody.innerHTML = sales.map(sale => \`
+                        <tr onclick="viewSaleDetails('\${sale.order_id}')" style="cursor: pointer;">
+                            <td><strong>\${sale.order_id}</strong></td>
+                            <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
+                            <td>
+                                <div style="font-weight: 600;">\${sale.customer_code}</div>
+                                <div style="font-size: 12px; color: #6b7280;">\${sale.company_name || 'N/A'}</div>
+                            </td>
+                            <td>\${sale.employee_name}</td>
+                            <td>
+                                <div style="font-size: 12px; color: #374151;">
+                                    \${sale.items ? JSON.parse(sale.items).map(item => \`
+                                        <div style="margin: 2px 0;">
+                                            • \${item.product_name} (Qty: \${item.quantity} @ ₹\${item.unit_price})
+                                        </div>
+                                    \`).join('') : 'N/A'}
+                                </div>
+                            </td>
+                            <td style="font-weight: 600;">₹\${sale.total_amount.toLocaleString()}</td>
+                            <td style="color: \${sale.balance_amount > 0 ? '#dc2626' : '#10b981'}; font-weight: 600;">
+                                ₹\${sale.balance_amount.toLocaleString()}
+                            </td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading current month sales:', error);
+                    const tbody = document.getElementById('currentMonthTableBody');
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #dc2626;">Error loading sales</td></tr>';
+                }
             }
 
             async function loadAllSales() {
@@ -2281,6 +2633,11 @@ app.get('/', (c) => {
                             <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
                             <td>₹\${sale.total_amount.toLocaleString()}</td>
                             <td>₹\${sale.balance_amount.toLocaleString()}</td>
+                            <td>
+                                <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editSale('\${sale.order_id}')">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                            </td>
                         </tr>
                     \`).join('');
                 } catch (error) {
@@ -2421,6 +2778,198 @@ app.get('/', (c) => {
                             <strong>Error:</strong> Order not found
                         </div>
                     \`;
+                }
+            }
+
+            // Edit Sale Functions
+            async function editSale(orderId) {
+                try {
+                    const response = await axios.get(\`/api/sales/\${orderId}\`);
+                    const sale = response.data.data;
+                    
+                    // Populate form fields
+                    document.getElementById('editOrderId').value = sale.order_id;
+                    document.getElementById('editCustomerCode').value = sale.customer_code;
+                    document.getElementById('editSaleDate').value = sale.sale_date.split('T')[0];
+                    document.getElementById('editEmployeeName').value = sale.employee_name;
+                    document.getElementById('editSaleType').value = sale.sale_type;
+                    document.getElementById('editCourierCost').value = sale.courier_cost || 0;
+                    document.getElementById('editAmountReceived').value = sale.amount_received || 0;
+                    document.getElementById('editAccountReceived').value = sale.account_received;
+                    document.getElementById('editPaymentReference').value = sale.payment_reference || '';
+                    document.getElementById('editRemarks').value = sale.remarks || '';
+                    
+                    // Load products
+                    const itemsResponse = await axios.get(\`/api/sales/\${orderId}/items\`);
+                    const items = itemsResponse.data.data;
+                    
+                    const productRows = document.getElementById('editProductRows');
+                    productRows.innerHTML = '';
+                    
+                    items.forEach((item, index) => {
+                        const row = document.createElement('div');
+                        row.className = 'product-row';
+                        row.innerHTML = \`
+                            <div class="form-group" style="margin: 0;">
+                                <label>Product Name</label>
+                                <input type="text" name="items[\${index}][product_name]" value="\${item.product_name}" required>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label>Quantity</label>
+                                <input type="number" name="items[\${index}][quantity]" value="\${item.quantity}" min="0" required onchange="calculateEditSaleTotal()">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label>Unit Price</label>
+                                <input type="number" name="items[\${index}][unit_price]" value="\${item.unit_price}" min="0" step="0.01" required onchange="calculateEditSaleTotal()">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label>Total</label>
+                                <input type="number" class="product-total" readonly style="background: #f3f4f6;" value="\${item.quantity * item.unit_price}">
+                            </div>
+                        \`;
+                        productRows.appendChild(row);
+                    });
+                    
+                    calculateEditSaleTotal();
+                    document.getElementById('editSaleModal').classList.add('show');
+                } catch (error) {
+                    alert('Error loading sale data: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            function calculateEditSaleTotal() {
+                let subtotal = 0;
+                
+                document.querySelectorAll('#editProductRows .product-row').forEach(row => {
+                    const quantity = parseFloat(row.querySelector('input[name*="quantity"]').value) || 0;
+                    const unitPrice = parseFloat(row.querySelector('input[name*="unit_price"]').value) || 0;
+                    const total = quantity * unitPrice;
+                    
+                    row.querySelector('.product-total').value = total.toFixed(2);
+                    subtotal += total;
+                });
+                
+                const courierCost = parseFloat(document.getElementById('editCourierCost').value) || 0;
+                const saleType = document.getElementById('editSaleType').value;
+                const gstRate = saleType === 'With' ? 0.18 : 0;
+                const gstAmount = subtotal * gstRate;
+                const totalAmount = subtotal + courierCost + gstAmount;
+                
+                document.getElementById('editSubtotalDisplay').textContent = '₹' + subtotal.toFixed(2);
+                document.getElementById('editCourierDisplay').textContent = '₹' + courierCost.toFixed(2);
+                document.getElementById('editGstDisplay').textContent = '₹' + gstAmount.toFixed(2);
+                document.getElementById('editTotalDisplay').textContent = '₹' + totalAmount.toFixed(2);
+            }
+            
+            async function submitEditSale(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                const orderId = formData.get('order_id');
+                
+                const items = [];
+                let index = 0;
+                while (formData.has(\`items[\${index}][product_name]\`)) {
+                    items.push({
+                        product_name: formData.get(\`items[\${index}][product_name]\`),
+                        quantity: parseFloat(formData.get(\`items[\${index}][quantity]\`)),
+                        unit_price: parseFloat(formData.get(\`items[\${index}][unit_price]\`))
+                    });
+                    index++;
+                }
+                
+                const data = {
+                    customer_code: formData.get('customer_code'),
+                    sale_date: formData.get('sale_date'),
+                    employee_name: formData.get('employee_name'),
+                    sale_type: formData.get('sale_type'),
+                    courier_cost: parseFloat(formData.get('courier_cost')) || 0,
+                    amount_received: parseFloat(formData.get('amount_received')) || 0,
+                    account_received: formData.get('account_received'),
+                    payment_reference: formData.get('payment_reference'),
+                    remarks: formData.get('remarks'),
+                    items: items
+                };
+                
+                try {
+                    const response = await axios.put(\`/api/sales/\${orderId}\`, data);
+                    
+                    if (response.data.success) {
+                        alert('Sale updated successfully!');
+                        document.getElementById('editSaleModal').classList.remove('show');
+                        loadAllSales();
+                        loadDashboard();
+                    }
+                } catch (error) {
+                    alert('Error updating sale: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Excel Upload Functions
+            async function uploadSalesExcel(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                const statusDiv = document.getElementById('salesUploadStatus');
+                
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#e0f2fe';
+                statusDiv.style.color = '#0369a1';
+                statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading and processing...';
+                
+                try {
+                    const response = await axios.post('/api/sales/upload-excel', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    
+                    if (response.data.success) {
+                        statusDiv.style.background = '#d1fae5';
+                        statusDiv.style.color = '#065f46';
+                        statusDiv.innerHTML = \`<i class="fas fa-check-circle"></i> Success! \${response.data.data.imported} sales imported.\`;
+                        form.reset();
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 5000);
+                    }
+                } catch (error) {
+                    statusDiv.style.background = '#fee2e2';
+                    statusDiv.style.color = '#991b1b';
+                    statusDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + (error.response?.data?.error || error.message);
+                }
+            }
+            
+            async function uploadLeadsExcel(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                const statusDiv = document.getElementById('leadsUploadStatus');
+                
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#e0f2fe';
+                statusDiv.style.color = '#0369a1';
+                statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading and processing...';
+                
+                try {
+                    const response = await axios.post('/api/leads/upload-excel', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    
+                    if (response.data.success) {
+                        statusDiv.style.background = '#d1fae5';
+                        statusDiv.style.color = '#065f46';
+                        statusDiv.innerHTML = \`<i class="fas fa-check-circle"></i> Success! \${response.data.data.imported} leads imported.\`;
+                        form.reset();
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 5000);
+                    }
+                } catch (error) {
+                    statusDiv.style.background = '#fee2e2';
+                    statusDiv.style.color = '#991b1b';
+                    statusDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + (error.response?.data?.error || error.message);
                 }
             }
 
