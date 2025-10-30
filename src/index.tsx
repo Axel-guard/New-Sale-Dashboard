@@ -185,28 +185,28 @@ app.get('/api/reports/summary', async (c) => {
     
     // Current month sales
     const currentMonth = await env.DB.prepare(`
-      SELECT SUM(subtotal) as total
+      SELECT SUM(total_amount) as total
       FROM sales
       WHERE DATE(sale_date) >= DATE(?)
     `).bind(currentMonthStart.toISOString()).first();
     
     // Previous month sales
     const previousMonth = await env.DB.prepare(`
-      SELECT SUM(subtotal) as total
+      SELECT SUM(total_amount) as total
       FROM sales
       WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?)
     `).bind(previousMonthStart.toISOString(), previousMonthEnd.toISOString()).first();
     
     // Quarterly sales
     const quarterly = await env.DB.prepare(`
-      SELECT SUM(subtotal) as total
+      SELECT SUM(total_amount) as total
       FROM sales
       WHERE DATE(sale_date) >= DATE(?)
     `).bind(quarterStart.toISOString()).first();
     
     // YTD sales
     const ytd = await env.DB.prepare(`
-      SELECT SUM(subtotal) as total
+      SELECT SUM(total_amount) as total
       FROM sales
       WHERE DATE(sale_date) >= DATE(?)
     `).bind(yearStart.toISOString()).first();
@@ -239,8 +239,8 @@ app.get('/api/reports/employee-comparison', async (c) => {
       SELECT 
         employee_name,
         COUNT(*) as total_sales,
-        SUM(subtotal) as total_revenue,
-        ROUND(AVG(subtotal), 2) as avg_sale_value
+        SUM(total_amount) as total_revenue,
+        ROUND(AVG(total_amount), 2) as avg_sale_value
       FROM sales
       WHERE DATE(sale_date) >= DATE(?)
       GROUP BY employee_name
@@ -250,7 +250,7 @@ app.get('/api/reports/employee-comparison', async (c) => {
     const previousMonth = await env.DB.prepare(`
       SELECT 
         employee_name,
-        SUM(subtotal) as total_revenue
+        SUM(total_amount) as total_revenue
       FROM sales
       WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?)
       GROUP BY employee_name
@@ -293,7 +293,7 @@ app.get('/api/reports/incentives', async (c) => {
     const employeeSales = await env.DB.prepare(`
       SELECT 
         employee_name,
-        SUM(subtotal) as total_without_tax
+        SUM(total_amount) as total_without_tax
       FROM sales
       WHERE DATE(sale_date) >= DATE(?)
       GROUP BY employee_name
@@ -1890,7 +1890,7 @@ app.get('/', (c) => {
             <div class="login-box">
                 <div style="text-align: center; margin-bottom: 30px;">
                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                        <img src="/logo.png" alt="AxelGuard" style="height: 50px; width: auto;">
+                        <img src="/logo-blue.png" alt="AxelGuard" style="height: 50px; width: auto;">
                         <h1 style="color: #667eea; font-size: 32px;">AxelGuard</h1>
                     </div>
                     <p style="color: #6b7280; font-size: 14px;">Sign in to access your dashboard</p>
@@ -1924,7 +1924,7 @@ app.get('/', (c) => {
                     <i class="fas fa-bars"></i>
                 </div>
                 <h1 onclick="showPage('dashboard')" style="cursor: pointer; display: flex; align-items: center; gap: 12px;">
-                    <img src="/logo.png" alt="AxelGuard" style="height: 40px; width: auto;">
+                    <img src="/logo-white.png" alt="AxelGuard" style="height: 40px; width: auto;">
                     AxelGuard
                 </h1>
                 <div style="display: flex; align-items: center; gap: 15px;">
@@ -2292,7 +2292,8 @@ app.get('/', (c) => {
                                 <tr>
                                     <th>Order ID</th>
                                     <th>Date</th>
-                                    <th>Customer</th>
+                                    <th>Customer Name</th>
+                                    <th>Company Name</th>
                                     <th>Employee</th>
                                     <th>Contact</th>
                                     <th>Total Amount</th>
@@ -2302,7 +2303,7 @@ app.get('/', (c) => {
                                 </tr>
                             </thead>
                             <tbody id="balancePaymentTableBody">
-                                <tr><td colspan="9" class="loading">Loading...</td></tr>
+                                <tr><td colspan="10" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -4276,17 +4277,22 @@ app.get('/', (c) => {
                     const sales = response.data.data;
                     
                     const tbody = document.getElementById('balancePaymentTableBody');
+                    if (!sales || sales.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #6b7280;">No pending balance payments</td></tr>';
+                        return;
+                    }
                     tbody.innerHTML = sales.map(sale => \`
-                        <tr>
+                        <tr style="cursor: pointer;" onclick="viewSaleDetails('\${sale.order_id}')" title="Click to view sale details">
                             <td><strong>\${sale.order_id}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
-                            <td>\${sale.customer_code}</td>
+                            <td>\${sale.customer_name || sale.customer_code}</td>
+                            <td>\${sale.company_name || 'N/A'}</td>
                             <td>\${sale.employee_name}</td>
                             <td>\${sale.customer_contact || 'N/A'}</td>
                             <td>₹\${sale.total_amount.toLocaleString()}</td>
                             <td>₹\${sale.amount_received.toLocaleString()}</td>
                             <td style="color: #dc2626; font-weight: 600;">₹\${sale.balance_amount.toLocaleString()}</td>
-                            <td><button class="btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="updatePaymentFor('\${sale.order_id}')">Update</button></td>
+                            <td><button class="btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="event.stopPropagation(); updatePaymentFor('\${sale.order_id}')">Update</button></td>
                         </tr>
                     \`).join('');
                 } catch (error) {
