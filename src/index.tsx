@@ -3872,7 +3872,7 @@ app.get('/', (c) => {
                             <td>\${item.product_code || '-'}</td>
                             <td>\${item.quantity}</td>
                             <td>₹\${item.unit_price.toLocaleString()}</td>
-                            <td>₹\${item.total_price.toLocaleString()}</td>
+                            <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
                         </tr>
                     \`).join('');
                     
@@ -4346,7 +4346,7 @@ app.get('/', (c) => {
 
             async function loadAllSales() {
                 try {
-                    const response = await axios.get('/api/sales/current-month?page=1&limit=1000');
+                    const response = await axios.get('/api/sales');
                     const sales = response.data.data;
                     
                     const tbody = document.getElementById('allSalesTableBody');
