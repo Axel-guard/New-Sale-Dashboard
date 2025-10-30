@@ -16,6 +16,48 @@ app.use('/static/*', serveStatic({ root: './public' }))
 
 // API Routes
 
+// Authentication endpoints
+app.post('/api/auth/login', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { username, password } = body;
+    
+    // Simple base64 encoding for demo (in production, use proper hashing)
+    const encodedPassword = btoa(password);
+    
+    const user = await env.DB.prepare(`
+      SELECT id, username, full_name, role, employee_name, is_active 
+      FROM users 
+      WHERE username = ? AND password = ? AND is_active = 1
+    `).bind(username, encodedPassword).first();
+    
+    if (!user) {
+      return c.json({ success: false, error: 'Invalid credentials' }, 401);
+    }
+    
+    return c.json({
+      success: true,
+      data: {
+        id: user.id,
+        username: user.username,
+        fullName: user.full_name,
+        role: user.role,
+        employeeName: user.employee_name
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Login failed' }, 500);
+  }
+});
+
+app.get('/api/auth/verify', async (c) => {
+  // This would verify a session token in production
+  // For now, we'll rely on client-side session storage
+  return c.json({ success: true });
+});
+
 // Get dashboard summary data
 app.get('/api/dashboard/summary', async (c) => {
   const { env } = c;
@@ -111,6 +153,31 @@ app.get('/api/sales/current-month', async (c) => {
     return c.json({ success: true, data: salesWithDetails });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to fetch sales' }, 500);
+  }
+});
+
+// Get monthly sales totals
+app.get('/api/sales/monthly-total', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const result = await env.DB.prepare(`
+      SELECT 
+        COUNT(*) as total_sales,
+        SUM(total_amount) as total_revenue,
+        SUM(subtotal) as total_without_tax,
+        SUM(amount_received) as total_received,
+        SUM(balance_amount) as total_balance
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+    `).bind(firstDay.toISOString()).first();
+    
+    return c.json({ success: true, data: result });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch monthly total' }, 500);
   }
 });
 
@@ -560,23 +627,105 @@ app.put('/api/sales/:orderId', async (c) => {
 });
 
 // Upload Excel data for sales (placeholder - Excel parsing needs additional libraries)
-app.post('/api/sales/upload-excel', async (c) => {
-  // Note: Excel parsing would require libraries like xlsx which may not work in Cloudflare Workers
-  // This is a placeholder that returns a message
-  return c.json({ 
-    success: false, 
-    error: 'Excel upload feature requires server-side Excel parsing library. Please convert Excel to CSV and use alternative import method.' 
-  }, 501);
+app.post('/api/sales/upload-csv', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.parseBody();
+    const file = body['salesFile'];
+    
+    if (!file || typeof file === 'string') {
+      return c.json({ success: false, error: 'No file uploaded' }, 400);
+    }
+    
+    const text = await file.text();
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    if (lines.length < 2) {
+      return c.json({ success: false, error: 'CSV file is empty or invalid' }, 400);
+    }
+    
+    // Skip header row
+    const dataLines = lines.slice(1);
+    let imported = 0;
+    
+    for (const line of dataLines) {
+      const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      
+      // Expected format: customer_code, sale_date, employee_name, sale_type, product_name, quantity, unit_price, account_received
+      if (values.length >= 8) {
+        const timestamp = Date.now();
+        const order_id = `ORD${timestamp.toString().slice(-8)}-${imported}`;
+        const quantity = parseFloat(values[5]) || 0;
+        const unit_price = parseFloat(values[6]) || 0;
+        const subtotal = quantity * unit_price;
+        const gst_amount = values[3] === 'With' ? subtotal * 0.18 : 0;
+        const total_amount = subtotal + gst_amount;
+        
+        const saleResult = await env.DB.prepare(`
+          INSERT INTO sales (order_id, customer_code, sale_date, employee_name, sale_type, 
+                            subtotal, gst_amount, total_amount, balance_amount, account_received)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(order_id, values[0], values[1], values[2], values[3], 
+                subtotal, gst_amount, total_amount, total_amount, values[7]).run();
+        
+        await env.DB.prepare(`
+          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(saleResult.meta.last_row_id, order_id, values[4], quantity, unit_price, subtotal).run();
+        
+        imported++;
+      }
+    }
+    
+    return c.json({ success: true, data: { imported } });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to import CSV: ' + error }, 500);
+  }
 });
 
-// Upload Excel data for leads (placeholder - Excel parsing needs additional libraries)
-app.post('/api/leads/upload-excel', async (c) => {
-  // Note: Excel parsing would require libraries like xlsx which may not work in Cloudflare Workers
-  // This is a placeholder that returns a message
-  return c.json({ 
-    success: false, 
-    error: 'Excel upload feature requires server-side Excel parsing library. Please convert Excel to CSV and use alternative import method.' 
-  }, 501);
+app.post('/api/leads/upload-csv', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.parseBody();
+    const file = body['leadsFile'];
+    
+    if (!file || typeof file === 'string') {
+      return c.json({ success: false, error: 'No file uploaded' }, 400);
+    }
+    
+    const text = await file.text();
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    if (lines.length < 2) {
+      return c.json({ success: false, error: 'CSV file is empty or invalid' }, 400);
+    }
+    
+    // Skip header row
+    const dataLines = lines.slice(1);
+    let imported = 0;
+    
+    for (const line of dataLines) {
+      const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      
+      // Expected format: customer_code, customer_name, mobile_number, alternate_mobile, location, company_name, gst_number, email, status
+      if (values.length >= 9) {
+        await env.DB.prepare(`
+          INSERT INTO leads (customer_code, customer_name, mobile_number, alternate_mobile, 
+                            location, company_name, gst_number, email, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(values[0] || null, values[1], values[2], values[3] || null, 
+                values[4] || null, values[5] || null, values[6] || null, values[7] || null, values[8] || 'New').run();
+        
+        imported++;
+      }
+    }
+    
+    return c.json({ success: true, data: { imported } });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to import CSV: ' + error }, 500);
+  }
 });
 
 // Get all customers
@@ -603,7 +752,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AxelGuard Sale Dashboard</title>
+        <title>AxelGuard Dashboard</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -617,6 +766,23 @@ app.get('/', (c) => {
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 background: #f0f2f5;
+            }
+            
+            .login-container {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            
+            .login-box {
+                background: white;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                width: 100%;
+                max-width: 420px;
             }
             
             .top-bar {
@@ -1058,13 +1224,49 @@ app.get('/', (c) => {
         </style>
     </head>
     <body>
-        <div class="top-bar">
-            <div class="menu-toggle" onclick="toggleSidebar()">
-                <i class="fas fa-bars"></i>
+        <!-- Login Screen -->
+        <div id="loginScreen" class="login-container">
+            <div class="login-box">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #667eea; font-size: 32px; margin-bottom: 10px;">AxelGuard Dashboard</h1>
+                    <p style="color: #6b7280; font-size: 14px;">Sign in to access your dashboard</p>
+                </div>
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="loginUsername" required placeholder="Enter your username" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" required placeholder="Enter your password" autocomplete="current-password">
+                    </div>
+                    <div id="loginError" style="color: #dc2626; font-size: 14px; margin: 10px 0; display: none;"></div>
+                    <button type="submit" class="btn-primary" style="width: 100%; padding: 12px;">
+                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    </button>
+                </form>
+                <div style="margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px; font-size: 13px; color: #6b7280;">
+                    <strong>Demo Credentials:</strong><br>
+                    Admin: admin / admin123<br>
+                    Employee: akash / employee123
+                </div>
             </div>
-            <h1>AxelGuard Sale Dashboard</h1>
-            <div style="width: 40px;"></div>
         </div>
+
+        <!-- Main Dashboard (hidden until logged in) -->
+        <div id="mainDashboard" style="display: none;">
+            <div class="top-bar">
+                <div class="menu-toggle" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </div>
+                <h1>AxelGuard Dashboard</h1>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span id="userDisplay" style="font-size: 14px; color: #374151;"></span>
+                    <button onclick="handleLogout()" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
 
         <div class="sidebar" id="sidebar">
             <div class="sidebar-item active" onclick="showPage('dashboard')">
@@ -1122,6 +1324,50 @@ app.get('/', (c) => {
                             </div>
                             <div class="action-menu-item" onclick="openNewLeadModal()">
                                 <i class="fas fa-user-plus"></i> Add New Lead
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly Total Sales Card -->
+                <div class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div class="card-header" style="border-bottom-color: rgba(255,255,255,0.2);">
+                        <h3 class="card-title" style="color: white;">
+                            <i class="fas fa-chart-line"></i> Current Month Sales Summary
+                        </h3>
+                    </div>
+                    <div id="monthlyTotalCard" class="loading" style="color: white;">Loading...</div>
+                    <div id="monthlyTotalContent" style="display: none;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; padding: 10px 0;">
+                            <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-shopping-cart"></i> Total Sales
+                                </div>
+                                <div style="font-size: 28px; font-weight: 700;" id="totalSalesCount">0</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-rupee-sign"></i> Total Revenue
+                                </div>
+                                <div style="font-size: 28px; font-weight: 700;" id="totalRevenue">₹0</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-calculator"></i> Without Tax
+                                </div>
+                                <div style="font-size: 28px; font-weight: 700;" id="totalWithoutTax">₹0</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-check-circle"></i> Received
+                                </div>
+                                <div style="font-size: 28px; font-weight: 700;" id="totalReceived">₹0</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-hourglass-half"></i> Balance
+                                </div>
+                                <div style="font-size: 28px; font-weight: 700;" id="totalBalance">₹0</div>
                             </div>
                         </div>
                     </div>
@@ -1393,20 +1639,20 @@ app.get('/', (c) => {
 
             <div class="page-content" id="excel-upload-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Upload Excel Data</h2>
+                    <h2 class="card-title" style="margin-bottom: 20px;">Upload CSV Data</h2>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
                         <!-- Sales Upload Section -->
                         <div style="border: 2px dashed #e5e7eb; border-radius: 8px; padding: 30px; background: #f9fafb;">
                             <div style="text-align: center; margin-bottom: 20px;">
-                                <i class="fas fa-file-excel" style="font-size: 48px; color: #10b981; margin-bottom: 15px;"></i>
+                                <i class="fas fa-file-csv" style="font-size: 48px; color: #10b981; margin-bottom: 15px;"></i>
                                 <h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Upload Sales Data</h3>
-                                <p style="color: #6b7280; font-size: 14px;">Upload Excel file containing sales records</p>
+                                <p style="color: #6b7280; font-size: 14px;">Upload CSV file containing sales records</p>
                             </div>
-                            <form id="salesExcelForm" onsubmit="uploadSalesExcel(event)">
+                            <form id="salesCSVForm" onsubmit="uploadSalesCSV(event)">
                                 <div class="form-group">
-                                    <label>Select Excel File *</label>
-                                    <input type="file" name="salesFile" accept=".xlsx,.xls" required style="padding: 8px;">
+                                    <label>Select CSV File *</label>
+                                    <input type="file" name="salesFile" accept=".csv" required style="padding: 8px;">
                                 </div>
                                 <button type="submit" class="btn-primary" style="width: 100%;">
                                     <i class="fas fa-upload"></i> Upload Sales Data
@@ -1432,14 +1678,14 @@ app.get('/', (c) => {
                         <!-- Leads Upload Section -->
                         <div style="border: 2px dashed #e5e7eb; border-radius: 8px; padding: 30px; background: #f9fafb;">
                             <div style="text-align: center; margin-bottom: 20px;">
-                                <i class="fas fa-file-excel" style="font-size: 48px; color: #3b82f6; margin-bottom: 15px;"></i>
+                                <i class="fas fa-file-csv" style="font-size: 48px; color: #3b82f6; margin-bottom: 15px;"></i>
                                 <h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Upload Leads Data</h3>
-                                <p style="color: #6b7280; font-size: 14px;">Upload Excel file containing lead records</p>
+                                <p style="color: #6b7280; font-size: 14px;">Upload CSV file containing lead records</p>
                             </div>
-                            <form id="leadsExcelForm" onsubmit="uploadLeadsExcel(event)">
+                            <form id="leadsCSVForm" onsubmit="uploadLeadsCSV(event)">
                                 <div class="form-group">
-                                    <label>Select Excel File *</label>
-                                    <input type="file" name="leadsFile" accept=".xlsx,.xls" required style="padding: 8px;">
+                                    <label>Select CSV File *</label>
+                                    <input type="file" name="leadsFile" accept=".csv" required style="padding: 8px;">
                                 </div>
                                 <button type="submit" class="btn-primary" style="width: 100%;">
                                     <i class="fas fa-upload"></i> Upload Leads Data
@@ -2064,6 +2310,9 @@ app.get('/', (c) => {
             // Load Dashboard
             async function loadDashboard() {
                 try {
+                    // Load monthly totals
+                    loadMonthlyTotals();
+                    
                     const response = await axios.get('/api/dashboard/summary');
                     const { employeeSales, paymentStatusData, monthlySummary } = response.data.data;
                     
@@ -2085,6 +2334,26 @@ app.get('/', (c) => {
                     loadSalesTable();
                 } catch (error) {
                     console.error('Error loading dashboard:', error);
+                }
+            }
+            
+            // Load Monthly Totals
+            async function loadMonthlyTotals() {
+                try {
+                    const response = await axios.get('/api/sales/monthly-total');
+                    const data = response.data.data;
+                    
+                    document.getElementById('monthlyTotalCard').style.display = 'none';
+                    document.getElementById('monthlyTotalContent').style.display = 'block';
+                    
+                    document.getElementById('totalSalesCount').textContent = data.total_sales || 0;
+                    document.getElementById('totalRevenue').textContent = '₹' + (data.total_revenue || 0).toLocaleString();
+                    document.getElementById('totalWithoutTax').textContent = '₹' + (data.total_without_tax || 0).toLocaleString();
+                    document.getElementById('totalReceived').textContent = '₹' + (data.total_received || 0).toLocaleString();
+                    document.getElementById('totalBalance').textContent = '₹' + (data.total_balance || 0).toLocaleString();
+                } catch (error) {
+                    console.error('Error loading monthly totals:', error);
+                    document.getElementById('monthlyTotalCard').textContent = 'Failed to load monthly totals';
                 }
             }
 
@@ -3286,7 +3555,158 @@ app.get('/', (c) => {
                     }
                 });
             }
+            
+            // Authentication functions
+            let currentUser = null;
+            
+            function handleLogin(event) {
+                event.preventDefault();
+                const username = document.getElementById('loginUsername').value;
+                const password = document.getElementById('loginPassword').value;
+                const errorDiv = document.getElementById('loginError');
+                
+                axios.post('/api/auth/login', { username, password })
+                    .then(response => {
+                        if (response.data.success) {
+                            currentUser = response.data.data;
+                            sessionStorage.setItem('user', JSON.stringify(currentUser));
+                            showDashboard();
+                        }
+                    })
+                    .catch(error => {
+                        errorDiv.textContent = error.response?.data?.error || 'Login failed';
+                        errorDiv.style.display = 'block';
+                    });
+            }
+            
+            function handleLogout() {
+                currentUser = null;
+                sessionStorage.removeItem('user');
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('mainDashboard').style.display = 'none';
+                document.getElementById('loginUsername').value = '';
+                document.getElementById('loginPassword').value = '';
+            }
+            
+            function showDashboard() {
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('mainDashboard').style.display = 'block';
+                document.getElementById('userDisplay').textContent = currentUser.fullName + ' (' + currentUser.role + ')';
+                
+                // Update UI based on role
+                updateUIForRole();
+                loadDashboard();
+            }
+            
+            function updateUIForRole() {
+                const isAdmin = currentUser.role === 'admin';
+                
+                // Hide/show Edit buttons in Sale Database
+                document.querySelectorAll('.btn-edit-sale').forEach(btn => {
+                    btn.style.display = isAdmin ? 'inline-block' : 'none';
+                });
+                
+                // Hide/show Edit buttons in Leads Database
+                document.querySelectorAll('.btn-edit-lead').forEach(btn => {
+                    btn.style.display = isAdmin ? 'inline-block' : 'none';
+                });
+                
+                // Hide/show Excel Upload sidebar item
+                const uploadItem = document.querySelector('[onclick="showPage(\\'excel-upload\\')"]');
+                if (uploadItem) {
+                    uploadItem.parentElement.style.display = isAdmin ? 'block' : 'none';
+                }
+            }
+            
+            // Check for existing session on page load
+            window.addEventListener('DOMContentLoaded', () => {
+                const storedUser = sessionStorage.getItem('user');
+                if (storedUser) {
+                    currentUser = JSON.parse(storedUser);
+                    showDashboard();
+                }
+            });
+            
+            // CSV Upload Functions
+            async function uploadSalesCSV(event) {
+                event.preventDefault();
+                const form = event.target;
+                const formData = new FormData(form);
+                const statusDiv = document.getElementById('salesUploadStatus');
+                const submitBtn = form.querySelector('button[type="submit"]');
+                
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                statusDiv.style.display = 'none';
+                
+                try {
+                    const response = await axios.post('/api/sales/upload-csv', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    
+                    if (response.data.success) {
+                        statusDiv.className = 'alert-success';
+                        statusDiv.textContent = 'Success! Imported ' + response.data.data.imported + ' sales records.';
+                        statusDiv.style.display = 'block';
+                        form.reset();
+                        
+                        // Reload dashboard if on dashboard page
+                        if (currentPage === 'dashboard') {
+                            loadDashboard();
+                        }
+                    } else {
+                        throw new Error(response.data.error || 'Upload failed');
+                    }
+                } catch (error) {
+                    statusDiv.className = 'alert-error';
+                    statusDiv.textContent = 'Error: ' + (error.response?.data?.error || error.message || 'Upload failed');
+                    statusDiv.style.display = 'block';
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Sales Data';
+                }
+            }
+            
+            async function uploadLeadsCSV(event) {
+                event.preventDefault();
+                const form = event.target;
+                const formData = new FormData(form);
+                const statusDiv = document.getElementById('leadsUploadStatus');
+                const submitBtn = form.querySelector('button[type="submit"]');
+                
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                statusDiv.style.display = 'none';
+                
+                try {
+                    const response = await axios.post('/api/leads/upload-csv', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    
+                    if (response.data.success) {
+                        statusDiv.className = 'alert-success';
+                        statusDiv.textContent = 'Success! Imported ' + response.data.data.imported + ' lead records.';
+                        statusDiv.style.display = 'block';
+                        form.reset();
+                        
+                        // Reload leads if on leads page
+                        if (currentPage === 'leads') {
+                            loadLeads();
+                        }
+                    } else {
+                        throw new Error(response.data.error || 'Upload failed');
+                    }
+                } catch (error) {
+                    statusDiv.className = 'alert-error';
+                    statusDiv.textContent = 'Error: ' + (error.response?.data?.error || error.message || 'Upload failed');
+                    statusDiv.style.display = 'block';
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Leads Data';
+                }
+            }
         </script>
+        </div>
     </body>
     </html>
   `)
