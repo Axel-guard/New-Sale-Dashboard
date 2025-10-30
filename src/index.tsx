@@ -614,12 +614,12 @@ app.get('/api/sales/order/:orderId', async (c) => {
     }
     
     const items = await env.DB.prepare(`
-      SELECT * FROM sale_items WHERE sale_id = ?
-    `).bind(sale.id).all();
+      SELECT * FROM sale_items WHERE order_id = ?
+    `).bind(orderId).all();
     
     const payments = await env.DB.prepare(`
-      SELECT * FROM payment_history WHERE sale_id = ? ORDER BY payment_date DESC
-    `).bind(sale.id).all();
+      SELECT * FROM payment_history WHERE order_id = ? ORDER BY payment_date DESC
+    `).bind(orderId).all();
     
     return c.json({ 
       success: true, 
@@ -703,20 +703,19 @@ app.post('/api/sales', async (c) => {
     // Insert sale items
     for (const item of items) {
       if (item.product_name && item.quantity > 0 && item.unit_price > 0) {
-        const item_total = item.quantity * item.unit_price;
         await env.DB.prepare(`
-          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(sale_id, order_id, item.product_name, item.quantity, item.unit_price, item_total).run();
+          INSERT INTO sale_items (order_id, product_name, quantity, unit_price)
+          VALUES (?, ?, ?, ?)
+        `).bind(order_id, item.product_name, item.quantity, item.unit_price).run();
       }
     }
     
     // Insert initial payment if amount received
     if (amount_received > 0) {
       await env.DB.prepare(`
-        INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).bind(sale_id, order_id, sale_date, amount_received, account_received, payment_reference).run();
+        INSERT INTO payment_history (order_id, payment_date, amount, account_received, payment_reference)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(order_id, sale_date, amount_received, account_received || 'Not Specified', payment_reference).run();
     }
     
     return c.json({
@@ -762,9 +761,9 @@ app.post('/api/sales/balance-payment', async (c) => {
     
     // Insert payment history
     await env.DB.prepare(`
-      INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(sale.id, order_id, payment_date, amount, account_received, payment_reference).run();
+      INSERT INTO payment_history (order_id, payment_date, amount, account_received, payment_reference)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(order_id, payment_date, amount, account_received || 'Not Specified', payment_reference).run();
     
     return c.json({ success: true, message: 'Payment updated successfully' });
   } catch (error) {
