@@ -762,7 +762,7 @@ app.get('/', (c) => {
             
             .product-row {
                 display: grid;
-                grid-template-columns: 1.5fr 2fr 1fr 0.8fr 0.8fr 1fr 1fr auto;
+                grid-template-columns: 1.5fr 2.5fr 1fr 1.5fr 1.5fr auto;
                 gap: 10px;
                 align-items: end;
                 margin-bottom: 10px;
@@ -957,8 +957,70 @@ app.get('/', (c) => {
             <!-- Other Pages -->
             <div class="page-content" id="courier-calculation-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Courier Calculation</h2>
-                    <p>Courier calculation feature coming soon...</p>
+                    <h2 class="card-title" style="margin-bottom: 20px;">Courier Cost Calculator</h2>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Courier Company *</label>
+                            <select id="courierCompany" onchange="calculateCourierCost()">
+                                <option value="">Select Courier</option>
+                                <option value="Trackon">Trackon</option>
+                                <option value="Porter">Porter</option>
+                                <option value="SM Express">SM Express</option>
+                                <option value="India Post">India Post</option>
+                                <option value="Tirupati">Tirupati</option>
+                                <option value="Fedex">Fedex</option>
+                                <option value="DHL">DHL</option>
+                                <option value="Self Pickup">Self Pickup</option>
+                                <option value="DTDC">DTDC</option>
+                                <option value="Professional Courier">Professional Courier</option>
+                                <option value="Self Deliver">Self Deliver</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Courier Mode *</label>
+                            <select id="courierMode" onchange="calculateCourierCost()">
+                                <option value="">Select Mode</option>
+                                <option value="Surface">Surface</option>
+                                <option value="Air">Air</option>
+                                <option value="Priority">Priority next day</option>
+                                <option value="Bus">Bus</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Select Products</h3>
+                    <div id="courierProductRows"></div>
+                    <button type="button" class="btn-add" onclick="addCourierProductRow()">
+                        <i class="fas fa-plus"></i> Add Product
+                    </button>
+                    
+                    <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-top: 30px;">
+                        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 15px; color: white;">Courier Cost Summary</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                            <div>
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Total Weight</div>
+                                <div style="font-size: 24px; font-weight: 700;" id="courierTotalWeight">0 kg</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Rate per kg</div>
+                                <div style="font-size: 24px; font-weight: 700;" id="courierRatePerKg">₹0</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Base Cost</div>
+                                <div style="font-size: 24px; font-weight: 700;" id="courierBaseCost">₹0</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Fuel Charge (10%)</div>
+                                <div style="font-size: 24px; font-weight: 700;" id="courierFuelCharge">₹0</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Total Cost</div>
+                                <div style="font-size: 28px; font-weight: 700; color: #fbbf24;" id="courierTotalCost">₹0</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1686,17 +1748,9 @@ app.get('/', (c) => {
                     </div>
                     <div class="form-group" style="margin: 0;">
                         <label>Product Name</label>
-                        <select class="product-name" name="items[\${productCount}][product_name]" onchange="updateProductDetails(\${productCount})">
+                        <select class="product-name" name="items[\${productCount}][product_name]" data-weight="0" onchange="calculateSaleTotal()">
                             <option value="">Select Category First</option>
                         </select>
-                    </div>
-                    <div class="form-group" style="margin: 0;">
-                        <label>Product Code</label>
-                        <input type="text" class="product-code" name="items[\${productCount}][product_code]" readonly style="background: #f9fafb;">
-                    </div>
-                    <div class="form-group" style="margin: 0;">
-                        <label>Weight (kg)</label>
-                        <input type="number" class="product-weight" name="items[\${productCount}][weight]" readonly style="background: #f9fafb;" step="0.01" value="0">
                     </div>
                     <div class="form-group" style="margin: 0;">
                         <label>Quantity</label>
@@ -1731,29 +1785,9 @@ app.get('/', (c) => {
                         const option = document.createElement('option');
                         option.value = product.code;
                         option.textContent = product.name;
-                        option.dataset.code = product.code;
                         option.dataset.weight = product.weight;
                         productSelect.appendChild(option);
                     });
-                }
-                
-                // Clear product details
-                row.querySelector('.product-code').value = '';
-                row.querySelector('.product-weight').value = '0';
-                calculateSaleTotal();
-            }
-            
-            function updateProductDetails(rowId) {
-                const row = document.getElementById(\`product-\${rowId}\`);
-                const productSelect = row.querySelector('.product-name');
-                const selectedOption = productSelect.options[productSelect.selectedIndex];
-                
-                if (selectedOption.value) {
-                    row.querySelector('.product-code').value = selectedOption.dataset.code || selectedOption.value;
-                    row.querySelector('.product-weight').value = selectedOption.dataset.weight || '0';
-                } else {
-                    row.querySelector('.product-code').value = '';
-                    row.querySelector('.product-weight').value = '0';
                 }
                 
                 calculateSaleTotal();
@@ -1981,6 +2015,134 @@ app.get('/', (c) => {
                 document.getElementById('balancePaymentForm').order_id.value = orderId;
             }
 
+            // Courier Calculation Functions
+            let courierProductCount = 0;
+            
+            function addCourierProductRow() {
+                courierProductCount++;
+                const container = document.getElementById('courierProductRows');
+                const row = document.createElement('div');
+                row.className = 'product-row';
+                row.id = \`courier-product-\${courierProductCount}\`;
+                row.innerHTML = \`
+                    <div class="form-group" style="margin: 0;">
+                        <label>Category</label>
+                        <select class="courier-category" onchange="updateCourierProductOptions(\${courierProductCount})">
+                            <option value="">Select Category</option>
+                            <option value="A-MDVR">MDVR</option>
+                            <option value="B-Monitors & Monitor Kit">Monitors & Monitor Kit</option>
+                            <option value="C-Cameras">Cameras</option>
+                            <option value="D-Dashcam">Dashcam</option>
+                            <option value="E-GPS">GPS</option>
+                            <option value="F-Storage">Storage</option>
+                            <option value="G-RFID Tags">RFID Tags</option>
+                            <option value="H-RFID Reader">RFID Reader</option>
+                            <option value="I-MDVR Accessories">MDVR Accessories</option>
+                            <option value="J-Other Products">Other Products</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Product</label>
+                        <select class="courier-product" onchange="calculateCourierCost()">
+                            <option value="">Select Category First</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Quantity</label>
+                        <input type="number" class="courier-quantity" min="0" value="1" onchange="calculateCourierCost()">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Weight (kg)</label>
+                        <input type="number" class="courier-weight" readonly style="background: #f9fafb;" value="0" step="0.01">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Total Weight</label>
+                        <input type="number" class="courier-total-weight" readonly style="background: #f3f4f6;" value="0" step="0.01">
+                    </div>
+                    <button type="button" class="btn-remove" onclick="removeCourierProductRow(\${courierProductCount})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                \`;
+                container.appendChild(row);
+            }
+            
+            function updateCourierProductOptions(rowId) {
+                const row = document.getElementById(\`courier-product-\${rowId}\`);
+                const categorySelect = row.querySelector('.courier-category');
+                const productSelect = row.querySelector('.courier-product');
+                const category = categorySelect.value;
+                
+                productSelect.innerHTML = '<option value="">Select Product</option>';
+                
+                if (category && productCatalog[category]) {
+                    productCatalog[category].forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.code;
+                        option.textContent = product.name;
+                        option.dataset.weight = product.weight;
+                        productSelect.appendChild(option);
+                    });
+                }
+                
+                calculateCourierCost();
+            }
+            
+            function removeCourierProductRow(id) {
+                const row = document.getElementById(\`courier-product-\${id}\`);
+                if (row) {
+                    row.remove();
+                    courierProductCount--;
+                    calculateCourierCost();
+                }
+            }
+            
+            function calculateCourierCost() {
+                const company = document.getElementById('courierCompany').value;
+                const mode = document.getElementById('courierMode').value;
+                
+                let totalWeight = 0;
+                
+                // Calculate total weight from all product rows
+                document.querySelectorAll('#courierProductRows .product-row').forEach(row => {
+                    const productSelect = row.querySelector('.courier-product');
+                    const quantityInput = row.querySelector('.courier-quantity');
+                    const weightInput = row.querySelector('.courier-weight');
+                    const totalWeightInput = row.querySelector('.courier-total-weight');
+                    
+                    const selectedOption = productSelect.options[productSelect.selectedIndex];
+                    const unitWeight = parseFloat(selectedOption.dataset.weight) || 0;
+                    const quantity = parseFloat(quantityInput.value) || 0;
+                    const itemTotalWeight = unitWeight * quantity;
+                    
+                    weightInput.value = unitWeight.toFixed(2);
+                    totalWeightInput.value = itemTotalWeight.toFixed(2);
+                    totalWeight += itemTotalWeight;
+                });
+                
+                // Calculate rate per kg based on company and mode
+                let ratePerKg = 0;
+                
+                if (company === 'Trackon') {
+                    if (mode === 'Air') {
+                        ratePerKg = 110;
+                    } else if (mode === 'Surface') {
+                        ratePerKg = 90;
+                    }
+                }
+                
+                // Calculate costs
+                const baseCost = totalWeight * ratePerKg;
+                const fuelCharge = baseCost * 0.10; // 10% fuel charge
+                const totalCost = baseCost + fuelCharge;
+                
+                // Update display
+                document.getElementById('courierTotalWeight').textContent = totalWeight.toFixed(2) + ' kg';
+                document.getElementById('courierRatePerKg').textContent = '₹' + ratePerKg;
+                document.getElementById('courierBaseCost').textContent = '₹' + baseCost.toFixed(2);
+                document.getElementById('courierFuelCharge').textContent = '₹' + fuelCharge.toFixed(2);
+                document.getElementById('courierTotalCost').textContent = '₹' + totalCost.toFixed(2);
+            }
+
             // Submit New Sale
             async function submitNewSale(event) {
                 event.preventDefault();
@@ -1992,17 +2154,13 @@ app.get('/', (c) => {
                 const items = [];
                 document.querySelectorAll('.product-row').forEach((row) => {
                     const productSelect = row.querySelector('select[name*="product_name"]');
-                    const productCode = productSelect.value;
                     const productName = productSelect.options[productSelect.selectedIndex].text;
-                    const productWeight = parseFloat(row.querySelector('input[name*="weight"]').value) || 0;
                     const qty = parseFloat(row.querySelector('input[name*="quantity"]').value) || 0;
                     const price = parseFloat(row.querySelector('input[name*="unit_price"]').value) || 0;
                     
-                    if (productCode && qty > 0 && price > 0) {
+                    if (productSelect.value && qty > 0 && price > 0) {
                         items.push({
                             product_name: productName,
-                            product_code: productCode,
-                            weight: productWeight,
                             quantity: qty,
                             unit_price: price
                         });
