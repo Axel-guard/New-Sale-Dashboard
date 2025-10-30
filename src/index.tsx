@@ -1144,15 +1144,29 @@ app.post('/api/sales/upload-csv', async (c) => {
         }
         
         const order_id = values[2] || `ORD${Date.now()}-${imported}`;
-        const sale_date = values[3];
+        
+        // Parse date from YY/MM/DD HH:MM to YYYY-MM-DD HH:MM:SS
+        let sale_date = values[3];
+        if (sale_date && sale_date.match(/^\d{2}\/\d{2}\/\d{2}/)) {
+          const parts = sale_date.split(' ');
+          const dateParts = parts[0].split('/');
+          const year = '20' + dateParts[0];
+          const month = dateParts[1];
+          const day = dateParts[2];
+          const time = parts[1] || '00:00';
+          sale_date = `${year}-${month}-${day} ${time}:00`;
+        }
+        
         const cust_code = values[4];
         const employee_name = values[5];
         const company_name = values[6];
         const customer_name = values[7];
         const customer_contact = values[8]; // This is the mobile number
-        const bill_amount = parseFloat(values[9]) || 0;
-        const amount_received = parseFloat(values[10]) || 0;
-        const balance_payment = parseFloat(values[11]) || 0;
+        
+        // Parse amounts - remove currency symbols, commas, and spaces
+        const bill_amount = parseFloat(values[9].replace(/[₹,\s]/g, '')) || 0;
+        const amount_received = parseFloat(values[10].replace(/[₹,\s]/g, '')) || 0;
+        const balance_payment = parseFloat(values[11].replace(/[₹,\s\(\)]/g, '')) || 0;
         const with_bill = values[13];
         
         // Determine sale type: Check "With Bill" column (index 13)
@@ -2655,14 +2669,14 @@ app.get('/', (c) => {
                         </div>
                         <div class="form-group">
                             <label>Amount Received</label>
-                            <input type="number" name="amount_received" min="0" step="0.01" value="0" placeholder="0.00">
+                            <input type="number" name="amount_received" id="amountReceived" min="0" step="0.01" value="0" placeholder="0.00" onchange="toggleAccountRequired()">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>In Account Received *</label>
-                            <select name="account_received" required>
+                            <label id="accountLabel">In Account Received</label>
+                            <select name="account_received" id="accountReceived">
                                 <option value="">Select Account</option>
                                 <option value="IDFC(4828)">IDFC (4828)</option>
                                 <option value="IDFC(7455)">IDFC (7455)</option>
@@ -2909,9 +2923,14 @@ app.get('/', (c) => {
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 20px;">
-                        <i class="fas fa-save"></i> Update Sale
-                    </button>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="submit" class="btn-primary" style="flex: 1;">
+                            <i class="fas fa-save"></i> Update Sale
+                        </button>
+                        <button type="button" class="btn-danger" style="flex: 0 0 auto; padding: 10px 20px;" onclick="deleteSaleFromModal()">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -3589,6 +3608,21 @@ app.get('/', (c) => {
                 document.getElementById('gstDisplay').textContent = '₹' + gstAmount.toFixed(2);
                 document.getElementById('totalDisplay').textContent = '₹' + totalAmount.toFixed(2);
             }
+            
+            // Toggle account required based on amount received
+            function toggleAccountRequired() {
+                const amountReceived = parseFloat(document.getElementById('amountReceived').value) || 0;
+                const accountSelect = document.getElementById('accountReceived');
+                const accountLabel = document.getElementById('accountLabel');
+                
+                if (amountReceived > 0) {
+                    accountSelect.setAttribute('required', 'required');
+                    accountLabel.innerHTML = 'In Account Received *';
+                } else {
+                    accountSelect.removeAttribute('required');
+                    accountLabel.innerHTML = 'In Account Received';
+                }
+            }
 
             // Modal Functions
             function openNewSaleModal() {
@@ -4121,6 +4155,7 @@ app.get('/', (c) => {
                     const sales = response.data.data;
                     
                     const tbody = document.getElementById('allSalesTableBody');
+                    const isAdmin = currentUser && currentUser.role === 'admin';
                     tbody.innerHTML = sales.map(sale => \`
                         <tr>
                             <td><strong>\${sale.order_id}</strong></td>
@@ -4131,9 +4166,7 @@ app.get('/', (c) => {
                             <td>₹\${sale.total_amount.toLocaleString()}</td>
                             <td>₹\${sale.balance_amount.toLocaleString()}</td>
                             <td>
-                                <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editSale('\${sale.order_id}')">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
+                                \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editSale('\${sale.order_id}')"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="deleteSale('\${sale.order_id}')"><i class="fas fa-trash"></i></button>\` : '-'}
                             </td>
                         </tr>
                     \`).join('');
@@ -4413,6 +4446,33 @@ app.get('/', (c) => {
                 } catch (error) {
                     alert('Error updating sale: ' + (error.response?.data?.error || error.message));
                 }
+            }
+            
+            // Delete sale function
+            async function deleteSale(orderId) {
+                if (!confirm(`Are you sure you want to delete sale ${orderId}? This action cannot be undone.`)) {
+                    return;
+                }
+                
+                try {
+                    await axios.delete(`/api/sales/${orderId}`);
+                    alert('Sale deleted successfully');
+                    // Reload the current page
+                    if (currentPage === 'all-sales') {
+                        loadAllSales();
+                    } else {
+                        loadDashboard();
+                    }
+                } catch (error) {
+                    alert('Error deleting sale: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Delete sale from edit modal
+            async function deleteSaleFromModal() {
+                const orderId = document.getElementById('editOrderId').value;
+                document.getElementById('editSaleModal').classList.remove('show');
+                await deleteSale(orderId);
             }
             
             // Add product row in edit sale modal
