@@ -94,16 +94,16 @@ app.get('/api/sales/current-month', async (c) => {
     // Get items and payments for each sale
     const salesWithDetails = await Promise.all(sales.results.map(async (sale: any) => {
       const items = await env.DB.prepare(`
-        SELECT * FROM sale_items WHERE sale_id = ?
-      `).bind(sale.id).all();
+        SELECT * FROM sale_items WHERE order_id = ?
+      `).bind(sale.order_id).all();
       
       const payments = await env.DB.prepare(`
-        SELECT * FROM payment_history WHERE sale_id = ? ORDER BY payment_date DESC
-      `).bind(sale.id).all();
+        SELECT * FROM payment_history WHERE order_id = ? ORDER BY payment_date DESC
+      `).bind(sale.order_id).all();
       
       return {
         ...sale,
-        items: items.results,
+        items: JSON.stringify(items.results),
         payments: payments.results
       };
     }));
@@ -237,18 +237,18 @@ app.post('/api/sales', async (c) => {
       if (item.product_name && item.quantity > 0 && item.unit_price > 0) {
         const item_total = item.quantity * item.unit_price;
         await env.DB.prepare(`
-          INSERT INTO sale_items (sale_id, product_name, quantity, unit_price, total_price)
-          VALUES (?, ?, ?, ?, ?)
-        `).bind(sale_id, item.product_name, item.quantity, item.unit_price, item_total).run();
+          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(sale_id, order_id, item.product_name, item.quantity, item.unit_price, item_total).run();
       }
     }
     
     // Insert initial payment if amount received
     if (amount_received > 0) {
       await env.DB.prepare(`
-        INSERT INTO payment_history (sale_id, order_id, payment_date, amount, payment_reference)
-        VALUES (?, ?, ?, ?, ?)
-      `).bind(sale_id, order_id, sale_date, amount_received, payment_reference).run();
+        INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(sale_id, order_id, sale_date, amount_received, account_received, payment_reference).run();
     }
     
     return c.json({
@@ -271,7 +271,7 @@ app.post('/api/sales/balance-payment', async (c) => {
   
   try {
     const body = await c.req.json();
-    const { order_id, payment_date, amount, payment_reference } = body;
+    const { order_id, payment_date, amount, account_received, payment_reference } = body;
     
     // Get sale
     const sale = await env.DB.prepare(`
@@ -294,9 +294,9 @@ app.post('/api/sales/balance-payment', async (c) => {
     
     // Insert payment history
     await env.DB.prepare(`
-      INSERT INTO payment_history (sale_id, order_id, payment_date, amount, payment_reference)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(sale.id, order_id, payment_date, amount, payment_reference).run();
+      INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(sale.id, order_id, payment_date, amount, account_received, payment_reference).run();
     
     return c.json({ success: true, message: 'Payment updated successfully' });
   } catch (error) {
@@ -326,6 +326,7 @@ app.post('/api/leads', async (c) => {
   try {
     const body = await c.req.json();
     const {
+      customer_code,
       customer_name,
       mobile_number,
       alternate_mobile,
@@ -338,11 +339,11 @@ app.post('/api/leads', async (c) => {
     
     const result = await env.DB.prepare(`
       INSERT INTO leads (
-        customer_name, mobile_number, alternate_mobile, location,
+        customer_code, customer_name, mobile_number, alternate_mobile, location,
         company_name, gst_number, email, complete_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      customer_name, mobile_number, alternate_mobile || null, location || null,
+      customer_code || null, customer_name, mobile_number, alternate_mobile || null, location || null,
       company_name || null, gst_number || null, email || null, complete_address || null
     ).run();
     
@@ -455,15 +456,21 @@ app.put('/api/sales/:orderId', async (c) => {
       orderId
     ).run();
     
+    // Get sale_id for the order
+    const sale = await env.DB.prepare(`
+      SELECT id FROM sales WHERE order_id = ?
+    `).bind(orderId).first();
+    
     // Delete existing items
     await env.DB.prepare(`DELETE FROM sale_items WHERE order_id = ?`).bind(orderId).run();
     
     // Insert new items
     for (const item of items) {
       await env.DB.prepare(`
-        INSERT INTO sale_items (order_id, product_name, quantity, unit_price, total_price)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
+        VALUES (?, ?, ?, ?, ?, ?)
       `).bind(
+        sale.id,
         orderId,
         item.product_name,
         item.quantity,
@@ -1289,6 +1296,7 @@ app.get('/', (c) => {
                         <table>
                             <thead>
                                 <tr>
+                                    <th>Customer Code</th>
                                     <th>Customer Name</th>
                                     <th>Mobile</th>
                                     <th>Alternate Mobile</th>
@@ -1301,7 +1309,7 @@ app.get('/', (c) => {
                                 </tr>
                             </thead>
                             <tbody id="leadsTableBody">
-                                <tr><td colspan="9" class="loading">Loading...</td></tr>
+                                <tr><td colspan="10" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1367,6 +1375,7 @@ app.get('/', (c) => {
                             <div style="margin-top: 25px; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
                                 <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Expected Format:</h4>
                                 <ul style="font-size: 13px; color: #6b7280; line-height: 1.8; margin-left: 20px;">
+                                    <li>Customer Code</li>
                                     <li>Customer Name</li>
                                     <li>Mobile Number</li>
                                     <li>Alternate Mobile</li>
@@ -1519,6 +1528,16 @@ app.get('/', (c) => {
                         <input type="number" name="amount" min="0" step="0.01" required>
                     </div>
                     <div class="form-group">
+                        <label>In Account Received *</label>
+                        <select name="account_received" required>
+                            <option value="">Select Account</option>
+                            <option value="IDFC(4828)">IDFC (4828)</option>
+                            <option value="IDFC(7455)">IDFC (7455)</option>
+                            <option value="Canara">Canara</option>
+                            <option value="Cash">Cash</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>Payment Reference Number</label>
                         <input type="text" name="payment_reference">
                     </div>
@@ -1538,6 +1557,10 @@ app.get('/', (c) => {
                 </div>
                 <form id="newLeadForm" onsubmit="submitNewLead(event)">
                     <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Code</label>
+                            <input type="text" name="customer_code" placeholder="Optional">
+                        </div>
                         <div class="form-group">
                             <label>Customer Name *</label>
                             <input type="text" name="customer_name" required>
@@ -2529,6 +2552,7 @@ app.get('/', (c) => {
                     order_id: formData.get('order_id'),
                     payment_date: formData.get('payment_date'),
                     amount: parseFloat(formData.get('amount')),
+                    account_received: formData.get('account_received'),
                     payment_reference: formData.get('payment_reference')
                 };
                 
@@ -2537,7 +2561,8 @@ app.get('/', (c) => {
                     
                     if (response.data.success) {
                         alert('Payment updated successfully!');
-                        closeBalancePaymentModal();
+                        document.getElementById('balancePaymentModal').classList.remove('show');
+                        loadBalancePayments();
                         loadDashboard();
                     }
                 } catch (error) {
@@ -2553,6 +2578,7 @@ app.get('/', (c) => {
                 const formData = new FormData(form);
                 
                 const data = {
+                    customer_code: formData.get('customer_code'),
                     customer_name: formData.get('customer_name'),
                     mobile_number: formData.get('mobile_number'),
                     alternate_mobile: formData.get('alternate_mobile'),
@@ -2568,7 +2594,7 @@ app.get('/', (c) => {
                     
                     if (response.data.success) {
                         alert('Lead added successfully!');
-                        closeNewLeadModal();
+                        document.getElementById('newLeadModal').classList.remove('show');
                         loadLeads();
                     }
                 } catch (error) {
@@ -2682,6 +2708,7 @@ app.get('/', (c) => {
                     const tbody = document.getElementById('leadsTableBody');
                     tbody.innerHTML = leads.map(lead => \`
                         <tr>
+                            <td>\${lead.customer_code || 'N/A'}</td>
                             <td>\${lead.customer_name}</td>
                             <td>\${lead.mobile_number}</td>
                             <td>\${lead.alternate_mobile || 'N/A'}</td>
