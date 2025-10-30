@@ -103,7 +103,7 @@ app.get('/api/sales/current-month', async (c) => {
       
       return {
         ...sale,
-        items: JSON.stringify(items.results),
+        items: items.results,
         payments: payments.results
       };
     }));
@@ -2173,9 +2173,18 @@ app.get('/', (c) => {
                     const sales = response.data.data;
                     
                     const tbody = document.getElementById('salesTableBody');
+                    if (!sales || sales.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: #6b7280;">No sales found for current month</td></tr>';
+                        return;
+                    }
+                    
                     tbody.innerHTML = sales.map(sale => {
-                        const products = sale.items.map(item => \`\${item.product_name} (x\${item.quantity})\`).join(', ');
-                        const payments = sale.payments.length;
+                        const items = sale.items || [];
+                        const products = items.length > 0 
+                            ? items.map(item => \`\${item.product_name} (x\${item.quantity})\`).join(', ')
+                            : 'No products';
+                        const payments = sale.payments ? sale.payments.length : 0;
+                        
                         return \`
                         <tr>
                             <td>
@@ -2204,6 +2213,8 @@ app.get('/', (c) => {
                     }).join('');
                 } catch (error) {
                     console.error('Error loading sales:', error);
+                    const tbody = document.getElementById('salesTableBody');
+                    tbody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: #dc2626;">Error loading sales data: ' + error.message + '</td></tr>';
                 }
             }
 
@@ -2761,7 +2772,17 @@ app.get('/', (c) => {
                     const sales = response.data.data;
                     
                     const tbody = document.getElementById('currentMonthTableBody');
-                    tbody.innerHTML = sales.map(sale => \`
+                    tbody.innerHTML = sales.map(sale => {
+                        const items = sale.items || [];
+                        const itemsDisplay = items.length > 0 
+                            ? items.map(item => \`
+                                <div style="margin: 2px 0;">
+                                    • \${item.product_name} (Qty: \${item.quantity} @ ₹\${item.unit_price})
+                                </div>
+                            \`).join('')
+                            : 'No products';
+                        
+                        return \`
                         <tr onclick="viewSaleDetails('\${sale.order_id}')" style="cursor: pointer;">
                             <td><strong>\${sale.order_id}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
@@ -2772,11 +2793,7 @@ app.get('/', (c) => {
                             <td>\${sale.employee_name}</td>
                             <td>
                                 <div style="font-size: 12px; color: #374151;">
-                                    \${sale.items ? JSON.parse(sale.items).map(item => \`
-                                        <div style="margin: 2px 0;">
-                                            • \${item.product_name} (Qty: \${item.quantity} @ ₹\${item.unit_price})
-                                        </div>
-                                    \`).join('') : 'N/A'}
+                                    \${itemsDisplay}
                                 </div>
                             </td>
                             <td style="font-weight: 600;">₹\${sale.total_amount.toLocaleString()}</td>
@@ -2784,7 +2801,8 @@ app.get('/', (c) => {
                                 ₹\${sale.balance_amount.toLocaleString()}
                             </td>
                         </tr>
-                    \`).join('');
+                        \`;
+                    }).join('');
                 } catch (error) {
                     console.error('Error loading current month sales:', error);
                     const tbody = document.getElementById('currentMonthTableBody');
