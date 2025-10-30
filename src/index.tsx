@@ -1046,7 +1046,46 @@ app.put('/api/sales/:orderId', async (c) => {
   }
 });
 
-// Upload Excel data for sales (placeholder - Excel parsing needs additional libraries)
+// Helper function to parse Excel or CSV file
+async function parseFileToRows(file: File): Promise<any[][]> {
+  const fileName = file.name.toLowerCase();
+  
+  if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+    // Parse Excel file
+    const XLSX = await import('xlsx');
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+    return data as any[][];
+  } else {
+    // Parse CSV file
+    const text = await file.text();
+    const lines = text.split('\n').filter(line => line.trim());
+    return lines.map(line => {
+      // Handle CSV with proper quote escaping
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      return values;
+    });
+  }
+}
+
+// Upload CSV/Excel data for sales - matches Google Sheets format
 app.post('/api/sales/upload-csv', async (c) => {
   const { env } = c;
   
@@ -1058,52 +1097,141 @@ app.post('/api/sales/upload-csv', async (c) => {
       return c.json({ success: false, error: 'No file uploaded' }, 400);
     }
     
-    const text = await file.text();
-    const lines = text.split('\n').filter(line => line.trim());
+    const rows = await parseFileToRows(file as File);
     
-    if (lines.length < 2) {
-      return c.json({ success: false, error: 'CSV file is empty or invalid' }, 400);
+    if (rows.length < 2) {
+      return c.json({ success: false, error: 'File is empty or invalid' }, 400);
     }
     
     // Skip header row
-    const dataLines = lines.slice(1);
+    const dataRows = rows.slice(1);
     let imported = 0;
+    let errors = [];
     
-    for (const line of dataLines) {
-      const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      
-      // Expected format: customer_code, sale_date, employee_name, sale_type, product_name, quantity, unit_price, account_received
-      if (values.length >= 8) {
-        const timestamp = Date.now();
-        const order_id = `ORD${timestamp.toString().slice(-8)}-${imported}`;
-        const quantity = parseFloat(values[5]) || 0;
-        const unit_price = parseFloat(values[6]) || 0;
-        const subtotal = quantity * unit_price;
-        const gst_amount = values[3] === 'With' ? subtotal * 0.18 : 0;
-        const total_amount = subtotal + gst_amount;
+    for (let i = 0; i < dataRows.length; i++) {
+      try {
+        const values = dataRows[i].map(v => String(v || '').trim());
         
+        // Google Sheets format columns (0-indexed):
+        // 0:S.No, 1:Month, 2:Order Id, 3:Sale Date, 4:Cust Code, 5:Sale Done By,
+        // 6:Company Name, 7:Customer Name, 8:Mobile Number, 9:Bill Amount,
+        // 10:Amount Rcd, 11:Balnc Payment, 12:Round Off, 13:With Bill, 14:Billing Status...
+        
+        if (values.length < 15) {
+          errors.push(`Row ${i + 2}: Insufficient columns (need at least 15, got ${values.length})`);
+          continue;
+        }
+        
+        const order_id = values[2] || `ORD${Date.now()}-${imported}`;
+        const sale_date = values[3];
+        const cust_code = values[4];
+        const employee_name = values[5];
+        const company_name = values[6];
+        const customer_name = values[7];
+        const customer_contact = values[8]; // This is the mobile number
+        const bill_amount = parseFloat(values[9]) || 0;
+        const amount_received = parseFloat(values[10]) || 0;
+        const balance_payment = parseFloat(values[11]) || 0;
+        const with_bill = values[13];
+        
+        // Determine sale type: Check "With Bill" column (index 13)
+        // Normalize to 'With' or 'Without'
+        let sale_type = 'With'; // default
+        if (with_bill) {
+          const normalized = with_bill.toLowerCase().trim();
+          if (normalized.includes('without') || normalized === 'no' || normalized === 'n') {
+            sale_type = 'Without';
+          }
+        }
+        
+        // Calculate GST
+        const gst_rate = 0.18;
+        let subtotal = bill_amount;
+        let gst_amount = 0;
+        let total_amount = bill_amount;
+        
+        if (sale_type === 'With') {
+          // If bill amount includes GST, calculate backwards
+          subtotal = bill_amount / (1 + gst_rate);
+          gst_amount = bill_amount - subtotal;
+        } else {
+          gst_amount = 0;
+          subtotal = bill_amount;
+        }
+        
+        // Insert sale - NOTE: Using customer_contact NOT mobile_number
         const saleResult = await env.DB.prepare(`
-          INSERT INTO sales (order_id, customer_code, sale_date, employee_name, sale_type, 
-                            subtotal, gst_amount, total_amount, balance_amount, account_received)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(order_id, values[0], values[1], values[2], values[3], 
-                subtotal, gst_amount, total_amount, total_amount, values[7]).run();
+          INSERT INTO sales (order_id, customer_code, customer_name, company_name, customer_contact,
+                            sale_date, employee_name, sale_type, 
+                            subtotal, gst_amount, total_amount, amount_received, balance_amount, account_received)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          order_id, cust_code, customer_name, company_name, customer_contact, 
+          sale_date, employee_name, sale_type,
+          subtotal, gst_amount, total_amount, amount_received, balance_payment, 'IDFC'
+        ).run();
         
-        await env.DB.prepare(`
-          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(saleResult.meta.last_row_id, order_id, values[4], quantity, unit_price, subtotal).run();
+        // Parse products (up to 10 products starting from column 17)
+        // P1: columns 17-20 (Code, Name, Qty, Rate)
+        // P2: columns 22-25, P3: columns 27-30, etc.
+        const productIndexes = [
+          [17, 18, 19, 20], // P1
+          [22, 23, 24, 25], // P2
+          [27, 28, 29, 30], // P3
+          [32, 33, 34, 35], // P4
+          [37, 38, 39, 40], // P5
+          [42, 43, 44, 45], // P6
+          [46, 47, 48],     // P7
+          [49, 50, 51],     // P8
+          [52, 53, 54],     // P9
+          [55, 56, 57]      // P10
+        ];
+        
+        for (const [codeIdx, nameIdx, qtyIdx, rateIdx] of productIndexes) {
+          if (values[nameIdx] && values[nameIdx].trim() !== '') {
+            const product_name = values[nameIdx];
+            const quantity = parseFloat(values[qtyIdx]) || 0;
+            const unit_price = parseFloat(values[rateIdx]) || 0;
+            
+            if (quantity > 0 && unit_price > 0) {
+              await env.DB.prepare(`
+                INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `).bind(
+                saleResult.meta.last_row_id, 
+                order_id, 
+                product_name, 
+                quantity, 
+                unit_price, 
+                quantity * unit_price
+              ).run();
+            }
+          }
+        }
         
         imported++;
+      } catch (rowError) {
+        errors.push(`Row ${i + 2}: ${rowError.message}`);
       }
     }
     
-    return c.json({ success: true, data: { imported } });
+    if (errors.length > 0 && imported === 0) {
+      return c.json({ success: false, error: 'No records imported. Errors: ' + errors.join('; ') }, 400);
+    }
+    
+    return c.json({ 
+      success: true, 
+      data: { 
+        imported, 
+        errors: errors.length > 0 ? errors : undefined 
+      } 
+    });
   } catch (error) {
-    return c.json({ success: false, error: 'Failed to import CSV: ' + error }, 500);
+    return c.json({ success: false, error: 'Failed to import file: ' + error.message }, 500);
   }
 });
 
+// Upload CSV/Excel data for leads
 app.post('/api/leads/upload-csv', async (c) => {
   const { env } = c;
   
@@ -1115,36 +1243,72 @@ app.post('/api/leads/upload-csv', async (c) => {
       return c.json({ success: false, error: 'No file uploaded' }, 400);
     }
     
-    const text = await file.text();
-    const lines = text.split('\n').filter(line => line.trim());
+    const rows = await parseFileToRows(file as File);
     
-    if (lines.length < 2) {
-      return c.json({ success: false, error: 'CSV file is empty or invalid' }, 400);
+    if (rows.length < 2) {
+      return c.json({ success: false, error: 'File is empty or invalid' }, 400);
     }
     
     // Skip header row
-    const dataLines = lines.slice(1);
+    const dataRows = rows.slice(1);
     let imported = 0;
+    let errors = [];
     
-    for (const line of dataLines) {
-      const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      
-      // Expected format: customer_code, customer_name, mobile_number, alternate_mobile, location, company_name, gst_number, email, status
-      if (values.length >= 9) {
+    for (let i = 0; i < dataRows.length; i++) {
+      try {
+        const values = dataRows[i].map(v => String(v || '').trim());
+        
+        // Expected format: customer_code, customer_name, mobile_number, alternate_mobile, 
+        // location, company_name, gst_number, email, complete_address, status
+        if (values.length < 3) {
+          errors.push(`Row ${i + 2}: Insufficient columns (need at least customer_code, customer_name, mobile_number)`);
+          continue;
+        }
+        
+        const customer_code = values[0] || null;
+        const customer_name = values[1];
+        const mobile_number = values[2];
+        const alternate_mobile = values[3] || null;
+        const location = values[4] || null;
+        const company_name = values[5] || null;
+        const gst_number = values[6] || null;
+        const email = values[7] || null;
+        const complete_address = values[8] || null;
+        const status = values[9] || 'New';
+        
+        if (!customer_name || !mobile_number) {
+          errors.push(`Row ${i + 2}: Missing required fields (customer_name or mobile_number)`);
+          continue;
+        }
+        
         await env.DB.prepare(`
           INSERT INTO leads (customer_code, customer_name, mobile_number, alternate_mobile, 
-                            location, company_name, gst_number, email, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(values[0] || null, values[1], values[2], values[3] || null, 
-                values[4] || null, values[5] || null, values[6] || null, values[7] || null, values[8] || 'New').run();
+                            location, company_name, gst_number, email, complete_address, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          customer_code, customer_name, mobile_number, alternate_mobile, 
+          location, company_name, gst_number, email, complete_address, status
+        ).run();
         
         imported++;
+      } catch (rowError) {
+        errors.push(`Row ${i + 2}: ${rowError.message}`);
       }
     }
     
-    return c.json({ success: true, data: { imported } });
+    if (errors.length > 0 && imported === 0) {
+      return c.json({ success: false, error: 'No records imported. Errors: ' + errors.join('; ') }, 400);
+    }
+    
+    return c.json({ 
+      success: true, 
+      data: { 
+        imported, 
+        errors: errors.length > 0 ? errors : undefined 
+      } 
+    });
   } catch (error) {
-    return c.json({ success: false, error: 'Failed to import CSV: ' + error }, 500);
+    return c.json({ success: false, error: 'Failed to import file: ' + error.message }, 500);
   }
 });
 
@@ -2089,12 +2253,12 @@ app.get('/', (c) => {
                             <div style="text-align: center; margin-bottom: 20px;">
                                 <i class="fas fa-file-csv" style="font-size: 48px; color: #10b981; margin-bottom: 15px;"></i>
                                 <h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Upload Sales Data</h3>
-                                <p style="color: #6b7280; font-size: 14px;">Upload CSV file containing sales records</p>
+                                <p style="color: #6b7280; font-size: 14px;">Upload CSV or Excel file containing sales records</p>
                             </div>
                             <form id="salesCSVForm" onsubmit="uploadSalesCSV(event)">
                                 <div class="form-group">
-                                    <label>Select CSV File *</label>
-                                    <input type="file" name="salesFile" accept=".csv" required style="padding: 8px;">
+                                    <label>Select CSV or Excel File *</label>
+                                    <input type="file" name="salesFile" accept=".csv,.xlsx,.xls" required style="padding: 8px;">
                                 </div>
                                 <button type="submit" class="btn-primary" style="width: 100%;">
                                     <i class="fas fa-upload"></i> Upload Sales Data
@@ -2116,12 +2280,12 @@ app.get('/', (c) => {
                             <div style="text-align: center; margin-bottom: 20px;">
                                 <i class="fas fa-file-csv" style="font-size: 48px; color: #3b82f6; margin-bottom: 15px;"></i>
                                 <h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Upload Leads Data</h3>
-                                <p style="color: #6b7280; font-size: 14px;">Upload CSV file containing lead records</p>
+                                <p style="color: #6b7280; font-size: 14px;">Upload CSV or Excel file containing lead records</p>
                             </div>
                             <form id="leadsCSVForm" onsubmit="uploadLeadsCSV(event)">
                                 <div class="form-group">
-                                    <label>Select CSV File *</label>
-                                    <input type="file" name="leadsFile" accept=".csv" required style="padding: 8px;">
+                                    <label>Select CSV or Excel File *</label>
+                                    <input type="file" name="leadsFile" accept=".csv,.xlsx,.xls" required style="padding: 8px;">
                                 </div>
                                 <button type="submit" class="btn-primary" style="width: 100%;">
                                     <i class="fas fa-upload"></i> Upload Leads Data

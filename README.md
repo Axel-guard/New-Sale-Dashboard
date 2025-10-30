@@ -84,7 +84,16 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
      - Balance Payment
      - **Leads** (new)
 
-8. **Database Structure**
+8. **CSV/Excel Upload Support** (NEW)
+   - **Sales Data Import**: Upload CSV or Excel files containing sales records
+   - **Leads Data Import**: Upload CSV or Excel files containing lead records
+   - **Automatic Format Detection**: Supports both .csv, .xlsx, and .xls formats
+   - **Batch Import**: Import multiple records at once
+   - **Error Handling**: Row-level error reporting with detailed messages
+   - **Data Normalization**: Automatically converts data to match database constraints
+   - **Google Sheets Compatible**: Supports direct export from Google Sheets
+
+9. **Database Structure**
    - **Sales Table**: Main sale information with GST calculations
    - **Sale Items Table**: Multiple products per sale (up to 10)
    - **Payment History Table**: Track all payments for each sale
@@ -109,10 +118,12 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 - `GET /api/sales/balance-payments` - Get all sales with pending balance
 - `POST /api/sales` - Create new sale with multiple products
 - `POST /api/sales/balance-payment` - Update balance payment for existing sale
+- `POST /api/sales/upload-csv` - **NEW**: Upload sales data from CSV/Excel file (supports .csv, .xlsx, .xls)
 
 ### Leads Management
 - `GET /api/leads` - Get all leads
 - `POST /api/leads` - Add new lead
+- `POST /api/leads/upload-csv` - **NEW**: Upload leads data from CSV/Excel file (supports .csv, .xlsx, .xls)
 
 ### Customer Management
 - `GET /api/customers` - Get all customers
@@ -241,6 +252,40 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 3. Click **"Save Lead"**
 4. View all leads in "Leads" tab in sidebar
 
+### Uploading Sales/Leads Data (NEW)
+
+**For Sales Data:**
+1. Navigate to **"Upload"** tab in the sidebar
+2. Click **"Select CSV or Excel File"** under Sales Upload section
+3. Choose your file (.csv, .xlsx, or .xls format)
+4. Click **"Upload Sales Data"**
+5. System will:
+   - Parse the file automatically
+   - Validate data against database constraints
+   - Normalize "With Bill" column to 'With' or 'Without'
+   - Calculate GST amounts automatically
+   - Import up to 10 products per sale
+   - Report errors for invalid rows
+   - Show success message with import count
+
+**Expected Sales CSV Format:**
+The system expects Google Sheets export format with 60+ columns:
+- S.No, Month, Order Id, Sale Date, Cust Code, Sale Done By, Company Name, Customer Name, Mobile Number
+- Bill Amount, Amount Rcd, Balance Payment, Round Off, **With Bill** (critical - normalized to 'With'/'Without')
+- Products 1-10 with Code/Name/Quantity/Rate for each
+- And more...
+
+**For Leads Data:**
+1. Navigate to **"Upload"** tab in the sidebar
+2. Click **"Select CSV or Excel File"** under Leads Upload section
+3. Choose your file (.csv, .xlsx, or .xls format)
+4. Click **"Upload Leads Data"**
+5. System will import leads with error reporting
+
+**Expected Leads CSV Format:**
+- Cust Code, Date, Customer Name, Location, Mobile Number, Follow Up Person
+- Remarks, Cust Email id, Company Name, GST Number, Company Address
+
 ### Viewing Sales Data
 
 - **Dashboard**: Shows current month summary with charts and detailed table
@@ -248,6 +293,7 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 - **Sales Database**: Complete history of all sales
 - **Balance Payment**: View all orders with pending payments (with Update action button)
 - **Order Details by ID**: Search specific order with complete breakdown
+- **Upload Tab**: **NEW** - Import sales and leads data from CSV/Excel files
 
 ### Sales Table Features
 
@@ -347,6 +393,28 @@ npm run test                # Test the service
 - Real-time total calculations
 - Color-coded payment status badges
 
+## Recent Updates (2025-10-30)
+
+### ✅ CSV/Excel Upload Feature - FIXED
+**Issue Fixed:** Database constraint violation error when uploading sales CSV
+- **Root Cause**: Column name mismatch (`mobile_number` vs `customer_contact`) and improper sale type normalization
+- **Solution**: 
+  - Fixed column mapping to match database schema exactly
+  - Added proper data normalization for "With Bill" column
+  - Implemented Excel file support using SheetJS library
+  - Added comprehensive error handling with row-level reporting
+  - Both Sales and Leads upload now support CSV (.csv) and Excel (.xlsx, .xls) formats
+
+### Upload Features Now Include:
+- ✅ Automatic file format detection (CSV/Excel)
+- ✅ Google Sheets export compatible
+- ✅ Sale type normalization ('With'/'Without' from any variation)
+- ✅ Proper column mapping for 60+ columns
+- ✅ Support for up to 10 products per sale
+- ✅ Row-level error tracking and reporting
+- ✅ Partial import support (continues on errors)
+- ✅ Detailed error messages for troubleshooting
+
 ## Features Not Yet Implemented
 
 1. **Courier Calculation** - Weight-based cost calculator
@@ -414,6 +482,8 @@ npm run test                # Test the service
 - RESTful API architecture
 - Server-side rendering for main page
 - CRUD operations for all entities
+- **SheetJS (xlsx)** library for Excel file parsing
+- **CSV parsing** with proper quote handling
 
 **Database:**
 - Cloudflare D1 (globally distributed SQLite)
