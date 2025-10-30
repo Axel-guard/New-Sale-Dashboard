@@ -1890,7 +1890,7 @@ app.get('/', (c) => {
             <div class="login-box">
                 <div style="text-align: center; margin-bottom: 30px;">
                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                        <img src="/logo-blue.png" alt="AxelGuard" style="height: 50px; width: auto;">
+                        <img src="/static/logo-blue.jpg" alt="AxelGuard" style="height: 50px; width: auto;">
                         <h1 style="color: #667eea; font-size: 32px;">AxelGuard</h1>
                     </div>
                     <p style="color: #6b7280; font-size: 14px;">Sign in to access your dashboard</p>
@@ -1924,7 +1924,7 @@ app.get('/', (c) => {
                     <i class="fas fa-bars"></i>
                 </div>
                 <h1 onclick="showPage('dashboard')" style="cursor: pointer; display: flex; align-items: center; gap: 12px;">
-                    <img src="/logo-white.png" alt="AxelGuard" style="height: 40px; width: auto;">
+                    <img src="/static/logo-white.jpg" alt="AxelGuard" style="height: 40px; width: auto;">
                     AxelGuard
                 </h1>
                 <div style="display: flex; align-items: center; gap: 15px;">
@@ -4095,10 +4095,7 @@ app.get('/', (c) => {
                     }
                 });
                 
-                if (items.length === 0) {
-                    alert('Please add at least one product');
-                    return;
-                }
+                // Allow sale without products (items can be empty)
                 
                 const data = {
                     customer_code: formData.get('customer_code'),
@@ -4251,7 +4248,7 @@ app.get('/', (c) => {
                             : 'No products';
                         
                         return \`
-                        <tr>
+                        <tr style="cursor: pointer;" onclick="viewSaleDetails('\${sale.order_id}')" title="Click to view sale details">
                             <td><strong>\${sale.order_id}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
                             <td>\${sale.customer_name || sale.customer_code}</td>
@@ -4261,7 +4258,7 @@ app.get('/', (c) => {
                             <td>₹\${sale.total_amount.toLocaleString()}</td>
                             <td>₹\${sale.balance_amount.toLocaleString()}</td>
                             <td>
-                                \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editSale('\${sale.order_id}')"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="deleteSale('\${sale.order_id}')"><i class="fas fa-trash"></i></button>\` : '-'}
+                                \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="event.stopPropagation(); editSale('\${sale.order_id}')"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="event.stopPropagation(); deleteSale('\${sale.order_id}')"><i class="fas fa-trash"></i></button>\` : '-'}
                             </td>
                         </tr>
                         \`;
