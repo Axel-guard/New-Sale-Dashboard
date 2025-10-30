@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
+import * as XLSX from 'xlsx'
 
 type Bindings = {
   DB: D1Database;
@@ -1046,13 +1047,33 @@ app.put('/api/sales/:orderId', async (c) => {
   }
 });
 
+// Delete sale
+app.delete('/api/sales/:orderId', async (c) => {
+  const { env } = c;
+  const orderId = c.req.param('orderId');
+  
+  try {
+    // Delete sale items first (foreign key constraint)
+    await env.DB.prepare(`DELETE FROM sale_items WHERE order_id = ?`).bind(orderId).run();
+    
+    // Delete payment history
+    await env.DB.prepare(`DELETE FROM payment_history WHERE order_id = ?`).bind(orderId).run();
+    
+    // Delete sale
+    await env.DB.prepare(`DELETE FROM sales WHERE order_id = ?`).bind(orderId).run();
+    
+    return c.json({ success: true, message: 'Sale deleted successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to delete sale' }, 500);
+  }
+});
+
 // Helper function to parse Excel or CSV file
 async function parseFileToRows(file: File): Promise<any[][]> {
   const fileName = file.name.toLowerCase();
   
   if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
     // Parse Excel file
-    const XLSX = await import('xlsx');
     const arrayBuffer = await file.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -3063,6 +3084,7 @@ app.get('/', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+            let currentPage = 'dashboard'; // Track current page
             let paymentChart = null;
             let employeeChart = null;
             let productCount = 0;
@@ -3206,6 +3228,9 @@ app.get('/', (c) => {
 
             // Show Page
             function showPage(pageName) {
+                // Update current page
+                currentPage = pageName;
+                
                 // Close sidebar
                 const sidebar = document.getElementById('sidebar');
                 const mainContent = document.getElementById('mainContent');
