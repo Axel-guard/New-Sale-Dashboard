@@ -659,6 +659,8 @@ app.post('/api/sales', async (c) => {
     const body = await c.req.json();
     const {
       customer_code,
+      customer_name,
+      company_name,
       customer_contact,
       sale_date,
       employee_name,
@@ -688,12 +690,12 @@ app.post('/api/sales', async (c) => {
     // Insert sale
     const saleResult = await env.DB.prepare(`
       INSERT INTO sales (
-        order_id, customer_code, customer_contact, sale_date, employee_name,
+        order_id, customer_code, customer_name, company_name, customer_contact, sale_date, employee_name,
         sale_type, courier_cost, amount_received, account_received,
         payment_reference, remarks, subtotal, gst_amount, total_amount, balance_amount
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      order_id, customer_code, customer_contact, sale_date, employee_name,
+      order_id, customer_code, customer_name || '', company_name || '', customer_contact, sale_date, employee_name,
       sale_type, courier_cost, amount_received, account_received,
       payment_reference, remarks, subtotal, gst_amount, total_amount, balance_amount
     ).run();
@@ -768,6 +770,57 @@ app.post('/api/sales/balance-payment', async (c) => {
     return c.json({ success: true, message: 'Payment updated successfully' });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to update payment' }, 500);
+  }
+});
+
+// Merge duplicate sales by order_id
+app.post('/api/sales/merge-duplicates', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Find duplicate order_ids
+    const duplicates = await env.DB.prepare(`
+      SELECT order_id, COUNT(*) as count
+      FROM sales
+      GROUP BY order_id
+      HAVING count > 1
+    `).all();
+    
+    if (duplicates.results.length === 0) {
+      return c.json({ success: true, message: 'No duplicates found', merged: 0 });
+    }
+    
+    let mergedCount = 0;
+    
+    for (const dup of duplicates.results) {
+      const orderId = dup.order_id;
+      
+      // Get all sales with this order_id, ordered by created_at
+      const salesWithSameId = await env.DB.prepare(`
+        SELECT * FROM sales WHERE order_id = ? ORDER BY created_at ASC
+      `).bind(orderId).all();
+      
+      if (salesWithSameId.results.length > 1) {
+        // Keep the first one (oldest), delete the rest
+        const keepSale = salesWithSameId.results[0];
+        const duplicateIds = salesWithSameId.results.slice(1).map((s: any) => s.id);
+        
+        // Delete duplicate sales
+        for (const dupId of duplicateIds) {
+          await env.DB.prepare(`DELETE FROM sales WHERE id = ?`).bind(dupId).run();
+        }
+        
+        mergedCount += duplicateIds.length;
+      }
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: `Merged ${mergedCount} duplicate sales`,
+      merged: mergedCount 
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to merge duplicates: ' + error }, 500);
   }
 });
 
@@ -4107,7 +4160,9 @@ app.get('/', (c) => {
                 
                 const data = {
                     customer_code: formData.get('customer_code'),
-                    customer_contact: formData.get('customer_contact'),
+                    customer_name: formData.get('customer_name'),
+                    company_name: formData.get('company_name'),
+                    customer_contact: formData.get('mobile_number'),
                     sale_date: formData.get('sale_date'),
                     employee_name: formData.get('employee_name'),
                     sale_type: formData.get('sale_type'),
@@ -4219,7 +4274,7 @@ app.get('/', (c) => {
                             <td><strong>\${sale.order_id}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
                             <td>
-                                <div style="font-weight: 600;">\${sale.customer_code}</div>
+                                <div style="font-weight: 600;">\${sale.customer_name || sale.customer_code}</div>
                                 <div style="font-size: 12px; color: #6b7280;">\${sale.company_name || 'N/A'}</div>
                             </td>
                             <td>\${sale.employee_name}</td>
