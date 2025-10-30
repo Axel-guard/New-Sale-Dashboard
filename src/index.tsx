@@ -1162,15 +1162,20 @@ app.post('/api/sales/upload-csv', async (c) => {
         // 6:Company Name, 7:Customer Name, 8:Mobile Number, 9:Bill Amount,
         // 10:Amount Rcd, 11:Balnc Payment, 12:Round Off, 13:With Bill, 14:Billing Status...
         
-        if (values.length < 15) {
-          errors.push(`Row ${i + 2}: Insufficient columns (need at least 15, got ${values.length})`);
+        if (values.length < 10) {
+          errors.push(`Row ${i + 2}: Insufficient columns (need at least 10, got ${values.length})`);
           continue;
         }
         
         const order_id = values[2] || `ORD${Date.now()}-${imported}`;
         
+        // Skip empty rows (no order ID)
+        if (!order_id || order_id.trim() === '') {
+          continue;
+        }
+        
         // Parse date from YY/MM/DD HH:MM to YYYY-MM-DD HH:MM:SS
-        let sale_date = values[3];
+        let sale_date = values[3] || new Date().toISOString();
         if (sale_date && sale_date.match(/^\d{2}\/\d{2}\/\d{2}/)) {
           const parts = sale_date.split(' ');
           const dateParts = parts[0].split('/');
@@ -1181,11 +1186,11 @@ app.post('/api/sales/upload-csv', async (c) => {
           sale_date = `${year}-${month}-${day} ${time}:00`;
         }
         
-        const cust_code = values[4];
-        const employee_name = values[5];
-        const company_name = values[6];
-        const customer_name = values[7];
-        const customer_contact = values[8]; // This is the mobile number
+        const cust_code = values[4] || '';
+        const employee_name = values[5] || 'Unknown';
+        const company_name = values[6] || '';
+        const customer_name = values[7] || '';
+        const customer_contact = values[8] || ''; // This is the mobile number
         
         // Parse amounts - remove currency symbols, commas, and spaces
         const bill_amount = parseFloat(values[9].replace(/[₹,\s]/g, '')) || 0;
@@ -1219,8 +1224,9 @@ app.post('/api/sales/upload-csv', async (c) => {
         }
         
         // Insert sale - NOTE: Using customer_contact NOT mobile_number
+        // Use INSERT OR IGNORE to skip duplicates
         const saleResult = await env.DB.prepare(`
-          INSERT INTO sales (order_id, customer_code, customer_name, company_name, customer_contact,
+          INSERT OR IGNORE INTO sales (order_id, customer_code, customer_name, company_name, customer_contact,
                             sale_date, employee_name, sale_type, 
                             subtotal, gst_amount, total_amount, amount_received, balance_amount, account_received)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1229,6 +1235,11 @@ app.post('/api/sales/upload-csv', async (c) => {
           sale_date, employee_name, sale_type,
           subtotal, gst_amount, total_amount, amount_received, balance_payment, 'IDFC'
         ).run();
+        
+        // Skip if duplicate (changes = 0)
+        if (saleResult.meta.changes === 0) {
+          continue;
+        }
         
         // Parse products (up to 10 products starting from column 17)
         // P1: columns 17-20 (Code, Name, Qty, Rate)
@@ -1254,15 +1265,13 @@ app.post('/api/sales/upload-csv', async (c) => {
             
             if (quantity > 0 && unit_price > 0) {
               await env.DB.prepare(`
-                INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO sale_items (order_id, product_name, quantity, unit_price)
+                VALUES (?, ?, ?, ?)
               `).bind(
-                saleResult.meta.last_row_id, 
                 order_id, 
                 product_name, 
                 quantity, 
-                unit_price, 
-                quantity * unit_price
+                unit_price
               ).run();
             }
           }
