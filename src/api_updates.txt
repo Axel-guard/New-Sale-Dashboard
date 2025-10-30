@@ -1,0 +1,8 @@
+# API Updates Needed:
+
+1. Update POST /api/sales - add customer_name and company_name fields
+2. Update POST /api/sales/balance-payment - add account_received field
+3. Add GET /api/customers/search?q={code_or_mobile} - search customer by code or mobile
+4. Update sales queries to include customer_name and company_name
+5. Update payment_history inserts to include account_received
+

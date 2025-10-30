@@ -1,0 +1,1890 @@
+import { Hono } from 'hono'
+import { cors } from 'hono/cors'
+import { serveStatic } from 'hono/cloudflare-workers'
+
+type Bindings = {
+  DB: D1Database;
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+
+// Enable CORS
+app.use('/api/*', cors())
+
+// Serve static files
+app.use('/static/*', serveStatic({ root: './public' }))
+
+// API Routes
+
+// Get dashboard summary data
+app.get('/api/dashboard/summary', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // Employee-wise sales for current month
+    const employeeSales = await env.DB.prepare(`
+      SELECT 
+        employee_name,
+        COUNT(*) as total_sales,
+        SUM(total_amount) as total_revenue,
+        SUM(amount_received) as total_received,
+        SUM(balance_amount) as total_balance
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      GROUP BY employee_name
+      ORDER BY total_revenue DESC
+    `).bind(firstDay.toISOString()).all();
+    
+    // Payment status distribution
+    const paymentStatusData = await env.DB.prepare(`
+      SELECT 
+        CASE 
+          WHEN balance_amount = 0 THEN 'Paid'
+          WHEN balance_amount > 0 AND amount_received > 0 THEN 'Partial'
+          ELSE 'Pending'
+        END as status,
+        COUNT(*) as count,
+        SUM(total_amount) as total_amount
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      GROUP BY status
+    `).bind(firstDay.toISOString()).all();
+    
+    // Current month sales count and revenue
+    const monthlySummary = await env.DB.prepare(`
+      SELECT 
+        COUNT(*) as total_sales,
+        SUM(total_amount) as total_revenue,
+        SUM(amount_received) as total_received,
+        SUM(balance_amount) as total_balance
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+    `).bind(firstDay.toISOString()).first();
+    
+    return c.json({
+      success: true,
+      data: {
+        employeeSales: employeeSales.results,
+        paymentStatusData: paymentStatusData.results,
+        monthlySummary
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch dashboard data' }, 500);
+  }
+});
+
+// Get all sales with items and payments
+app.get('/api/sales/current-month', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const sales = await env.DB.prepare(`
+      SELECT * FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      ORDER BY sale_date DESC
+    `).bind(firstDay.toISOString()).all();
+    
+    // Get items and payments for each sale
+    const salesWithDetails = await Promise.all(sales.results.map(async (sale: any) => {
+      const items = await env.DB.prepare(`
+        SELECT * FROM sale_items WHERE sale_id = ?
+      `).bind(sale.id).all();
+      
+      const payments = await env.DB.prepare(`
+        SELECT * FROM payment_history WHERE sale_id = ? ORDER BY payment_date DESC
+      `).bind(sale.id).all();
+      
+      return {
+        ...sale,
+        items: items.results,
+        payments: payments.results
+      };
+    }));
+    
+    return c.json({ success: true, data: salesWithDetails });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch sales' }, 500);
+  }
+});
+
+// Get all sales (for sales database page)
+app.get('/api/sales', async (c) => {
+  const { env } = c;
+  
+  try {
+    const sales = await env.DB.prepare(`
+      SELECT * FROM sales
+      ORDER BY sale_date DESC
+      LIMIT 1000
+    `).all();
+    
+    return c.json({ success: true, data: sales.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch sales' }, 500);
+  }
+});
+
+// Get sale by order ID with full details
+app.get('/api/sales/order/:orderId', async (c) => {
+  const { env } = c;
+  const orderId = c.req.param('orderId');
+  
+  try {
+    const sale = await env.DB.prepare(`
+      SELECT * FROM sales WHERE order_id = ?
+    `).bind(orderId).first();
+    
+    if (!sale) {
+      return c.json({ success: false, error: 'Order not found' }, 404);
+    }
+    
+    const items = await env.DB.prepare(`
+      SELECT * FROM sale_items WHERE sale_id = ?
+    `).bind(sale.id).all();
+    
+    const payments = await env.DB.prepare(`
+      SELECT * FROM payment_history WHERE sale_id = ? ORDER BY payment_date DESC
+    `).bind(sale.id).all();
+    
+    return c.json({ 
+      success: true, 
+      data: {
+        ...sale,
+        items: items.results,
+        payments: payments.results
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch order' }, 500);
+  }
+});
+
+// Get balance payments
+app.get('/api/sales/balance-payments', async (c) => {
+  const { env } = c;
+  
+  try {
+    const sales = await env.DB.prepare(`
+      SELECT * FROM sales
+      WHERE balance_amount > 0
+      ORDER BY sale_date DESC
+    `).all();
+    
+    return c.json({ success: true, data: sales.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch balance payments' }, 500);
+  }
+});
+
+// Add new sale
+app.post('/api/sales', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const {
+      customer_code,
+      customer_contact,
+      sale_date,
+      employee_name,
+      sale_type,
+      courier_cost,
+      amount_received,
+      account_received,
+      payment_reference,
+      remarks,
+      items
+    } = body;
+    
+    // Calculate totals
+    let subtotal = 0;
+    items.forEach((item: any) => {
+      subtotal += item.quantity * item.unit_price;
+    });
+    
+    const gst_amount = sale_type === 'With' ? (subtotal + courier_cost) * 0.18 : 0;
+    const total_amount = subtotal + courier_cost + gst_amount;
+    const balance_amount = total_amount - amount_received;
+    
+    // Generate order ID
+    const timestamp = Date.now();
+    const order_id = `ORD${timestamp.toString().slice(-8)}`;
+    
+    // Insert sale
+    const saleResult = await env.DB.prepare(`
+      INSERT INTO sales (
+        order_id, customer_code, customer_contact, sale_date, employee_name,
+        sale_type, courier_cost, amount_received, account_received,
+        payment_reference, remarks, subtotal, gst_amount, total_amount, balance_amount
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      order_id, customer_code, customer_contact, sale_date, employee_name,
+      sale_type, courier_cost, amount_received, account_received,
+      payment_reference, remarks, subtotal, gst_amount, total_amount, balance_amount
+    ).run();
+    
+    const sale_id = saleResult.meta.last_row_id;
+    
+    // Insert sale items
+    for (const item of items) {
+      if (item.product_name && item.quantity > 0 && item.unit_price > 0) {
+        const item_total = item.quantity * item.unit_price;
+        await env.DB.prepare(`
+          INSERT INTO sale_items (sale_id, product_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?)
+        `).bind(sale_id, item.product_name, item.quantity, item.unit_price, item_total).run();
+      }
+    }
+    
+    // Insert initial payment if amount received
+    if (amount_received > 0) {
+      await env.DB.prepare(`
+        INSERT INTO payment_history (sale_id, order_id, payment_date, amount, payment_reference)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(sale_id, order_id, sale_date, amount_received, payment_reference).run();
+    }
+    
+    return c.json({
+      success: true,
+      data: {
+        id: sale_id,
+        order_id,
+        total_amount,
+        balance_amount
+      }
+    }, 201);
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to create sale: ' + error }, 500);
+  }
+});
+
+// Update balance payment
+app.post('/api/sales/balance-payment', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { order_id, payment_date, amount, payment_reference } = body;
+    
+    // Get sale
+    const sale = await env.DB.prepare(`
+      SELECT * FROM sales WHERE order_id = ?
+    `).bind(order_id).first();
+    
+    if (!sale) {
+      return c.json({ success: false, error: 'Order not found' }, 404);
+    }
+    
+    // Update sale
+    const new_amount_received = sale.amount_received + amount;
+    const new_balance = sale.total_amount - new_amount_received;
+    
+    await env.DB.prepare(`
+      UPDATE sales 
+      SET amount_received = ?, balance_amount = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE order_id = ?
+    `).bind(new_amount_received, new_balance, order_id).run();
+    
+    // Insert payment history
+    await env.DB.prepare(`
+      INSERT INTO payment_history (sale_id, order_id, payment_date, amount, payment_reference)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(sale.id, order_id, payment_date, amount, payment_reference).run();
+    
+    return c.json({ success: true, message: 'Payment updated successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to update payment' }, 500);
+  }
+});
+
+// Get all leads
+app.get('/api/leads', async (c) => {
+  const { env } = c;
+  
+  try {
+    const leads = await env.DB.prepare(`
+      SELECT * FROM leads ORDER BY created_at DESC
+    `).all();
+    
+    return c.json({ success: true, data: leads.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch leads' }, 500);
+  }
+});
+
+// Add new lead
+app.post('/api/leads', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const {
+      customer_name,
+      mobile_number,
+      alternate_mobile,
+      location,
+      company_name,
+      gst_number,
+      email,
+      complete_address
+    } = body;
+    
+    const result = await env.DB.prepare(`
+      INSERT INTO leads (
+        customer_name, mobile_number, alternate_mobile, location,
+        company_name, gst_number, email, complete_address
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      customer_name, mobile_number, alternate_mobile || null, location || null,
+      company_name || null, gst_number || null, email || null, complete_address || null
+    ).run();
+    
+    return c.json({
+      success: true,
+      data: { id: result.meta.last_row_id }
+    }, 201);
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to create lead' }, 500);
+  }
+});
+
+// Get all customers
+app.get('/api/customers', async (c) => {
+  const { env } = c;
+  
+  try {
+    const customers = await env.DB.prepare(`
+      SELECT * FROM customers
+      ORDER BY created_at DESC
+    `).all();
+    
+    return c.json({ success: true, data: customers.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch customers' }, 500);
+  }
+});
+
+// Home page with dashboard
+app.get('/', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>AxelGuard Sale Dashboard</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: #f0f2f5;
+            }
+            
+            .top-bar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 60px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 20px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                z-index: 1000;
+            }
+            
+            .top-bar h1 {
+                font-size: 24px;
+                font-weight: 600;
+                margin: 0 auto;
+            }
+            
+            .sidebar {
+                position: fixed;
+                top: 60px;
+                left: -280px;
+                width: 280px;
+                height: calc(100vh - 60px);
+                background: white;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+                transition: left 0.3s ease;
+                z-index: 999;
+                overflow-y: auto;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+            
+            .sidebar-item {
+                padding: 15px 20px;
+                border-bottom: 1px solid #e5e7eb;
+                cursor: pointer;
+                transition: all 0.3s;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .sidebar-item:hover {
+                background: #f3f4f6;
+                padding-left: 25px;
+            }
+            
+            .sidebar-item.active {
+                background: #eef2ff;
+                border-left: 4px solid #667eea;
+            }
+            
+            .main-content {
+                margin-top: 60px;
+                padding: 20px;
+                transition: margin-left 0.3s ease;
+            }
+            
+            .main-content.shifted {
+                margin-left: 280px;
+            }
+            
+            .card {
+                background: white;
+                border-radius: 10px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .card-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+            }
+            
+            .card-title {
+                font-size: 18px;
+                font-weight: 600;
+                color: #1f2937;
+            }
+            
+            .btn-primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 500;
+                transition: transform 0.2s;
+                position: relative;
+            }
+            
+            .btn-primary:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+            
+            .action-menu {
+                display: none;
+                position: absolute;
+                top: 100%;
+                right: 0;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                margin-top: 5px;
+                min-width: 200px;
+                z-index: 1000;
+            }
+            
+            .action-menu.show {
+                display: block;
+            }
+            
+            .action-menu-item {
+                padding: 12px 20px;
+                cursor: pointer;
+                transition: background 0.2s;
+                color: #374151;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .action-menu-item:hover {
+                background: #f3f4f6;
+            }
+            
+            .action-menu-item:first-child {
+                border-radius: 8px 8px 0 0;
+            }
+            
+            .action-menu-item:last-child {
+                border-radius: 0 0 8px 8px;
+            }
+            
+            .modal {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 2000;
+                align-items: center;
+                justify-content: center;
+                overflow-y: auto;
+                padding: 20px;
+            }
+            
+            .modal.show {
+                display: flex;
+            }
+            
+            .modal-content {
+                background: white;
+                border-radius: 12px;
+                padding: 30px;
+                width: 90%;
+                max-width: 900px;
+                max-height: 90vh;
+                overflow-y: auto;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            }
+            
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 2px solid #e5e7eb;
+            }
+            
+            .close {
+                font-size: 28px;
+                cursor: pointer;
+                color: #6b7280;
+            }
+            
+            .form-group {
+                margin-bottom: 15px;
+            }
+            
+            .form-group label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: 500;
+                color: #374151;
+                font-size: 14px;
+            }
+            
+            .form-group input,
+            .form-group select,
+            .form-group textarea {
+                width: 100%;
+                padding: 10px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            
+            .form-group input:focus,
+            .form-group select:focus,
+            .form-group textarea:focus {
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+            
+            .form-row {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+            }
+            
+            .table-container {
+                overflow-x: auto;
+            }
+            
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            
+            thead {
+                background: #f9fafb;
+            }
+            
+            th {
+                padding: 10px 8px;
+                text-align: left;
+                font-weight: 600;
+                color: #374151;
+                border-bottom: 2px solid #e5e7eb;
+                font-size: 12px;
+            }
+            
+            td {
+                padding: 10px 8px;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            
+            tbody tr:hover {
+                background: #f9fafb;
+            }
+            
+            .badge {
+                display: inline-block;
+                padding: 4px 12px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            
+            .badge-success {
+                background: #d1fae5;
+                color: #065f46;
+            }
+            
+            .badge-warning {
+                background: #fef3c7;
+                color: #92400e;
+            }
+            
+            .badge-danger {
+                background: #fee2e2;
+                color: #991b1b;
+            }
+            
+            .menu-toggle {
+                cursor: pointer;
+                font-size: 24px;
+            }
+            
+            .grid-2 {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .employee-card {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            }
+            
+            .employee-card h3 {
+                font-size: 15px;
+                margin-bottom: 10px;
+                opacity: 0.9;
+            }
+            
+            .employee-card .value {
+                font-size: 24px;
+                font-weight: 700;
+                margin-bottom: 5px;
+            }
+            
+            .employee-card .sub-value {
+                font-size: 13px;
+                opacity: 0.8;
+            }
+            
+            .page-content {
+                display: none;
+            }
+            
+            .page-content.active {
+                display: block;
+            }
+            
+            .loading {
+                text-align: center;
+                padding: 40px;
+                color: #6b7280;
+            }
+            
+            .product-row {
+                display: grid;
+                grid-template-columns: 2fr 1fr 1fr 1fr auto;
+                gap: 10px;
+                align-items: end;
+                margin-bottom: 10px;
+                padding: 10px;
+                background: #f9fafb;
+                border-radius: 6px;
+            }
+            
+            .btn-remove {
+                background: #ef4444;
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 12px;
+            }
+            
+            .btn-add {
+                background: #10b981;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                margin-top: 10px;
+            }
+            
+            .total-summary {
+                background: #f3f4f6;
+                padding: 20px;
+                border-radius: 8px;
+                margin-top: 20px;
+            }
+            
+            .total-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                font-size: 15px;
+            }
+            
+            .total-row.final {
+                border-top: 2px solid #667eea;
+                margin-top: 10px;
+                padding-top: 15px;
+                font-size: 18px;
+                font-weight: 700;
+                color: #667eea;
+            }
+            
+            .chart-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                margin-bottom: 20px;
+            }
+            
+            @media (max-width: 768px) {
+                .chart-container {
+                    grid-template-columns: 1fr;
+                }
+                
+                .product-row {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="top-bar">
+            <div class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </div>
+            <h1>AxelGuard Sale Dashboard</h1>
+            <div style="width: 40px;"></div>
+        </div>
+
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-item active" onclick="showPage('dashboard')">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('courier-calculation')">
+                <i class="fas fa-shipping-fast"></i>
+                <span>Courier Calculation</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('order-details')">
+                <i class="fas fa-search"></i>
+                <span>Order Details by ID</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('customer-details')">
+                <i class="fas fa-users"></i>
+                <span>Customer Details</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('current-month-sale')">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Current Month Sale</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('sale-database')">
+                <i class="fas fa-database"></i>
+                <span>Sale Database</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('balance-payment')">
+                <i class="fas fa-money-bill-wave"></i>
+                <span>Balance Payment</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('leads')">
+                <i class="fas fa-user-plus"></i>
+                <span>Leads</span>
+            </div>
+        </div>
+
+        <div class="main-content" id="mainContent">
+            <div class="page-content active" id="dashboard-page">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="font-size: 24px; font-weight: 600; color: #1f2937;">Dashboard Overview</h2>
+                    <div style="position: relative;">
+                        <button class="btn-primary" onclick="toggleActionMenu()">
+                            <i class="fas fa-plus"></i> Add New <i class="fas fa-chevron-down" style="margin-left: 5px; font-size: 12px;"></i>
+                        </button>
+                        <div class="action-menu" id="actionMenu">
+                            <div class="action-menu-item" onclick="openNewSaleModal()">
+                                <i class="fas fa-shopping-cart"></i> New Sale
+                            </div>
+                            <div class="action-menu-item" onclick="openBalancePaymentModal()">
+                                <i class="fas fa-money-check-alt"></i> Balance Payment Update
+                            </div>
+                            <div class="action-menu-item" onclick="openNewLeadModal()">
+                                <i class="fas fa-user-plus"></i> Add New Lead
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="employeeSalesGrid" class="grid-2">
+                    <div class="loading">Loading...</div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Employee Sales (Current Month)</h3>
+                        </div>
+                        <canvas id="employeeChart"></canvas>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Payment Status</h3>
+                        </div>
+                        <div style="max-width: 300px; margin: 0 auto;">
+                            <canvas id="paymentChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Complete Sale Details - Current Month</h3>
+                    </div>
+                    <div class="table-container">
+                        <table id="salesTable">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Employee</th>
+                                    <th>Products</th>
+                                    <th>Sale Type</th>
+                                    <th>Subtotal</th>
+                                    <th>GST</th>
+                                    <th>Total</th>
+                                    <th>Received</th>
+                                    <th>Balance</th>
+                                    <th>Payments</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesTableBody">
+                                <tr><td colspan="13" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other Pages -->
+            <div class="page-content" id="courier-calculation-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Courier Calculation</h2>
+                    <p>Courier calculation feature coming soon...</p>
+                </div>
+            </div>
+
+            <div class="page-content" id="order-details-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Search Order by ID</h2>
+                    <div class="form-group">
+                        <label>Enter Order ID</label>
+                        <input type="text" id="searchOrderId" placeholder="e.g., ORD001">
+                    </div>
+                    <button class="btn-primary" onclick="searchOrder()">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    <div id="orderResult" style="margin-top: 20px;"></div>
+                </div>
+            </div>
+
+            <div class="page-content" id="customer-details-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Customer Details</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Address</th>
+                                    <th>Joined Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customersTableBody">
+                                <tr><td colspan="5" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="current-month-sale-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Current Month Sales</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Employee</th>
+                                    <th>Products</th>
+                                    <th>Total Amount</th>
+                                    <th>Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="currentMonthTableBody">
+                                <tr><td colspan="7" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="sale-database-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Complete Sales Database</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Employee</th>
+                                    <th>Sale Type</th>
+                                    <th>Total Amount</th>
+                                    <th>Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allSalesTableBody">
+                                <tr><td colspan="7" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="balance-payment-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Pending Balance Payments</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Employee</th>
+                                    <th>Contact</th>
+                                    <th>Total Amount</th>
+                                    <th>Received</th>
+                                    <th>Balance</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="balancePaymentTableBody">
+                                <tr><td colspan="9" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="leads-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Leads Management</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Customer Name</th>
+                                    <th>Mobile</th>
+                                    <th>Alternate Mobile</th>
+                                    <th>Location</th>
+                                    <th>Company</th>
+                                    <th>GST Number</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leadsTableBody">
+                                <tr><td colspan="9" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Sale Modal -->
+        <div class="modal" id="newSaleModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Add New Sale</h2>
+                    <span class="close" onclick="closeNewSaleModal()">&times;</span>
+                </div>
+                <form id="newSaleForm" onsubmit="submitNewSale(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Code / Contact Number *</label>
+                            <input type="text" name="customer_code" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Customer Contact</label>
+                            <input type="tel" name="customer_contact">
+                        </div>
+                        <div class="form-group">
+                            <label>Date of Sale *</label>
+                            <input type="date" name="sale_date" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Employee Name *</label>
+                            <select name="employee_name" required>
+                                <option value="">Select Employee</option>
+                                <option value="Akash Parashar">Akash Parashar</option>
+                                <option value="Mandeep Samal">Mandeep Samal</option>
+                                <option value="Smruti Ranjan Nayak">Smruti Ranjan Nayak</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Sale Type *</label>
+                            <select name="sale_type" required onchange="calculateSaleTotal()">
+                                <option value="">Select Type</option>
+                                <option value="With">With GST</option>
+                                <option value="Without">Without GST</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Courier Cost</label>
+                            <input type="number" name="courier_cost" min="0" step="0.01" value="0" onchange="calculateSaleTotal()">
+                        </div>
+                        <div class="form-group">
+                            <label>Amount Received</label>
+                            <input type="number" name="amount_received" min="0" step="0.01" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>In Account Received *</label>
+                            <select name="account_received" required>
+                                <option value="">Select Account</option>
+                                <option value="IDFC4828">IDFC4828</option>
+                                <option value="IDFC7455">IDFC7455</option>
+                                <option value="Canara">Canara</option>
+                                <option value="Cash">Cash</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Payment Reference Number</label>
+                            <input type="text" name="payment_reference">
+                        </div>
+                        <div class="form-group">
+                            <label>Remarks</label>
+                            <textarea name="remarks" rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <h3 style="margin: 20px 0 15px 0; font-size: 16px; font-weight: 600; color: #374151;">Product Details</h3>
+                    <div id="productRows">
+                        <!-- Product rows will be added here -->
+                    </div>
+                    <button type="button" class="btn-add" onclick="addProductRow()">
+                        <i class="fas fa-plus"></i> Add Product
+                    </button>
+
+                    <div class="total-summary">
+                        <div class="total-row">
+                            <span>Subtotal:</span>
+                            <span id="subtotalDisplay">₹0.00</span>
+                        </div>
+                        <div class="total-row">
+                            <span>Courier Cost:</span>
+                            <span id="courierDisplay">₹0.00</span>
+                        </div>
+                        <div class="total-row">
+                            <span>GST (18%):</span>
+                            <span id="gstDisplay">₹0.00</span>
+                        </div>
+                        <div class="total-row final">
+                            <span>Total Amount:</span>
+                            <span id="totalDisplay">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 20px;">
+                        <i class="fas fa-save"></i> Save Sale
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Balance Payment Modal -->
+        <div class="modal" id="balancePaymentModal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Update Balance Payment</h2>
+                    <span class="close" onclick="closeBalancePaymentModal()">&times;</span>
+                </div>
+                <form id="balancePaymentForm" onsubmit="submitBalancePayment(event)">
+                    <div class="form-group">
+                        <label>Order ID *</label>
+                        <input type="text" name="order_id" required placeholder="e.g., ORD001">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Payment *</label>
+                        <input type="date" name="payment_date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount *</label>
+                        <input type="number" name="amount" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Reference Number</label>
+                        <input type="text" name="payment_reference">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="fas fa-save"></i> Update Payment
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- New Lead Modal -->
+        <div class="modal" id="newLeadModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Add New Lead</h2>
+                    <span class="close" onclick="closeNewLeadModal()">&times;</span>
+                </div>
+                <form id="newLeadForm" onsubmit="submitNewLead(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Name *</label>
+                            <input type="text" name="customer_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Mobile Number *</label>
+                            <input type="tel" name="mobile_number" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Alternate Mobile Number</label>
+                            <input type="tel" name="alternate_mobile">
+                        </div>
+                        <div class="form-group">
+                            <label>Location</label>
+                            <input type="text" name="location">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Company Name</label>
+                            <input type="text" name="company_name">
+                        </div>
+                        <div class="form-group">
+                            <label>GST Number</label>
+                            <input type="text" name="gst_number">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Email ID</label>
+                        <input type="email" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label>Complete Address</label>
+                        <textarea name="complete_address" rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="fas fa-save"></i> Save Lead
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+            let paymentChart = null;
+            let employeeChart = null;
+            let productCount = 0;
+
+            // Set today's date as default
+            document.addEventListener('DOMContentLoaded', () => {
+                const today = new Date().toISOString().split('T')[0];
+                document.querySelectorAll('input[type="date"]').forEach(input => {
+                    if (!input.value) input.value = today;
+                });
+                loadDashboard();
+                addProductRow(); // Add first product row
+            });
+
+            // Toggle Sidebar
+            function toggleSidebar() {
+                const sidebar = document.getElementById('sidebar');
+                const mainContent = document.getElementById('mainContent');
+                sidebar.classList.toggle('open');
+                mainContent.classList.toggle('shifted');
+            }
+
+            // Show Page
+            function showPage(pageName) {
+                // Close sidebar
+                const sidebar = document.getElementById('sidebar');
+                const mainContent = document.getElementById('mainContent');
+                sidebar.classList.remove('open');
+                mainContent.classList.remove('shifted');
+                
+                // Hide all pages
+                document.querySelectorAll('.page-content').forEach(page => {
+                    page.classList.remove('active');
+                });
+                
+                // Show selected page
+                document.getElementById(pageName + '-page').classList.add('active');
+                
+                // Update sidebar active state
+                document.querySelectorAll('.sidebar-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                event.target.closest('.sidebar-item').classList.add('active');
+                
+                // Load page data
+                loadPageData(pageName);
+            }
+
+            // Toggle Action Menu
+            function toggleActionMenu() {
+                const menu = document.getElementById('actionMenu');
+                menu.classList.toggle('show');
+            }
+
+            // Close action menu when clicking outside
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('actionMenu');
+                const button = e.target.closest('.btn-primary');
+                if (!button && !menu.contains(e.target)) {
+                    menu.classList.remove('show');
+                }
+            });
+
+            // Load page data
+            function loadPageData(pageName) {
+                switch(pageName) {
+                    case 'dashboard':
+                        loadDashboard();
+                        break;
+                    case 'customer-details':
+                        loadCustomers();
+                        break;
+                    case 'current-month-sale':
+                        loadCurrentMonthSales();
+                        break;
+                    case 'sale-database':
+                        loadAllSales();
+                        break;
+                    case 'balance-payment':
+                        loadBalancePayments();
+                        break;
+                    case 'leads':
+                        loadLeads();
+                        break;
+                }
+            }
+
+            // Load Dashboard
+            async function loadDashboard() {
+                try {
+                    const response = await axios.get('/api/dashboard/summary');
+                    const { employeeSales, paymentStatusData, monthlySummary } = response.data.data;
+                    
+                    // Render employee cards
+                    const grid = document.getElementById('employeeSalesGrid');
+                    grid.innerHTML = employeeSales.map(emp => \`
+                        <div class="employee-card">
+                            <h3>\${emp.employee_name}</h3>
+                            <div class="value">₹\${emp.total_revenue.toLocaleString()}</div>
+                            <div class="sub-value">\${emp.total_sales} sales | Balance: ₹\${emp.total_balance.toLocaleString()}</div>
+                        </div>
+                    \`).join('');
+                    
+                    // Render charts
+                    renderEmployeeChart(employeeSales);
+                    renderPaymentChart(paymentStatusData);
+                    
+                    // Load sales table
+                    loadSalesTable();
+                } catch (error) {
+                    console.error('Error loading dashboard:', error);
+                }
+            }
+
+            // Render Employee Chart
+            function renderEmployeeChart(data) {
+                const ctx = document.getElementById('employeeChart').getContext('2d');
+                
+                if (employeeChart) {
+                    employeeChart.destroy();
+                }
+                
+                const labels = data.map(d => d.employee_name);
+                const values = data.map(d => d.total_revenue);
+                
+                employeeChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Total Revenue (₹)',
+                            data: values,
+                            backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '₹' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Render Payment Chart
+            function renderPaymentChart(data) {
+                const ctx = document.getElementById('paymentChart').getContext('2d');
+                
+                if (paymentChart) {
+                    paymentChart.destroy();
+                }
+                
+                const labels = data.map(d => d.status);
+                const values = data.map(d => d.count);
+                const colors = ['#10b981', '#f59e0b', '#ef4444'];
+                
+                paymentChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            borderWidth: 3,
+                            borderColor: 'white'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Load Sales Table
+            async function loadSalesTable() {
+                try {
+                    const response = await axios.get('/api/sales/current-month');
+                    const sales = response.data.data;
+                    
+                    const tbody = document.getElementById('salesTableBody');
+                    tbody.innerHTML = sales.map(sale => {
+                        const products = sale.items.map(item => \`\${item.product_name} (x\${item.quantity})\`).join(', ');
+                        const payments = sale.payments.length;
+                        return \`
+                        <tr>
+                            <td><strong>\${sale.order_id}</strong></td>
+                            <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
+                            <td>\${sale.customer_code}<br><small>\${sale.customer_contact || ''}</small></td>
+                            <td>\${sale.employee_name}</td>
+                            <td><small>\${products}</small></td>
+                            <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
+                            <td>₹\${sale.subtotal.toLocaleString()}</td>
+                            <td>₹\${sale.gst_amount.toLocaleString()}</td>
+                            <td>₹\${sale.total_amount.toLocaleString()}</td>
+                            <td>₹\${sale.amount_received.toLocaleString()}</td>
+                            <td>\${sale.balance_amount > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>'}</td>
+                            <td><small>\${payments} payment(s)</small></td>
+                            <td><small>\${sale.remarks || '-'}</small></td>
+                        </tr>
+                    \`;
+                    }).join('');
+                } catch (error) {
+                    console.error('Error loading sales:', error);
+                }
+            }
+
+            // Product Row Management
+            function addProductRow() {
+                if (productCount >= 10) {
+                    alert('Maximum 10 products allowed');
+                    return;
+                }
+                
+                productCount++;
+                const container = document.getElementById('productRows');
+                const row = document.createElement('div');
+                row.className = 'product-row';
+                row.id = \`product-\${productCount}\`;
+                row.innerHTML = \`
+                    <div class="form-group" style="margin: 0;">
+                        <label>Product Name</label>
+                        <select name="items[\${productCount}][product_name]" onchange="calculateSaleTotal()">
+                            <option value="">Select Product</option>
+                            <option value="MDVR">MDVR</option>
+                            <option value="Dashcam">Dashcam</option>
+                            <option value="Camera">Camera</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Quantity</label>
+                        <input type="number" name="items[\${productCount}][quantity]" min="0" value="0" onchange="calculateSaleTotal()">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Unit Price</label>
+                        <input type="number" name="items[\${productCount}][unit_price]" min="0" step="0.01" value="0" onchange="calculateSaleTotal()">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Total</label>
+                        <input type="number" class="product-total" readonly style="background: #f3f4f6;" value="0">
+                    </div>
+                    <button type="button" class="btn-remove" onclick="removeProductRow(\${productCount})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                \`;
+                container.appendChild(row);
+            }
+
+            function removeProductRow(id) {
+                const row = document.getElementById(\`product-\${id}\`);
+                if (row) {
+                    row.remove();
+                    productCount--;
+                    calculateSaleTotal();
+                }
+            }
+
+            function calculateSaleTotal() {
+                const form = document.getElementById('newSaleForm');
+                const saleType = form.sale_type.value;
+                const courierCost = parseFloat(form.courier_cost.value) || 0;
+                
+                let subtotal = 0;
+                
+                // Calculate from product rows
+                document.querySelectorAll('.product-row').forEach((row, index) => {
+                    const qty = parseFloat(row.querySelector('input[name*="quantity"]').value) || 0;
+                    const price = parseFloat(row.querySelector('input[name*="unit_price"]').value) || 0;
+                    const total = qty * price;
+                    
+                    row.querySelector('.product-total').value = total.toFixed(2);
+                    subtotal += total;
+                });
+                
+                const gstAmount = saleType === 'With' ? (subtotal + courierCost) * 0.18 : 0;
+                const totalAmount = subtotal + courierCost + gstAmount;
+                
+                document.getElementById('subtotalDisplay').textContent = '₹' + subtotal.toFixed(2);
+                document.getElementById('courierDisplay').textContent = '₹' + courierCost.toFixed(2);
+                document.getElementById('gstDisplay').textContent = '₹' + gstAmount.toFixed(2);
+                document.getElementById('totalDisplay').textContent = '₹' + totalAmount.toFixed(2);
+            }
+
+            // Modal Functions
+            function openNewSaleModal() {
+                document.getElementById('newSaleModal').classList.add('show');
+                document.getElementById('actionMenu').classList.remove('show');
+            }
+
+            function closeNewSaleModal() {
+                document.getElementById('newSaleModal').classList.remove('show');
+                document.getElementById('newSaleForm').reset();
+                document.getElementById('productRows').innerHTML = '';
+                productCount = 0;
+                addProductRow();
+            }
+
+            function openBalancePaymentModal() {
+                document.getElementById('balancePaymentModal').classList.add('show');
+                document.getElementById('actionMenu').classList.remove('show');
+            }
+
+            function closeBalancePaymentModal() {
+                document.getElementById('balancePaymentModal').classList.remove('show');
+                document.getElementById('balancePaymentForm').reset();
+            }
+
+            function openNewLeadModal() {
+                document.getElementById('newLeadModal').classList.add('show');
+                document.getElementById('actionMenu').classList.remove('show');
+            }
+
+            function closeNewLeadModal() {
+                document.getElementById('newLeadModal').classList.remove('show');
+                document.getElementById('newLeadForm').reset();
+            }
+
+            // Submit New Sale
+            async function submitNewSale(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                // Build items array
+                const items = [];
+                document.querySelectorAll('.product-row').forEach((row) => {
+                    const product = row.querySelector('select[name*="product_name"]').value;
+                    const qty = parseFloat(row.querySelector('input[name*="quantity"]').value) || 0;
+                    const price = parseFloat(row.querySelector('input[name*="unit_price"]').value) || 0;
+                    
+                    if (product && qty > 0 && price > 0) {
+                        items.push({
+                            product_name: product,
+                            quantity: qty,
+                            unit_price: price
+                        });
+                    }
+                });
+                
+                if (items.length === 0) {
+                    alert('Please add at least one product');
+                    return;
+                }
+                
+                const data = {
+                    customer_code: formData.get('customer_code'),
+                    customer_contact: formData.get('customer_contact'),
+                    sale_date: formData.get('sale_date'),
+                    employee_name: formData.get('employee_name'),
+                    sale_type: formData.get('sale_type'),
+                    courier_cost: parseFloat(formData.get('courier_cost')) || 0,
+                    amount_received: parseFloat(formData.get('amount_received')) || 0,
+                    account_received: formData.get('account_received'),
+                    payment_reference: formData.get('payment_reference'),
+                    remarks: formData.get('remarks'),
+                    items: items
+                };
+                
+                try {
+                    const response = await axios.post('/api/sales', data);
+                    
+                    if (response.data.success) {
+                        alert(\`Sale added successfully! Order ID: \${response.data.data.order_id}\`);
+                        closeNewSaleModal();
+                        loadDashboard();
+                    }
+                } catch (error) {
+                    alert('Error adding sale: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // Submit Balance Payment
+            async function submitBalancePayment(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                const data = {
+                    order_id: formData.get('order_id'),
+                    payment_date: formData.get('payment_date'),
+                    amount: parseFloat(formData.get('amount')),
+                    payment_reference: formData.get('payment_reference')
+                };
+                
+                try {
+                    const response = await axios.post('/api/sales/balance-payment', data);
+                    
+                    if (response.data.success) {
+                        alert('Payment updated successfully!');
+                        closeBalancePaymentModal();
+                        loadDashboard();
+                    }
+                } catch (error) {
+                    alert('Error updating payment: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // Submit New Lead
+            async function submitNewLead(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                const data = {
+                    customer_name: formData.get('customer_name'),
+                    mobile_number: formData.get('mobile_number'),
+                    alternate_mobile: formData.get('alternate_mobile'),
+                    location: formData.get('location'),
+                    company_name: formData.get('company_name'),
+                    gst_number: formData.get('gst_number'),
+                    email: formData.get('email'),
+                    complete_address: formData.get('complete_address')
+                };
+                
+                try {
+                    const response = await axios.post('/api/leads', data);
+                    
+                    if (response.data.success) {
+                        alert('Lead added successfully!');
+                        closeNewLeadModal();
+                        loadLeads();
+                    }
+                } catch (error) {
+                    alert('Error adding lead: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // Load other pages (simplified versions)
+            async function loadCustomers() {
+                // Similar implementation
+            }
+
+            async function loadCurrentMonthSales() {
+                // Similar implementation
+            }
+
+            async function loadAllSales() {
+                try {
+                    const response = await axios.get('/api/sales');
+                    const sales = response.data.data;
+                    
+                    const tbody = document.getElementById('allSalesTableBody');
+                    tbody.innerHTML = sales.map(sale => \`
+                        <tr>
+                            <td><strong>\${sale.order_id}</strong></td>
+                            <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
+                            <td>\${sale.customer_code}</td>
+                            <td>\${sale.employee_name}</td>
+                            <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
+                            <td>₹\${sale.total_amount.toLocaleString()}</td>
+                            <td>₹\${sale.balance_amount.toLocaleString()}</td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading all sales:', error);
+                }
+            }
+
+            async function loadBalancePayments() {
+                try {
+                    const response = await axios.get('/api/sales/balance-payments');
+                    const sales = response.data.data;
+                    
+                    const tbody = document.getElementById('balancePaymentTableBody');
+                    tbody.innerHTML = sales.map(sale => \`
+                        <tr>
+                            <td><strong>\${sale.order_id}</strong></td>
+                            <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
+                            <td>\${sale.customer_code}</td>
+                            <td>\${sale.employee_name}</td>
+                            <td>\${sale.customer_contact || 'N/A'}</td>
+                            <td>₹\${sale.total_amount.toLocaleString()}</td>
+                            <td>₹\${sale.amount_received.toLocaleString()}</td>
+                            <td style="color: #dc2626; font-weight: 600;">₹\${sale.balance_amount.toLocaleString()}</td>
+                            <td><button class="btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="updatePaymentFor('\${sale.order_id}')">Update</button></td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading balance payments:', error);
+                }
+            }
+
+            function updatePaymentFor(orderId) {
+                openBalancePaymentModal();
+                document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
+            }
+
+            async function loadLeads() {
+                try {
+                    const response = await axios.get('/api/leads');
+                    const leads = response.data.data;
+                    
+                    const tbody = document.getElementById('leadsTableBody');
+                    tbody.innerHTML = leads.map(lead => \`
+                        <tr>
+                            <td>\${lead.customer_name}</td>
+                            <td>\${lead.mobile_number}</td>
+                            <td>\${lead.alternate_mobile || 'N/A'}</td>
+                            <td>\${lead.location || 'N/A'}</td>
+                            <td>\${lead.company_name || 'N/A'}</td>
+                            <td>\${lead.gst_number || 'N/A'}</td>
+                            <td>\${lead.email || 'N/A'}</td>
+                            <td><span class="badge badge-success">\${lead.status}</span></td>
+                            <td>\${new Date(lead.created_at).toLocaleDateString()}</td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading leads:', error);
+                }
+            }
+
+            async function searchOrder() {
+                const orderId = document.getElementById('searchOrderId').value.trim();
+                if (!orderId) {
+                    alert('Please enter an Order ID');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get(\`/api/sales/order/\${orderId}\`);
+                    const sale = response.data.data;
+                    
+                    const products = sale.items.map(item => \`
+                        <tr>
+                            <td>\${item.product_name}</td>
+                            <td>\${item.quantity}</td>
+                            <td>₹\${item.unit_price.toLocaleString()}</td>
+                            <td>₹\${item.total_price.toLocaleString()}</td>
+                        </tr>
+                    \`).join('');
+                    
+                    const payments = sale.payments.map(p => \`
+                        <tr>
+                            <td>\${new Date(p.payment_date).toLocaleDateString()}</td>
+                            <td>₹\${p.amount.toLocaleString()}</td>
+                            <td>\${p.payment_reference || 'N/A'}</td>
+                        </tr>
+                    \`).join('');
+                    
+                    document.getElementById('orderResult').innerHTML = \`
+                        <div class="card" style="background: #f9fafb;">
+                            <h3 style="margin-bottom: 15px; color: #1f2937;">Order Details</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                <div><strong>Order ID:</strong> \${sale.order_id}</div>
+                                <div><strong>Date:</strong> \${new Date(sale.sale_date).toLocaleDateString()}</div>
+                                <div><strong>Customer:</strong> \${sale.customer_code}</div>
+                                <div><strong>Contact:</strong> \${sale.customer_contact || 'N/A'}</div>
+                                <div><strong>Employee:</strong> \${sale.employee_name}</div>
+                                <div><strong>Sale Type:</strong> \${sale.sale_type} GST</div>
+                                <div><strong>Subtotal:</strong> ₹\${sale.subtotal.toLocaleString()}</div>
+                                <div><strong>Courier:</strong> ₹\${sale.courier_cost.toLocaleString()}</div>
+                                <div><strong>GST:</strong> ₹\${sale.gst_amount.toLocaleString()}</div>
+                                <div><strong>Total:</strong> ₹\${sale.total_amount.toLocaleString()}</div>
+                                <div><strong>Received:</strong> ₹\${sale.amount_received.toLocaleString()}</div>
+                                <div><strong>Balance:</strong> ₹\${sale.balance_amount.toLocaleString()}</div>
+                                <div><strong>Account:</strong> \${sale.account_received || 'N/A'}</div>
+                                <div><strong>Remarks:</strong> \${sale.remarks || 'N/A'}</div>
+                            </div>
+                            
+                            <h4 style="margin: 15px 0 10px; color: #374151;">Products</h4>
+                            <table style="width: 100%; margin-bottom: 20px;">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>\${products}</tbody>
+                            </table>
+                            
+                            <h4 style="margin: 15px 0 10px; color: #374151;">Payment History</h4>
+                            <table style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Amount</th>
+                                        <th>Reference</th>
+                                    </tr>
+                                </thead>
+                                <tbody>\${payments}</tbody>
+                            </table>
+                        </div>
+                    \`;
+                } catch (error) {
+                    document.getElementById('orderResult').innerHTML = \`
+                        <div class="card" style="background: #fee2e2; color: #991b1b;">
+                            <strong>Error:</strong> Order not found
+                        </div>
+                    \`;
+                }
+            }
+
+            // Close modal on outside click
+            window.onclick = function(event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target === modal) {
+                        modal.classList.remove('show');
+                    }
+                });
+            }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+export default app
