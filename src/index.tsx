@@ -356,6 +356,80 @@ app.post('/api/leads', async (c) => {
   }
 });
 
+// Get single lead by ID
+app.get('/api/leads/:leadId', async (c) => {
+  const { env } = c;
+  const leadId = c.req.param('leadId');
+  
+  try {
+    const lead = await env.DB.prepare(`
+      SELECT * FROM leads WHERE id = ?
+    `).bind(leadId).first();
+    
+    if (!lead) {
+      return c.json({ success: false, error: 'Lead not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: lead });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch lead' }, 500);
+  }
+});
+
+// Update lead
+app.put('/api/leads/:leadId', async (c) => {
+  const { env } = c;
+  const leadId = c.req.param('leadId');
+  
+  try {
+    const body = await c.req.json();
+    const {
+      customer_code,
+      customer_name,
+      mobile_number,
+      alternate_mobile,
+      location,
+      company_name,
+      gst_number,
+      email,
+      complete_address,
+      status
+    } = body;
+    
+    await env.DB.prepare(`
+      UPDATE leads SET
+        customer_code = ?,
+        customer_name = ?,
+        mobile_number = ?,
+        alternate_mobile = ?,
+        location = ?,
+        company_name = ?,
+        gst_number = ?,
+        email = ?,
+        complete_address = ?,
+        status = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(
+      customer_code || null,
+      customer_name,
+      mobile_number,
+      alternate_mobile || null,
+      location || null,
+      company_name || null,
+      gst_number || null,
+      email || null,
+      complete_address || null,
+      status || 'New',
+      leadId
+    ).run();
+    
+    return c.json({ success: true, message: 'Lead updated successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to update lead' }, 500);
+  }
+});
+
 // Get single sale by ID
 app.get('/api/sales/:orderId', async (c) => {
   const { env } = c;
@@ -1306,10 +1380,11 @@ app.get('/', (c) => {
                                     <th>Email</th>
                                     <th>Status</th>
                                     <th>Created</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="leadsTableBody">
-                                <tr><td colspan="10" class="loading">Loading...</td></tr>
+                                <tr><td colspan="11" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1679,6 +1754,9 @@ app.get('/', (c) => {
                     <div id="editProductRows">
                         <!-- Product rows will be loaded here -->
                     </div>
+                    <button type="button" class="btn-add" onclick="addEditProductRow()">
+                        <i class="fas fa-plus"></i> Add Product
+                    </button>
 
                     <div class="total-summary">
                         <div class="total-row">
@@ -1706,11 +1784,81 @@ app.get('/', (c) => {
             </div>
         </div>
 
+        <!-- Edit Lead Modal -->
+        <div class="modal" id="editLeadModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Edit Lead</h2>
+                    <span class="close" onclick="document.getElementById('editLeadModal').classList.remove('show')">&times;</span>
+                </div>
+                <form id="editLeadForm" onsubmit="submitEditLead(event)">
+                    <input type="hidden" name="lead_id" id="editLeadId">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Code</label>
+                            <input type="text" name="customer_code" id="editLeadCustomerCode" placeholder="Optional">
+                        </div>
+                        <div class="form-group">
+                            <label>Customer Name *</label>
+                            <input type="text" name="customer_name" id="editLeadCustomerName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Mobile Number *</label>
+                            <input type="tel" name="mobile_number" id="editLeadMobileNumber" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Alternate Mobile Number</label>
+                            <input type="tel" name="alternate_mobile" id="editLeadAlternateMobile">
+                        </div>
+                        <div class="form-group">
+                            <label>Location</label>
+                            <input type="text" name="location" id="editLeadLocation">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Company Name</label>
+                            <input type="text" name="company_name" id="editLeadCompanyName">
+                        </div>
+                        <div class="form-group">
+                            <label>GST Number</label>
+                            <input type="text" name="gst_number" id="editLeadGstNumber">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Email ID</label>
+                        <input type="email" name="email" id="editLeadEmail">
+                    </div>
+                    <div class="form-group">
+                        <label>Complete Address</label>
+                        <textarea name="complete_address" id="editLeadCompleteAddress" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select name="status" id="editLeadStatus">
+                            <option value="New">New</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Qualified">Qualified</option>
+                            <option value="Converted">Converted</option>
+                            <option value="Lost">Lost</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="fas fa-save"></i> Update Lead
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
             let paymentChart = null;
             let employeeChart = null;
             let productCount = 0;
+            let editProductCount = 0;
             
             // Product Catalog with Categories
             const productCatalog = {
@@ -2718,6 +2866,11 @@ app.get('/', (c) => {
                             <td>\${lead.email || 'N/A'}</td>
                             <td><span class="badge badge-success">\${lead.status}</span></td>
                             <td>\${new Date(lead.created_at).toLocaleDateString()}</td>
+                            <td>
+                                <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editLead(\${lead.id})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                            </td>
                         </tr>
                     \`).join('');
                 } catch (error) {
@@ -2833,28 +2986,34 @@ app.get('/', (c) => {
                     const productRows = document.getElementById('editProductRows');
                     productRows.innerHTML = '';
                     
+                    editProductCount = 0;
                     items.forEach((item, index) => {
                         const row = document.createElement('div');
                         row.className = 'product-row';
+                        row.dataset.id = editProductCount;
                         row.innerHTML = \`
                             <div class="form-group" style="margin: 0;">
                                 <label>Product Name</label>
-                                <input type="text" name="items[\${index}][product_name]" value="\${item.product_name}" required>
+                                <input type="text" name="items[\${editProductCount}][product_name]" value="\${item.product_name}" required>
                             </div>
                             <div class="form-group" style="margin: 0;">
                                 <label>Quantity</label>
-                                <input type="number" name="items[\${index}][quantity]" value="\${item.quantity}" min="0" required onchange="calculateEditSaleTotal()">
+                                <input type="number" name="items[\${editProductCount}][quantity]" value="\${item.quantity}" min="0" required onchange="calculateEditSaleTotal()">
                             </div>
                             <div class="form-group" style="margin: 0;">
                                 <label>Unit Price</label>
-                                <input type="number" name="items[\${index}][unit_price]" value="\${item.unit_price}" min="0" step="0.01" required onchange="calculateEditSaleTotal()">
+                                <input type="number" name="items[\${editProductCount}][unit_price]" value="\${item.unit_price}" min="0" step="0.01" required onchange="calculateEditSaleTotal()">
                             </div>
                             <div class="form-group" style="margin: 0;">
                                 <label>Total</label>
                                 <input type="number" class="product-total" readonly style="background: #f3f4f6;" value="\${item.quantity * item.unit_price}">
                             </div>
+                            <button type="button" class="btn-remove" onclick="removeEditProductRow(\${editProductCount})">
+                                <i class="fas fa-times"></i>
+                            </button>
                         \`;
                         productRows.appendChild(row);
+                        editProductCount++;
                     });
                     
                     calculateEditSaleTotal();
@@ -2930,6 +3089,106 @@ app.get('/', (c) => {
                     }
                 } catch (error) {
                     alert('Error updating sale: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Add product row in edit sale modal
+            function addEditProductRow() {
+                const container = document.getElementById('editProductRows');
+                const row = document.createElement('div');
+                row.className = 'product-row';
+                row.dataset.id = editProductCount;
+                
+                row.innerHTML = \`
+                    <div class="form-group" style="margin: 0;">
+                        <label>Product Name</label>
+                        <input type="text" name="items[\${editProductCount}][product_name]" required placeholder="Enter product name">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Quantity</label>
+                        <input type="number" name="items[\${editProductCount}][quantity]" min="0" value="0" required onchange="calculateEditSaleTotal()">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Unit Price</label>
+                        <input type="number" name="items[\${editProductCount}][unit_price]" min="0" step="0.01" value="0" required onchange="calculateEditSaleTotal()">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label>Total</label>
+                        <input type="number" class="product-total" readonly style="background: #f3f4f6;" value="0">
+                    </div>
+                    <button type="button" class="btn-remove" onclick="removeEditProductRow(\${editProductCount})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                \`;
+                
+                container.appendChild(row);
+                editProductCount++;
+            }
+            
+            // Remove product row in edit sale modal
+            function removeEditProductRow(rowId) {
+                const row = document.querySelector(\`#editProductRows .product-row[data-id="\${rowId}"]\`);
+                if (row) {
+                    row.remove();
+                    calculateEditSaleTotal();
+                }
+            }
+            
+            // Edit Lead Functions
+            async function editLead(leadId) {
+                try {
+                    const response = await axios.get(\`/api/leads/\${leadId}\`);
+                    const lead = response.data.data;
+                    
+                    // Populate form fields
+                    document.getElementById('editLeadId').value = lead.id;
+                    document.getElementById('editLeadCustomerCode').value = lead.customer_code || '';
+                    document.getElementById('editLeadCustomerName').value = lead.customer_name;
+                    document.getElementById('editLeadMobileNumber').value = lead.mobile_number;
+                    document.getElementById('editLeadAlternateMobile').value = lead.alternate_mobile || '';
+                    document.getElementById('editLeadLocation').value = lead.location || '';
+                    document.getElementById('editLeadCompanyName').value = lead.company_name || '';
+                    document.getElementById('editLeadGstNumber').value = lead.gst_number || '';
+                    document.getElementById('editLeadEmail').value = lead.email || '';
+                    document.getElementById('editLeadCompleteAddress').value = lead.complete_address || '';
+                    document.getElementById('editLeadStatus').value = lead.status || 'New';
+                    
+                    document.getElementById('editLeadModal').classList.add('show');
+                } catch (error) {
+                    alert('Error loading lead data: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            async function submitEditLead(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                const leadId = formData.get('lead_id');
+                
+                const data = {
+                    customer_code: formData.get('customer_code'),
+                    customer_name: formData.get('customer_name'),
+                    mobile_number: formData.get('mobile_number'),
+                    alternate_mobile: formData.get('alternate_mobile'),
+                    location: formData.get('location'),
+                    company_name: formData.get('company_name'),
+                    gst_number: formData.get('gst_number'),
+                    email: formData.get('email'),
+                    complete_address: formData.get('complete_address'),
+                    status: formData.get('status')
+                };
+                
+                try {
+                    const response = await axios.put(\`/api/leads/\${leadId}\`, data);
+                    
+                    if (response.data.success) {
+                        alert('Lead updated successfully!');
+                        document.getElementById('editLeadModal').classList.remove('show');
+                        loadLeads();
+                    }
+                } catch (error) {
+                    alert('Error updating lead: ' + (error.response?.data?.error || error.message));
                 }
             }
             
