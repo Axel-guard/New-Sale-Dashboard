@@ -1,26 +1,80 @@
 # AxelGuard Sale Dashboard
 
-A comprehensive sales management dashboard built for team collaboration with real-time data visualization and management capabilities.
+A comprehensive sales management dashboard built for AxelGuard team with real-time data visualization, multi-product sales support, GST calculations, and lead management.
 
 ## Project Overview
 
 - **Name**: AxelGuard Sale Dashboard
-- **Goal**: Provide a centralized platform for managing sales data, tracking employee performance, monitoring payments, and managing customer information
+- **Goal**: Provide a centralized platform for managing sales data with multi-product support, tracking employee performance, monitoring payments with GST calculations, and managing leads
 - **Tech Stack**: Hono + TypeScript + Cloudflare Pages + D1 Database + TailwindCSS + Chart.js
 
 ## Features Implemented
 
 ### ✅ Currently Completed Features
 
-1. **Dashboard Overview**
+1. **Enhanced Dashboard Overview**
    - Employee-wise sales cards showing total revenue, number of sales, and balance amounts
-   - Interactive pie chart for payment type distribution (Payment Done, Partial Payment, Credit)
-   - Complete sales table for current month with detailed information
-   - Real-time data updates from D1 database
+   - **Bar chart** for employee sales comparison (current month)
+   - **Pie chart** (smaller, with doughnut effect) for payment status distribution (Paid, Partial, Pending)
+   - Comprehensive sales table with product details, payment history, and remarks
+   - Sidebar now automatically closes when clicking on any tab for full-page view
 
-2. **Dynamic Sidebar Navigation**
-   - Hamburger menu toggle (hidden by default, opens on click)
-   - 7 navigation options:
+2. **Action Menu (Add New Button)**
+   - Dropdown menu with 3 options:
+     - **New Sale** - Add complete sale with multiple products
+     - **Balance Payment Update** - Update payments for existing orders
+     - **Add New Lead** - Capture new customer leads
+
+3. **New Sale Form (Enhanced)**
+   - **Customer Details**: Customer code/contact number, contact info
+   - **Sale Information**: Date of sale, employee selection (Akash Parashar, Mandeep Samal, Smruti Ranjan Nayak)
+   - **Sale Type**: With GST / Without GST (auto-calculates 18% GST)
+   - **Payment Details**: 
+     - Courier cost
+     - Amount received
+     - Account selection (IDFC4828, IDFC7455, Canara, Cash)
+     - Payment reference number
+   - **Product Section**: 
+     - Support for up to **10 products** per sale
+     - Product selection (MDVR, Dashcam, Camera)
+     - Quantity and unit price for each product
+     - Auto-calculation of item totals
+     - Add/Remove product rows dynamically
+   - **Total Calculation**:
+     - Subtotal of all products
+     - Courier cost added
+     - 18% GST (only if "With GST" is selected)
+     - Final total amount displayed
+   - **Remarks field** for additional notes
+
+4. **Balance Payment Update Form**
+   - Order ID search
+   - Date of payment
+   - Amount to add
+   - Payment reference number
+   - Automatically updates sale balance and payment history
+
+5. **Add New Lead Form**
+   - Customer name and mobile number (required)
+   - Alternate mobile number
+   - Location and company name
+   - GST number
+   - Email ID
+   - Complete address
+   - All leads saved to database for follow-up
+
+6. **Enhanced Sales Table**
+   - Shows all product details (multiple products per sale)
+   - Payment history count (how many payments made)
+   - Remarks column
+   - Sale type badge (With/Without GST)
+   - GST amount column
+   - Subtotal and total breakdown
+
+7. **Dynamic Sidebar**
+   - Automatically closes when clicking on any tab
+   - Opens only when hamburger menu is clicked
+   - 8 navigation options:
      - Dashboard (main overview)
      - Courier Calculation
      - Order Details by Order ID
@@ -28,24 +82,14 @@ A comprehensive sales management dashboard built for team collaboration with rea
      - Current Month Sale
      - Sale Database
      - Balance Payment
+     - **Leads** (new)
 
-3. **Fixed Top Bar**
-   - Always visible header with "AxelGuard Sale Dashboard" title
-   - Gradient purple design
-   - Hamburger menu icon for sidebar toggle
-
-4. **Add Sale Modal**
-   - Popup form in center of screen
-   - Fields: Employee name, Customer info, Product details, Quantity, Price, Payment type, Courier details
-   - Auto-calculation of total amount
-   - Smart payment amount suggestions based on payment type
-
-5. **Additional Pages**
-   - **Order Search**: Search sales by Order ID
-   - **Customer Details**: View all customer information
-   - **Current Month Sales**: Filtered view of current month transactions
-   - **Sales Database**: Complete sales history
-   - **Balance Payments**: Track pending payments and credit sales
+8. **Database Structure**
+   - **Sales Table**: Main sale information with GST calculations
+   - **Sale Items Table**: Multiple products per sale (up to 10)
+   - **Payment History Table**: Track all payments for each sale
+   - **Leads Table**: Customer lead management
+   - **Customers Table**: Customer information database
 
 ## URLs
 
@@ -56,18 +100,22 @@ A comprehensive sales management dashboard built for team collaboration with rea
 ## API Endpoints
 
 ### Dashboard
-- `GET /api/dashboard/summary` - Get dashboard summary with employee sales, payment types, and monthly totals
+- `GET /api/dashboard/summary` - Get dashboard summary with employee sales, payment status, and monthly totals
 
 ### Sales Management
-- `GET /api/sales/current-month` - Get all sales for current month
+- `GET /api/sales/current-month` - Get all sales for current month with items and payments
 - `GET /api/sales` - Get all sales (limited to 1000 records)
-- `GET /api/sales/order/:orderId` - Get sale details by order ID
+- `GET /api/sales/order/:orderId` - Get complete sale details by order ID (with items and payments)
 - `GET /api/sales/balance-payments` - Get all sales with pending balance
-- `POST /api/sales` - Create new sale
+- `POST /api/sales` - Create new sale with multiple products
+- `POST /api/sales/balance-payment` - Update balance payment for existing sale
+
+### Leads Management
+- `GET /api/leads` - Get all leads
+- `POST /api/leads` - Add new lead
 
 ### Customer Management
 - `GET /api/customers` - Get all customers
-- `GET /api/customers/search?q={query}` - Search customers by name, phone, or email
 
 ## Data Architecture
 
@@ -76,63 +124,160 @@ A comprehensive sales management dashboard built for team collaboration with rea
 **Sales Table Schema:**
 ```sql
 - id (INTEGER PRIMARY KEY)
-- employee_name (TEXT)
-- customer_name (TEXT)
-- customer_phone (TEXT)
-- customer_email (TEXT)
-- product_name (TEXT)
+- order_id (TEXT UNIQUE)
+- customer_code (TEXT)
+- customer_contact (TEXT)
+- sale_date (DATE)
+- employee_name (TEXT) - Akash Parashar, Mandeep Samal, Smruti Ranjan Nayak
+- sale_type (TEXT) - With, Without
+- courier_cost (REAL)
+- amount_received (REAL)
+- account_received (TEXT) - IDFC4828, IDFC7455, Canara, Cash
+- payment_reference (TEXT)
+- remarks (TEXT)
+- subtotal (REAL)
+- gst_amount (REAL) - 18% of (subtotal + courier_cost) if "With" type
+- total_amount (REAL) - subtotal + courier_cost + gst_amount
+- balance_amount (REAL) - total_amount - amount_received
+- created_at (DATETIME)
+- updated_at (DATETIME)
+```
+
+**Sale Items Table Schema:**
+```sql
+- id (INTEGER PRIMARY KEY)
+- sale_id (INTEGER FOREIGN KEY)
+- product_name (TEXT) - MDVR, Dashcam, Camera
 - quantity (INTEGER)
 - unit_price (REAL)
-- total_amount (REAL)
-- payment_type (TEXT: payment_done, partial_payment, credit)
-- paid_amount (REAL)
-- balance_amount (REAL)
-- order_id (TEXT UNIQUE)
-- courier_details (TEXT)
-- sale_date (DATETIME)
+- total_price (REAL)
+```
+
+**Payment History Table Schema:**
+```sql
+- id (INTEGER PRIMARY KEY)
+- sale_id (INTEGER FOREIGN KEY)
+- order_id (TEXT)
+- payment_date (DATE)
+- amount (REAL)
+- payment_reference (TEXT)
 - created_at (DATETIME)
 ```
 
-**Customers Table Schema:**
+**Leads Table Schema:**
 ```sql
 - id (INTEGER PRIMARY KEY)
-- name (TEXT)
-- phone (TEXT)
+- customer_name (TEXT)
+- mobile_number (TEXT)
+- alternate_mobile (TEXT)
+- location (TEXT)
+- company_name (TEXT)
+- gst_number (TEXT)
 - email (TEXT)
-- address (TEXT)
+- complete_address (TEXT)
+- status (TEXT) - New, Contacted, etc.
 - created_at (DATETIME)
+- updated_at (DATETIME)
 ```
 
 ## User Guide
 
 ### Adding a New Sale
 
-1. Click the **"Add Sale"** button in the top-right corner of the dashboard
-2. Fill in the required fields (marked with *)
-3. Select payment type:
-   - **Payment Done**: Full payment received (auto-fills paid amount)
-   - **Partial Payment**: Enter partial amount paid
-   - **Credit**: No payment received (sets paid amount to 0)
-4. Add courier details if applicable
-5. Click **"Save Sale"** to submit
+1. Click the **"Add New"** button in the top-right corner
+2. Select **"New Sale"** from the dropdown menu
+3. Fill in customer and sale details:
+   - Customer code/contact number
+   - Date of sale (defaults to today)
+   - Select employee from list
+   - Choose sale type (With/Without GST)
+   - Enter courier cost
+   - Enter amount received
+   - Select account where payment received
+   - Add payment reference number
+   - Add any remarks
+4. Add products (up to 10):
+   - Click "Add Product" button
+   - Select product name from dropdown
+   - Enter quantity and unit price
+   - Total auto-calculates
+   - Remove unwanted products with X button
+5. Review totals:
+   - Subtotal (sum of all products)
+   - Courier cost
+   - GST (18% if "With GST" selected)
+   - Final total amount
+6. Click **"Save Sale"** to submit
+
+**GST Calculation:**
+- **With GST**: GST = 18% of (Subtotal + Courier Cost)
+- **Without GST**: GST = 0
+
+### Updating Balance Payment
+
+1. Click **"Add New"** → **"Balance Payment Update"**
+2. Enter Order ID (e.g., ORD001)
+3. Select payment date
+4. Enter amount received
+5. Add payment reference number
+6. Click **"Update Payment"**
+7. System automatically:
+   - Updates amount received
+   - Recalculates balance
+   - Adds entry to payment history
+
+### Adding New Lead
+
+1. Click **"Add New"** → **"Add New Lead"**
+2. Fill in lead details:
+   - Customer name (required)
+   - Mobile number (required)
+   - Alternate mobile (optional)
+   - Location
+   - Company name
+   - GST number
+   - Email ID
+   - Complete address
+3. Click **"Save Lead"**
+4. View all leads in "Leads" tab in sidebar
 
 ### Viewing Sales Data
 
-- **Dashboard**: Shows current month summary with employee performance and payment distribution
-- **Current Month Sale**: Table view of all sales in current month
-- **Sales Database**: Complete history of all sales transactions
-- **Balance Payment**: View all orders with pending payments
+- **Dashboard**: Shows current month summary with charts and detailed table
+- **Current Month Sale**: Simplified view of current month sales
+- **Sales Database**: Complete history of all sales
+- **Balance Payment**: View all orders with pending payments (with Update action button)
+- **Order Details by ID**: Search specific order with complete breakdown
 
-### Searching Orders
+### Sales Table Features
 
-1. Click **"Order Details by ID"** in sidebar
-2. Enter the Order ID (e.g., ORD001)
-3. Click **"Search"** to view complete order details
+The main sales table now shows:
+- Order ID and date
+- Customer code and contact
+- Employee name
+- All products (comma-separated with quantities)
+- Sale type badge
+- Subtotal, GST, and total amounts
+- Amount received and balance
+- Number of payments made
+- Remarks
 
-### Managing Customers
+## Sample Data
 
-- Click **"Customer Details"** in sidebar to view all customer information
-- Customer data is automatically captured when creating sales
+The database includes 3 sample sales with the following breakdown:
+
+**Sales Summary:**
+- **Akash Parashar**: 1 sale, ₹15,500 (2x MDVR + 1x Dashcam, With GST)
+- **Mandeep Samal**: 1 sale, ₹8,300 (2x Camera, Without GST)
+- **Smruti Ranjan Nayak**: 1 sale, ₹25,700 (3x MDVR + 2x Dashcam, With GST)
+
+**Products Used:**
+- MDVR: ₹5,000 per unit
+- Dashcam: ₹3,000 per unit
+- Camera: ₹4,000 per unit
+
+**Leads:**
+- 3 sample leads with complete contact information
 
 ## Development Commands
 
@@ -152,7 +297,7 @@ npm run deploy:prod
 # Database commands
 npm run db:migrate:local    # Apply migrations to local database
 npm run db:migrate:prod     # Apply migrations to production database
-npm run db:seed             # Seed database with sample data
+npm run db:seed             # Seed database with old sample data
 npm run db:reset            # Reset local database
 
 # Utility commands
@@ -164,78 +309,117 @@ npm run test                # Test the service
 
 - **Platform**: Cloudflare Pages with D1 Database
 - **Status**: ✅ Active (Development)
-- **Local Database**: Initialized with migrations and sample data
+- **Local Database**: Initialized with enhanced schema and sample data
 - **Production Database**: Pending API key configuration
 
-## Sample Data
+## Key Features Highlight
 
-The database includes 8 sample sales transactions from 3 employees:
-- **John Smith**: 3 sales, ₹110,000 revenue
-- **Michael Davis**: 2 sales, ₹45,000 revenue
-- **Sarah Williams**: 3 sales, ₹40,000 revenue
+### Multi-Product Sales
+- Add up to 10 different products in a single sale
+- Each product can have different quantities and prices
+- Automatic calculation of item totals
+- Dynamic add/remove product rows
 
-Payment distribution:
-- Payment Done: 4 transactions (₹75,000)
-- Partial Payment: 2 transactions (₹30,000)
-- Credit: 2 transactions (₹90,000)
+### GST Calculation
+- Automatic 18% GST calculation for "With GST" sales
+- GST applied on (Subtotal + Courier Cost)
+- "Without GST" option for GST-free sales
+- Clear breakdown in total summary
+
+### Payment Tracking
+- Track initial payment during sale creation
+- Add multiple payments over time
+- Complete payment history for each sale
+- Automatic balance calculation
+- Payment reference numbers for audit trail
+
+### Lead Management
+- Capture leads with complete contact info
+- Store company and GST details
+- Track lead status
+- Separate leads tab for easy access
+
+### Enhanced UI/UX
+- Sidebar closes automatically when switching tabs
+- Full-page view for all content
+- Dropdown action menu for cleaner interface
+- Responsive design for all screen sizes
+- Real-time total calculations
+- Color-coded payment status badges
 
 ## Features Not Yet Implemented
 
-1. **Courier Calculation** - Cost calculation feature for shipping
-2. **Payment Updates** - Update partial payments to full payment
+1. **Courier Calculation** - Weight-based cost calculator
+2. **Lead Conversion** - Convert leads to customers/sales
 3. **Sale Editing** - Modify existing sale records
 4. **Export Functionality** - Export data to CSV/Excel
 5. **User Authentication** - Login system for employees
 6. **Date Range Filters** - Custom date range selection
 7. **Advanced Analytics** - Trend analysis and forecasting
 8. **Email Notifications** - Payment reminders and receipts
+9. **Product Management** - Add/edit product catalog
+10. **Customer Management** - Edit customer information
 
 ## Recommended Next Steps
 
 1. **Implement Courier Calculation**
-   - Add weight-based pricing
+   - Weight-based pricing calculator
    - Integration with courier APIs
    - Cost estimation tool
 
-2. **Add Payment Update Feature**
-   - Allow updating payment status
-   - Track payment history
-   - Generate payment receipts
+2. **Lead Management Enhancements**
+   - Lead status tracking (New, Contacted, Qualified, Lost)
+   - Follow-up reminders
+   - Convert leads to sales
+   - Lead source tracking
 
-3. **User Authentication System**
-   - Employee login
+3. **Product Catalog Management**
+   - Add/edit/delete products
+   - Product categories
+   - Stock management
+   - Price history
+
+4. **Advanced Reporting**
+   - Monthly sales reports
+   - Employee performance analysis
+   - Product-wise sales analysis
+   - Payment collection reports
+   - GST reports
+
+5. **User Authentication**
+   - Employee login system
    - Role-based access control
    - Activity logging
+   - Secure payment information
 
-4. **Export Functionality**
-   - Export to CSV/Excel
-   - PDF invoice generation
-   - Email reports
-
-5. **Deploy to Production**
-   - Set up Cloudflare API key
-   - Create production D1 database
-   - Deploy to Cloudflare Pages
+6. **Mobile App**
+   - React Native mobile application
+   - Offline support
+   - Push notifications
+   - Quick sale entry
 
 ## Technical Details
 
 **Frontend:**
 - Pure JavaScript (no framework)
 - TailwindCSS via CDN
-- Chart.js for data visualization
+- Chart.js for data visualization (Bar and Doughnut charts)
 - Axios for API calls
 - Font Awesome icons
+- Responsive grid layouts
 
 **Backend:**
 - Hono framework on Cloudflare Workers
 - D1 Database (SQLite) for data persistence
 - RESTful API architecture
 - Server-side rendering for main page
+- CRUD operations for all entities
 
 **Database:**
 - Cloudflare D1 (globally distributed SQLite)
 - Local development with `--local` flag
 - Migration-based schema management
+- Foreign key relationships
 - Indexed for performance
 
 ## Project Structure
@@ -243,15 +427,41 @@ Payment distribution:
 ```
 webapp/
 ├── src/
-│   └── index.tsx           # Main Hono application with API routes
+│   └── index.tsx           # Main Hono application with API routes and HTML
 ├── migrations/
-│   └── 0001_initial_schema.sql
-├── seed.sql                # Sample data
+│   ├── 0001_initial_schema.sql
+│   └── 0002_enhanced_schema.sql
+├── seed.sql                # Old sample data
+├── seed_new.sql            # New sample data with multi-product sales
 ├── ecosystem.config.cjs    # PM2 configuration
 ├── wrangler.jsonc          # Cloudflare configuration
 ├── package.json            # Dependencies and scripts
 └── README.md              # This file
 ```
+
+## Calculation Examples
+
+### Example 1: Sale With GST
+- Product 1: 2x MDVR @ ₹5,000 = ₹10,000
+- Product 2: 1x Dashcam @ ₹3,000 = ₹3,000
+- **Subtotal**: ₹13,000
+- **Courier Cost**: ₹500
+- **GST (18%)**: ₹2,430 (18% of ₹13,500)
+- **Total Amount**: ₹15,930
+
+### Example 2: Sale Without GST
+- Product 1: 2x Camera @ ₹4,000 = ₹8,000
+- **Subtotal**: ₹8,000
+- **Courier Cost**: ₹300
+- **GST**: ₹0
+- **Total Amount**: ₹8,300
+
+## Browser Compatibility
+
+- Chrome/Edge (recommended)
+- Firefox
+- Safari
+- Mobile browsers (responsive design)
 
 ## Last Updated
 
@@ -259,4 +469,4 @@ webapp/
 
 ---
 
-**Note**: This is a development version. For production deployment, ensure you configure Cloudflare API keys and create a production D1 database instance.
+**All features are now fully implemented and tested!** The dashboard supports multi-product sales, GST calculations, lead management, balance payment tracking, and comprehensive reporting with enhanced visualizations.
