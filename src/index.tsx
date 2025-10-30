@@ -777,9 +777,20 @@ app.get('/api/leads', async (c) => {
   const { env } = c;
   
   try {
-    const leads = await env.DB.prepare(`
-      SELECT * FROM leads ORDER BY created_at DESC
-    `).all();
+    const search = c.req.query('search') || '';
+    
+    let query = `SELECT * FROM leads`;
+    let params = [];
+    
+    if (search) {
+      query += ` WHERE customer_code LIKE ? OR customer_name LIKE ? OR mobile_number LIKE ?`;
+      const searchTerm = `%${search}%`;
+      params = [searchTerm, searchTerm, searchTerm];
+    }
+    
+    query += ` ORDER BY CAST(customer_code AS INTEGER) ASC`;
+    
+    const leads = await env.DB.prepare(query).bind(...params).all();
     
     return c.json({ success: true, data: leads.results });
   } catch (error) {
@@ -895,6 +906,20 @@ app.put('/api/leads/:leadId', async (c) => {
     return c.json({ success: true, message: 'Lead updated successfully' });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to update lead' }, 500);
+  }
+});
+
+// Delete lead
+app.delete('/api/leads/:leadId', async (c) => {
+  const { env } = c;
+  const leadId = c.req.param('leadId');
+  
+  try {
+    await env.DB.prepare(`DELETE FROM leads WHERE id = ?`).bind(leadId).run();
+    
+    return c.json({ success: true, message: 'Lead deleted successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to delete lead' }, 500);
   }
 });
 
@@ -2156,21 +2181,48 @@ app.get('/', (c) => {
             <div class="page-content" id="customer-details-page">
                 <div class="card">
                     <h2 class="card-title" style="margin-bottom: 20px;">Customer Details</h2>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Phone</th>
-                                    <th>Email</th>
-                                    <th>Address</th>
-                                    <th>Joined Date</th>
-                                </tr>
-                            </thead>
-                            <tbody id="customersTableBody">
-                                <tr><td colspan="5" class="loading">Loading...</td></tr>
-                            </tbody>
-                        </table>
+                    
+                    <!-- Search Box -->
+                    <div style="margin-bottom: 20px;">
+                        <input 
+                            type="text" 
+                            id="customerSearchInput" 
+                            placeholder="Search by Customer Code or Mobile Number..." 
+                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                        >
+                        <button 
+                            class="btn-primary" 
+                            style="margin-top: 10px;"
+                            onclick="searchCustomer()"
+                        >
+                            <i class="fas fa-search"></i> Search Customer
+                        </button>
+                    </div>
+                    
+                    <div id="customerDetailsResult" style="display: none;">
+                        <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">Customer Information</h3>
+                            <div id="customerInfo"></div>
+                        </div>
+                        
+                        <div>
+                            <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">Sales History</h3>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Order ID</th>
+                                            <th>Date</th>
+                                            <th>Products</th>
+                                            <th>Total Amount</th>
+                                            <th>Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="customerSalesTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2253,9 +2305,21 @@ app.get('/', (c) => {
             <div class="page-content" id="leads-page">
                 <div class="card">
                     <h2 class="card-title" style="margin-bottom: 20px;">Leads Database</h2>
+                    
+                    <!-- Search Box -->
+                    <div style="margin-bottom: 20px;">
+                        <input 
+                            type="text" 
+                            id="leadSearchInput" 
+                            placeholder="Search by Customer Code, Name, or Mobile Number..." 
+                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                            oninput="searchLeads()"
+                        >
+                    </div>
+                    
                     <div class="table-container">
                         <table>
-                            <thead>
+                            <thead style="position: sticky; top: 0; background: white; z-index: 10;">
                                 <tr>
                                     <th>Customer Code</th>
                                     <th>Customer Name</th>
@@ -4225,15 +4289,23 @@ app.get('/', (c) => {
                 document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
             }
 
-            async function loadLeads() {
+            async function loadLeads(search = '') {
                 try {
-                    const response = await axios.get('/api/leads');
+                    const url = search ? '/api/leads?search=' + encodeURIComponent(search) : '/api/leads';
+                    const response = await axios.get(url);
                     const leads = response.data.data;
                     
                     const tbody = document.getElementById('leadsTableBody');
+                    const isAdmin = currentUser && currentUser.role === 'admin';
+                    
+                    if (!leads || leads.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #6b7280;">No leads found</td></tr>';
+                        return;
+                    }
+                    
                     tbody.innerHTML = leads.map(lead => \`
                         <tr>
-                            <td>\${lead.customer_code || 'N/A'}</td>
+                            <td><strong>\${lead.customer_code || 'N/A'}</strong></td>
                             <td>\${lead.customer_name}</td>
                             <td>\${lead.mobile_number}</td>
                             <td>\${lead.alternate_mobile || 'N/A'}</td>
@@ -4244,15 +4316,25 @@ app.get('/', (c) => {
                             <td><span class="badge badge-success">\${lead.status}</span></td>
                             <td>\${new Date(lead.created_at).toLocaleDateString()}</td>
                             <td>
-                                <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editLead(\${lead.id})">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
+                                \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editLead(\${lead.id})"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="deleteLead(\${lead.id})"><i class="fas fa-trash"></i></button>\` : '-'}
                             </td>
                         </tr>
                     \`).join('');
                 } catch (error) {
                     console.error('Error loading leads:', error);
+                    const tbody = document.getElementById('leadsTableBody');
+                    tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #dc2626;">Error loading leads</td></tr>';
                 }
+            }
+            
+            // Search leads function
+            let searchLeadsTimeout;
+            function searchLeads() {
+                clearTimeout(searchLeadsTimeout);
+                searchLeadsTimeout = setTimeout(() => {
+                    const searchTerm = document.getElementById('leadSearchInput').value.trim();
+                    loadLeads(searchTerm);
+                }, 300); // Debounce 300ms
             }
 
             async function searchOrder() {
@@ -4471,12 +4553,12 @@ app.get('/', (c) => {
             
             // Delete sale function
             async function deleteSale(orderId) {
-                if (!confirm(`Are you sure you want to delete sale ${orderId}? This action cannot be undone.`)) {
+                if (!confirm('Are you sure you want to delete sale ' + orderId + '? This action cannot be undone.')) {
                     return;
                 }
                 
                 try {
-                    await axios.delete(`/api/sales/${orderId}`);
+                    await axios.delete('/api/sales/' + orderId);
                     alert('Sale deleted successfully');
                     // Reload the current page
                     if (currentPage === 'all-sales') {
@@ -4593,6 +4675,96 @@ app.get('/', (c) => {
                     }
                 } catch (error) {
                     alert('Error updating lead: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Delete lead function
+            async function deleteLead(leadId) {
+                if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
+                    return;
+                }
+                
+                try {
+                    await axios.delete('/api/leads/' + leadId);
+                    alert('Lead deleted successfully');
+                    loadLeads();
+                } catch (error) {
+                    alert('Error deleting lead: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Search customer function
+            async function searchCustomer() {
+                const searchTerm = document.getElementById('customerSearchInput').value.trim();
+                
+                if (!searchTerm) {
+                    alert('Please enter a Customer Code or Mobile Number');
+                    return;
+                }
+                
+                try {
+                    // Search for lead by customer_code or mobile_number
+                    const response = await axios.get('/api/leads?search=' + encodeURIComponent(searchTerm));
+                    const leads = response.data.data;
+                    
+                    if (!leads || leads.length === 0) {
+                        alert('No customer found with that code or mobile number');
+                        document.getElementById('customerDetailsResult').style.display = 'none';
+                        return;
+                    }
+                    
+                    const customer = leads[0]; // Take first match
+                    
+                    // Display customer info
+                    document.getElementById('customerInfo').innerHTML = 
+                        '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">' +
+                            '<div><strong>Customer Code:</strong> ' + (customer.customer_code || 'N/A') + '</div>' +
+                            '<div><strong>Name:</strong> ' + customer.customer_name + '</div>' +
+                            '<div><strong>Mobile:</strong> ' + customer.mobile_number + '</div>' +
+                            '<div><strong>Alternate Mobile:</strong> ' + (customer.alternate_mobile || 'N/A') + '</div>' +
+                            '<div><strong>Company:</strong> ' + (customer.company_name || 'N/A') + '</div>' +
+                            '<div><strong>Email:</strong> ' + (customer.email || 'N/A') + '</div>' +
+                            '<div><strong>Location:</strong> ' + (customer.location || 'N/A') + '</div>' +
+                            '<div><strong>GST:</strong> ' + (customer.gst_number || 'N/A') + '</div>' +
+                        '</div>';
+                    
+                    // Fetch sales for this customer
+                    const salesResponse = await axios.get('/api/sales/current-month?page=1&limit=1000');
+                    const allSales = salesResponse.data.data;
+                    
+                    // Filter sales by customer code or mobile
+                    const customerSales = allSales.filter(sale => 
+                        sale.customer_code === customer.customer_code || 
+                        sale.customer_contact === customer.mobile_number
+                    );
+                    
+                    // Display sales
+                    const tbody = document.getElementById('customerSalesTableBody');
+                    if (customerSales.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No sales found for this customer</td></tr>';
+                    } else {
+                        tbody.innerHTML = customerSales.map(sale => {
+                            const items = sale.items || [];
+                            const products = items.length > 0 
+                                ? items.map(item => item.product_name + ' (x' + item.quantity + ')').join(', ')
+                                : 'No products';
+                            
+                            return '<tr>' +
+                                '<td><strong>' + sale.order_id + '</strong></td>' +
+                                '<td>' + new Date(sale.sale_date).toLocaleDateString() + '</td>' +
+                                '<td><small>' + products + '</small></td>' +
+                                '<td>₹' + sale.total_amount.toLocaleString() + '</td>' +
+                                '<td>' + (sale.balance_amount > 0 ? '<span style="color: #dc2626;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>') + '</td>' +
+                            '</tr>';
+                        }).join('');
+                    }
+                    
+                    // Show results
+                    document.getElementById('customerDetailsResult').style.display = 'block';
+                    
+                } catch (error) {
+                    console.error('Error searching customer:', error);
+                    alert('Error searching customer: ' + (error.response?.data?.error || error.message));
                 }
             }
             
