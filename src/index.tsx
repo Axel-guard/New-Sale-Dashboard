@@ -683,9 +683,18 @@ app.post('/api/sales', async (c) => {
     const total_amount = subtotal + courier_cost + gst_amount;
     const balance_amount = total_amount - amount_received;
     
-    // Generate order ID
-    const timestamp = Date.now();
-    const order_id = `ORD${timestamp.toString().slice(-8)}`;
+    // Generate order ID from last order + 1
+    const lastOrderResult = await env.DB.prepare(`
+      SELECT order_id FROM sales ORDER BY order_id DESC LIMIT 1
+    `).first();
+    
+    let order_id = '2019899'; // Default if no sales exist
+    if (lastOrderResult && lastOrderResult.order_id) {
+      const lastOrderNum = parseInt(lastOrderResult.order_id);
+      if (!isNaN(lastOrderNum)) {
+        order_id = String(lastOrderNum + 1);
+      }
+    }
     
     // Insert sale
     const saleResult = await env.DB.prepare(`
@@ -847,6 +856,31 @@ app.get('/api/leads', async (c) => {
     return c.json({ success: true, data: leads.results });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to fetch leads' }, 500);
+  }
+});
+
+// Get next customer code
+app.get('/api/leads/next-code', async (c) => {
+  const { env } = c;
+  
+  try {
+    const lastLead = await env.DB.prepare(`
+      SELECT customer_code FROM leads 
+      ORDER BY CAST(customer_code AS INTEGER) DESC 
+      LIMIT 1
+    `).first();
+    
+    let nextCode = '1'; // Default if no leads exist
+    if (lastLead && lastLead.customer_code) {
+      const lastCode = parseInt(lastLead.customer_code);
+      if (!isNaN(lastCode)) {
+        nextCode = String(lastCode + 1);
+      }
+    }
+    
+    return c.json({ success: true, next_code: nextCode });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to get next code' }, 500);
   }
 });
 
@@ -3797,9 +3831,22 @@ app.get('/', (c) => {
                 document.getElementById('balancePaymentForm').reset();
             }
 
-            function openNewLeadModal() {
+            async function openNewLeadModal() {
                 document.getElementById('newLeadModal').classList.add('show');
                 document.getElementById('actionMenu').classList.remove('show');
+                
+                // Auto-fill next customer code
+                try {
+                    const response = await axios.get('/api/leads/next-code');
+                    if (response.data.success) {
+                        const customerCodeInput = document.querySelector('#newLeadForm input[name="customer_code"]');
+                        if (customerCodeInput) {
+                            customerCodeInput.value = response.data.next_code;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching next customer code:', error);
+                }
             }
 
             function closeNewLeadModal() {
@@ -4341,10 +4388,28 @@ app.get('/', (c) => {
                         tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #6b7280;">No pending balance payments</td></tr>';
                         return;
                     }
-                    tbody.innerHTML = sales.map(sale => \`
+                    tbody.innerHTML = sales.map(sale => {
+                        // Fix date display - handle various date formats
+                        let saleDate = 'N/A';
+                        try {
+                            if (sale.sale_date) {
+                                const date = new Date(sale.sale_date);
+                                if (!isNaN(date.getTime())) {
+                                    saleDate = date.toLocaleDateString('en-IN', { 
+                                        day: '2-digit', 
+                                        month: 'short', 
+                                        year: 'numeric' 
+                                    });
+                                }
+                            }
+                        } catch (e) {
+                            saleDate = 'Invalid Date';
+                        }
+                        
+                        return \`
                         <tr style="cursor: pointer;" onclick="viewSaleDetails('\${sale.order_id}')" title="Click to view sale details">
                             <td><strong>\${sale.order_id}</strong></td>
-                            <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
+                            <td>\${saleDate}</td>
                             <td>\${sale.customer_name || sale.customer_code}</td>
                             <td>\${sale.company_name || 'N/A'}</td>
                             <td>\${sale.employee_name}</td>
@@ -4354,7 +4419,8 @@ app.get('/', (c) => {
                             <td style="color: #dc2626; font-weight: 600;">₹\${sale.balance_amount.toLocaleString()}</td>
                             <td><button class="btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="event.stopPropagation(); updatePaymentFor('\${sale.order_id}')">Update</button></td>
                         </tr>
-                    \`).join('');
+                        \`;
+                    }).join('');
                 } catch (error) {
                     console.error('Error loading balance payments:', error);
                 }
