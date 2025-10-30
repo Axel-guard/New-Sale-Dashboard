@@ -165,6 +165,162 @@ app.put('/api/users/:id', async (c) => {
   }
 });
 
+// Reports & Analytics endpoints
+app.get('/api/reports/summary', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    
+    // Get current quarter
+    const currentQuarter = Math.floor(now.getMonth() / 3);
+    const quarterStart = new Date(now.getFullYear(), currentQuarter * 3, 1);
+    
+    // Get year start
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    
+    // Current month sales
+    const currentMonth = await env.DB.prepare(`
+      SELECT SUM(subtotal) as total
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+    `).bind(currentMonthStart.toISOString()).first();
+    
+    // Previous month sales
+    const previousMonth = await env.DB.prepare(`
+      SELECT SUM(subtotal) as total
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?) AND sale_type = 'With'
+    `).bind(previousMonthStart.toISOString(), previousMonthEnd.toISOString()).first();
+    
+    // Quarterly sales
+    const quarterly = await env.DB.prepare(`
+      SELECT SUM(subtotal) as total
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+    `).bind(quarterStart.toISOString()).first();
+    
+    // YTD sales
+    const ytd = await env.DB.prepare(`
+      SELECT SUM(subtotal) as total
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+    `).bind(yearStart.toISOString()).first();
+    
+    return c.json({
+      success: true,
+      data: {
+        currentMonth: currentMonth.total || 0,
+        previousMonth: previousMonth.total || 0,
+        quarterly: quarterly.total || 0,
+        ytd: ytd.total || 0
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch report summary' }, 500);
+  }
+});
+
+app.get('/api/reports/employee-comparison', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    
+    // Get current month employee sales
+    const currentMonth = await env.DB.prepare(`
+      SELECT 
+        employee_name,
+        COUNT(*) as total_sales,
+        SUM(subtotal) as total_revenue,
+        ROUND(AVG(subtotal), 2) as avg_sale_value
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      GROUP BY employee_name
+    `).bind(currentMonthStart.toISOString()).all();
+    
+    // Get previous month employee sales
+    const previousMonth = await env.DB.prepare(`
+      SELECT 
+        employee_name,
+        SUM(subtotal) as total_revenue
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?) AND sale_type = 'With'
+      GROUP BY employee_name
+    `).bind(previousMonthStart.toISOString(), previousMonthEnd.toISOString()).all();
+    
+    // Merge and calculate growth
+    const employeeData = currentMonth.results.map(current => {
+      const previous = previousMonth.results.find(p => p.employee_name === current.employee_name);
+      const previousRevenue = previous ? previous.total_revenue : 0;
+      const growth = previousRevenue > 0 
+        ? ((current.total_revenue - previousRevenue) / previousRevenue * 100).toFixed(2)
+        : current.total_revenue > 0 ? 100 : 0;
+      
+      return {
+        employee_name: current.employee_name,
+        current_month_sales: current.total_revenue || 0,
+        previous_month_sales: previousRevenue,
+        growth_percentage: parseFloat(growth),
+        total_sales_count: current.total_sales,
+        avg_sale_value: current.avg_sale_value || 0
+      };
+    });
+    
+    return c.json({ success: true, data: employeeData });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch employee comparison' }, 500);
+  }
+});
+
+app.get('/api/reports/incentives', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const targetAmount = 550000;
+    const incentivePercentage = 0.01;
+    
+    // Get employee sales without tax
+    const employeeSales = await env.DB.prepare(`
+      SELECT 
+        employee_name,
+        SUM(subtotal) as total_without_tax
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      GROUP BY employee_name
+    `).bind(currentMonthStart.toISOString()).all();
+    
+    const incentiveData = employeeSales.results.map(emp => {
+      const salesWithoutTax = emp.total_without_tax || 0;
+      const achievementPct = (salesWithoutTax / targetAmount * 100).toFixed(2);
+      const incentiveEarned = salesWithoutTax > targetAmount 
+        ? (salesWithoutTax * incentivePercentage).toFixed(2)
+        : 0;
+      
+      return {
+        employee_name: emp.employee_name,
+        sales_without_tax: salesWithoutTax,
+        target_amount: targetAmount,
+        achievement_percentage: parseFloat(achievementPct),
+        status: salesWithoutTax >= targetAmount ? 'Target Achieved' : 'In Progress',
+        incentive_earned: parseFloat(incentiveEarned)
+      };
+    });
+    
+    return c.json({ success: true, data: incentiveData });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch incentives' }, 500);
+  }
+});
+
 // Get dashboard summary data
 app.get('/api/dashboard/summary', async (c) => {
   const { env } = c;
@@ -1396,6 +1552,10 @@ app.get('/', (c) => {
                 <i class="fas fa-chart-line"></i>
                 <span>Dashboard</span>
             </div>
+            <div class="sidebar-item" onclick="showPage('reports')">
+                <i class="fas fa-chart-bar"></i>
+                <span>Reports & Analytics</span>
+            </div>
             <div class="sidebar-item" onclick="showPage('courier-calculation')">
                 <i class="fas fa-shipping-fast"></i>
                 <span>Courier Charges Calculator</span>
@@ -1839,6 +1999,113 @@ app.get('/', (c) => {
                                 </ul>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports & Analytics Page -->
+            <div class="page-content" id="reports-page">
+                <h2 style="font-size: 24px; font-weight: 600; color: #1f2937; margin-bottom: 20px;">
+                    <i class="fas fa-chart-bar"></i> Reports & Analytics
+                </h2>
+                
+                <!-- Summary Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <div style="padding: 10px;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                <i class="fas fa-calendar-alt"></i> Current Month Sales
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700;" id="reportCurrentMonth">₹0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        <div style="padding: 10px;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                <i class="fas fa-arrow-left"></i> Previous Month Sales
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700;" id="reportPreviousMonth">₹0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                        <div style="padding: 10px;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                <i class="fas fa-calendar-check"></i> Quarterly Sales
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700;" id="reportQuarterly">₹0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+                        <div style="padding: 10px;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                <i class="fas fa-chart-line"></i> YTD Sales
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700;" id="reportYTD">₹0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Month Comparison Chart -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h3 class="card-title">Current vs Previous Month Comparison</h3>
+                    </div>
+                    <canvas id="monthComparisonChart"></canvas>
+                </div>
+                
+                <!-- Employee-wise Sales Report -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h3 class="card-title">Employee-wise Sales Report</h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee Name</th>
+                                    <th>Current Month Sales</th>
+                                    <th>Previous Month Sales</th>
+                                    <th>Growth %</th>
+                                    <th>Total Sales Count</th>
+                                    <th>Average Sale Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeReportTableBody">
+                                <tr><td colspan="6" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Incentive Calculation -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-gift"></i> Incentive Calculation (Current Month)
+                        </h3>
+                        <p style="color: #6b7280; font-size: 14px; margin-top: 5px;">
+                            Target: ₹5,50,000 per employee | Incentive: 1% of sales without tax (if target exceeded)
+                        </p>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee Name</th>
+                                    <th>Sales without Tax</th>
+                                    <th>Target Amount</th>
+                                    <th>Achievement %</th>
+                                    <th>Status</th>
+                                    <th>Incentive Earned</th>
+                                </tr>
+                            </thead>
+                            <tbody id="incentiveTableBody">
+                                <tr><td colspan="6" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -2600,6 +2867,9 @@ app.get('/', (c) => {
                         break;
                     case 'user-management':
                         loadUsers();
+                        break;
+                    case 'reports':
+                        loadReports();
                         break;
                 }
             }
@@ -4010,6 +4280,147 @@ app.get('/', (c) => {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Leads Data';
                 }
+            }
+            
+            // Reports & Analytics Functions
+            let monthComparisonChart = null;
+            
+            async function loadReports() {
+                try {
+                    // Load summary data
+                    const summaryResponse = await axios.get('/api/reports/summary');
+                    const summary = summaryResponse.data.data;
+                    
+                    document.getElementById('reportCurrentMonth').textContent = '₹' + summary.currentMonth.toLocaleString();
+                    document.getElementById('reportPreviousMonth').textContent = '₹' + summary.previousMonth.toLocaleString();
+                    document.getElementById('reportQuarterly').textContent = '₹' + summary.quarterly.toLocaleString();
+                    document.getElementById('reportYTD').textContent = '₹' + summary.ytd.toLocaleString();
+                    
+                    // Load employee comparison
+                    const employeeResponse = await axios.get('/api/reports/employee-comparison');
+                    const employees = employeeResponse.data.data;
+                    
+                    renderEmployeeReport(employees);
+                    renderMonthComparisonChart(summary.currentMonth, summary.previousMonth);
+                    
+                    // Load incentives
+                    const incentiveResponse = await axios.get('/api/reports/incentives');
+                    const incentives = incentiveResponse.data.data;
+                    
+                    renderIncentiveTable(incentives);
+                } catch (error) {
+                    console.error('Error loading reports:', error);
+                }
+            }
+            
+            function renderEmployeeReport(employees) {
+                const tbody = document.getElementById('employeeReportTableBody');
+                
+                if (!employees || employees.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No data available</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = employees.map(emp => \`
+                    <tr>
+                        <td><strong>\${emp.employee_name}</strong></td>
+                        <td>₹\${emp.current_month_sales.toLocaleString()}</td>
+                        <td>₹\${emp.previous_month_sales.toLocaleString()}</td>
+                        <td>
+                            <span class="badge \${emp.growth_percentage >= 0 ? 'badge-success' : 'badge-error'}">
+                                \${emp.growth_percentage >= 0 ? '+' : ''}\${emp.growth_percentage}%
+                            </span>
+                        </td>
+                        <td>\${emp.total_sales_count}</td>
+                        <td>₹\${emp.avg_sale_value.toLocaleString()}</td>
+                    </tr>
+                \`).join('');
+            }
+            
+            function renderMonthComparisonChart(current, previous) {
+                const ctx = document.getElementById('monthComparisonChart').getContext('2d');
+                
+                if (monthComparisonChart) {
+                    monthComparisonChart.destroy();
+                }
+                
+                monthComparisonChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Previous Month', 'Current Month'],
+                        datasets: [{
+                            label: 'Sales (₹)',
+                            data: [previous, current],
+                            backgroundColor: [
+                                'rgba(245, 87, 108, 0.8)',
+                                'rgba(102, 126, 234, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(245, 87, 108, 1)',
+                                'rgba(102, 126, 234, 1)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return 'Sales: ₹' + context.parsed.y.toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '₹' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function renderIncentiveTable(incentives) {
+                const tbody = document.getElementById('incentiveTableBody');
+                
+                if (!incentives || incentives.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No data available</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = incentives.map(inc => \`
+                    <tr>
+                        <td><strong>\${inc.employee_name}</strong></td>
+                        <td>₹\${inc.sales_without_tax.toLocaleString()}</td>
+                        <td>₹\${inc.target_amount.toLocaleString()}</td>
+                        <td>
+                            <div style="position: relative; width: 100%; background: #e5e7eb; border-radius: 4px; height: 24px; overflow: hidden;">
+                                <div style="position: absolute; left: 0; top: 0; height: 100%; background: \${inc.achievement_percentage >= 100 ? '#10b981' : '#667eea'}; width: \${Math.min(inc.achievement_percentage, 100)}%; transition: width 0.3s;"></div>
+                                <span style="position: absolute; left: 0; right: 0; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; color: #1f2937;">
+                                    \${inc.achievement_percentage.toFixed(1)}%
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge \${inc.status === 'Target Achieved' ? 'badge-success' : 'badge-warning'}">
+                                \${inc.status}
+                            </span>
+                        </td>
+                        <td style="font-weight: 700; color: \${inc.incentive_earned > 0 ? '#10b981' : '#6b7280'};">
+                            ₹\${inc.incentive_earned.toLocaleString()}
+                        </td>
+                    </tr>
+                \`).join('');
             }
             
             // Change Password Functions
