@@ -187,28 +187,28 @@ app.get('/api/reports/summary', async (c) => {
     const currentMonth = await env.DB.prepare(`
       SELECT SUM(subtotal) as total
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?)
     `).bind(currentMonthStart.toISOString()).first();
     
     // Previous month sales
     const previousMonth = await env.DB.prepare(`
       SELECT SUM(subtotal) as total
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?)
     `).bind(previousMonthStart.toISOString(), previousMonthEnd.toISOString()).first();
     
     // Quarterly sales
     const quarterly = await env.DB.prepare(`
       SELECT SUM(subtotal) as total
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?)
     `).bind(quarterStart.toISOString()).first();
     
     // YTD sales
     const ytd = await env.DB.prepare(`
       SELECT SUM(subtotal) as total
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?)
     `).bind(yearStart.toISOString()).first();
     
     return c.json({
@@ -242,7 +242,7 @@ app.get('/api/reports/employee-comparison', async (c) => {
         SUM(subtotal) as total_revenue,
         ROUND(AVG(subtotal), 2) as avg_sale_value
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?)
       GROUP BY employee_name
     `).bind(currentMonthStart.toISOString()).all();
     
@@ -252,7 +252,7 @@ app.get('/api/reports/employee-comparison', async (c) => {
         employee_name,
         SUM(subtotal) as total_revenue
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?) AND DATE(sale_date) <= DATE(?)
       GROUP BY employee_name
     `).bind(previousMonthStart.toISOString(), previousMonthEnd.toISOString()).all();
     
@@ -295,7 +295,7 @@ app.get('/api/reports/incentives', async (c) => {
         employee_name,
         SUM(subtotal) as total_without_tax
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?)
       GROUP BY employee_name
     `).bind(currentMonthStart.toISOString()).all();
     
@@ -418,7 +418,7 @@ app.get('/api/reports/product-analysis', async (c) => {
         COUNT(DISTINCT s.order_id) as order_count
       FROM sale_items si
       JOIN sales s ON si.order_id = s.order_id
-      WHERE DATE(s.sale_date) >= DATE(?) AND s.sale_type = 'With'
+      WHERE DATE(s.sale_date) >= DATE(?)
       GROUP BY si.product_name
       ORDER BY total_revenue DESC
       LIMIT 50
@@ -447,7 +447,7 @@ app.get('/api/reports/customer-analysis', async (c) => {
         ROUND(AVG(total_amount), 2) as avg_order_value,
         SUM(balance_amount) as balance_pending
       FROM sales
-      WHERE DATE(sale_date) >= DATE(?) AND sale_type = 'With'
+      WHERE DATE(sale_date) >= DATE(?)
       GROUP BY customer_name, company_name
       ORDER BY total_purchases DESC
       LIMIT 50
@@ -1396,10 +1396,11 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AxelGuard Dashboard</title>
+        <title>AxelGuard</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
         <style>
             * {
                 margin: 0;
@@ -1888,7 +1889,10 @@ app.get('/', (c) => {
         <div id="loginScreen" class="login-container">
             <div class="login-box">
                 <div style="text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: #667eea; font-size: 32px; margin-bottom: 10px;">AxelGuard Dashboard</h1>
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                        <img src="/logo.png" alt="AxelGuard" style="height: 50px; width: auto;">
+                        <h1 style="color: #667eea; font-size: 32px;">AxelGuard</h1>
+                    </div>
                     <p style="color: #6b7280; font-size: 14px;">Sign in to access your dashboard</p>
                 </div>
                 <form id="loginForm" onsubmit="handleLogin(event)">
@@ -1919,9 +1923,12 @@ app.get('/', (c) => {
                 <div class="menu-toggle" onclick="toggleSidebar()">
                     <i class="fas fa-bars"></i>
                 </div>
-                <h1>AxelGuard Dashboard</h1>
+                <h1 onclick="showPage('dashboard')" style="cursor: pointer; display: flex; align-items: center; gap: 12px;">
+                    <img src="/logo.png" alt="AxelGuard" style="height: 40px; width: auto;">
+                    AxelGuard
+                </h1>
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span id="userDisplay" style="font-size: 14px; color: #374151;"></span>
+                    <span id="userDisplay" style="font-size: 14px; color: white; font-weight: 500;"></span>
                     <button onclick="handleLogout()" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </button>
@@ -2485,10 +2492,13 @@ app.get('/', (c) => {
                 
                 <!-- Product-wise Sales Analysis -->
                 <div class="card" style="margin-bottom: 30px;">
-                    <div class="card-header">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h3 class="card-title">
                             <i class="fas fa-box"></i> Product-wise Sales Analysis (Current Month)
                         </h3>
+                        <button onclick="downloadProductAnalysisExcel()" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                            <i class="fas fa-file-excel"></i> Download Excel
+                        </button>
                     </div>
                     <div class="table-container">
                         <table>
@@ -4880,7 +4890,7 @@ app.get('/', (c) => {
             function showDashboard() {
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainDashboard').style.display = 'block';
-                document.getElementById('userDisplay').textContent = currentUser.fullName + ' (' + currentUser.role + ')';
+                document.getElementById('userDisplay').textContent = 'Hi ' + currentUser.employeeName;
                 
                 // Update UI based on role
                 updateUIForRole();
@@ -5047,6 +5057,13 @@ app.get('/', (c) => {
                     return;
                 }
                 
+                // Calculate totals
+                const totalCurrentMonth = employees.reduce((sum, emp) => sum + emp.current_month_sales, 0);
+                const totalPreviousMonth = employees.reduce((sum, emp) => sum + emp.previous_month_sales, 0);
+                const totalSalesCount = employees.reduce((sum, emp) => sum + emp.total_sales_count, 0);
+                const avgGrowth = totalPreviousMonth > 0 ? ((totalCurrentMonth - totalPreviousMonth) / totalPreviousMonth * 100).toFixed(2) : 0;
+                const avgSaleValue = totalSalesCount > 0 ? (totalCurrentMonth / totalSalesCount).toFixed(2) : 0;
+                
                 tbody.innerHTML = employees.map(emp => \`
                     <tr>
                         <td><strong>\${emp.employee_name}</strong></td>
@@ -5060,7 +5077,20 @@ app.get('/', (c) => {
                         <td>\${emp.total_sales_count}</td>
                         <td>₹\${emp.avg_sale_value.toLocaleString()}</td>
                     </tr>
-                \`).join('');
+                \`).join('') + \`
+                    <tr style="background: #f3f4f6; font-weight: 700; border-top: 2px solid #667eea;">
+                        <td><strong>TOTAL</strong></td>
+                        <td>₹\${totalCurrentMonth.toLocaleString()}</td>
+                        <td>₹\${totalPreviousMonth.toLocaleString()}</td>
+                        <td>
+                            <span class="badge \${avgGrowth >= 0 ? 'badge-success' : 'badge-error'}">
+                                \${avgGrowth >= 0 ? '+' : ''}\${avgGrowth}%
+                            </span>
+                        </td>
+                        <td>\${totalSalesCount}</td>
+                        <td>₹\${parseFloat(avgSaleValue).toLocaleString()}</td>
+                    </tr>
+                \`;
             }
             
             function renderMonthComparisonChart(current, previous) {
@@ -5221,6 +5251,44 @@ app.get('/', (c) => {
                     console.error('Error loading product analysis:', error);
                     const tbody = document.getElementById('productReportTableBody');
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc2626;">Error loading data</td></tr>';
+                }
+            }
+            
+            async function downloadProductAnalysisExcel() {
+                try {
+                    const response = await axios.get('/api/reports/product-analysis');
+                    const products = response.data.data;
+                    
+                    if (!products || products.length === 0) {
+                        alert('No product data available to download');
+                        return;
+                    }
+                    
+                    // Prepare data for Excel
+                    const excelData = products.map(prod => ({
+                        'Product Name': prod.product_name,
+                        'Total Quantity Sold': prod.total_quantity,
+                        'Total Revenue': '₹' + prod.total_revenue.toLocaleString(),
+                        'Average Price': '₹' + prod.average_price.toLocaleString(),
+                        'Number of Orders': prod.order_count
+                    }));
+                    
+                    // Create workbook
+                    const ws = XLSX.utils.json_to_sheet(excelData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Product Analysis');
+                    
+                    // Generate filename with current date
+                    const now = new Date();
+                    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                      'July', 'August', 'September', 'October', 'November', 'December'];
+                    const filename = 'Product_Analysis_' + monthNames[now.getMonth()] + '_' + now.getFullYear() + '.xlsx';
+                    
+                    // Download
+                    XLSX.writeFile(wb, filename);
+                } catch (error) {
+                    console.error('Error downloading Excel:', error);
+                    alert('Failed to download Excel file');
                 }
             }
             
