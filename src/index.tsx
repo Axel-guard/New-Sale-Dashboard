@@ -58,6 +58,113 @@ app.get('/api/auth/verify', async (c) => {
   return c.json({ success: true });
 });
 
+// Change password endpoint
+app.post('/api/auth/change-password', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { userId, currentPassword, newPassword } = body;
+    
+    const encodedCurrentPassword = btoa(currentPassword);
+    const encodedNewPassword = btoa(newPassword);
+    
+    // Verify current password
+    const user = await env.DB.prepare(`
+      SELECT id FROM users WHERE id = ? AND password = ?
+    `).bind(userId, encodedCurrentPassword).first();
+    
+    if (!user) {
+      return c.json({ success: false, error: 'Current password is incorrect' }, 401);
+    }
+    
+    // Update password
+    await env.DB.prepare(`
+      UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(encodedNewPassword, userId).run();
+    
+    return c.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to change password' }, 500);
+  }
+});
+
+// User Management endpoints (Admin only)
+app.get('/api/users', async (c) => {
+  const { env } = c;
+  
+  try {
+    const users = await env.DB.prepare(`
+      SELECT id, username, full_name, role, employee_name, is_active, created_at
+      FROM users
+      ORDER BY created_at DESC
+    `).all();
+    
+    return c.json({ success: true, data: users.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch users' }, 500);
+  }
+});
+
+app.post('/api/users', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { username, full_name, password, role, employee_name } = body;
+    
+    // Check if username already exists
+    const existing = await env.DB.prepare(`
+      SELECT id FROM users WHERE username = ?
+    `).bind(username).first();
+    
+    if (existing) {
+      return c.json({ success: false, error: 'Username already exists' }, 400);
+    }
+    
+    const encodedPassword = btoa(password);
+    
+    const result = await env.DB.prepare(`
+      INSERT INTO users (username, password, full_name, role, employee_name, is_active)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `).bind(username, encodedPassword, full_name, role, employee_name || null).run();
+    
+    return c.json({ success: true, data: { id: result.meta.last_row_id }, message: 'User created successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to create user' }, 500);
+  }
+});
+
+app.put('/api/users/:id', async (c) => {
+  const { env } = c;
+  
+  try {
+    const userId = c.req.param('id');
+    const body = await c.req.json();
+    const { full_name, role, employee_name, is_active, new_password } = body;
+    
+    // Update user information
+    if (new_password && new_password.length > 0) {
+      const encodedPassword = btoa(new_password);
+      await env.DB.prepare(`
+        UPDATE users 
+        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, password = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(full_name, role, employee_name || null, is_active, encodedPassword, userId).run();
+    } else {
+      await env.DB.prepare(`
+        UPDATE users 
+        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(full_name, role, employee_name || null, is_active, userId).run();
+    }
+    
+    return c.json({ success: true, message: 'User updated successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to update user' }, 500);
+  }
+});
+
 // Get dashboard summary data
 app.get('/api/dashboard/summary', async (c) => {
   const { env } = c;
@@ -1212,6 +1319,22 @@ app.get('/', (c) => {
                 margin-bottom: 20px;
             }
             
+            .alert-success {
+                background-color: #d1fae5;
+                color: #065f46;
+                padding: 12px;
+                border-radius: 6px;
+                border: 1px solid #10b981;
+            }
+            
+            .alert-error {
+                background-color: #fee2e2;
+                color: #991b1b;
+                padding: 12px;
+                border-radius: 6px;
+                border: 1px solid #ef4444;
+            }
+            
             @media (max-width: 768px) {
                 .chart-container {
                     grid-template-columns: 1fr;
@@ -1304,6 +1427,14 @@ app.get('/', (c) => {
             <div class="sidebar-item" onclick="showPage('excel-upload')">
                 <i class="fas fa-file-excel"></i>
                 <span>Upload Excel Data</span>
+            </div>
+            <div class="sidebar-item" id="userManagementMenuItem" onclick="showPage('user-management')" style="display: none;">
+                <i class="fas fa-users-cog"></i>
+                <span>User Management</span>
+            </div>
+            <div class="sidebar-item" onclick="showPage('change-password')">
+                <i class="fas fa-key"></i>
+                <span>Change Password</span>
             </div>
         </div>
 
@@ -1711,6 +1842,72 @@ app.get('/', (c) => {
                     </div>
                 </div>
             </div>
+
+            <!-- Change Password Page -->
+            <div class="page-content" id="change-password-page">
+                <div class="card" style="max-width: 600px; margin: 0 auto;">
+                    <h2 class="card-title" style="margin-bottom: 20px;">
+                        <i class="fas fa-key"></i> Change Password
+                    </h2>
+                    
+                    <form id="changePasswordForm" onsubmit="changePassword(event)">
+                        <div class="form-group">
+                            <label>Current Password *</label>
+                            <input type="password" id="currentPassword" required placeholder="Enter current password">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>New Password *</label>
+                            <input type="password" id="newPassword" required minlength="6" placeholder="Enter new password (min 6 characters)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Confirm New Password *</label>
+                            <input type="password" id="confirmPassword" required minlength="6" placeholder="Re-enter new password">
+                        </div>
+                        
+                        <div id="passwordChangeStatus" style="display: none; margin-bottom: 15px; padding: 10px; border-radius: 6px;"></div>
+                        
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-save"></i> Change Password
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- User Management Page (Admin Only) -->
+            <div class="page-content" id="user-management-page">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="card-title" style="margin: 0;">
+                            <i class="fas fa-users-cog"></i> User Management
+                        </h2>
+                        <button class="btn-primary" onclick="openCreateUserModal()">
+                            <i class="fas fa-user-plus"></i> Create New User
+                        </button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Full Name</th>
+                                    <th>Role</th>
+                                    <th>Employee Name</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="8" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Sale Details Modal -->
@@ -2099,6 +2296,103 @@ app.get('/', (c) => {
             </div>
         </div>
 
+        <!-- Create User Modal (Admin Only) -->
+        <div class="modal" id="createUserModal">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Create New User</h2>
+                    <span class="close" onclick="closeCreateUserModal()">&times;</span>
+                </div>
+                <form id="createUserForm" onsubmit="submitCreateUser(event)">
+                    <div class="form-group">
+                        <label>Username *</label>
+                        <input type="text" name="username" required minlength="3" placeholder="Enter username (min 3 characters)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" name="full_name" required placeholder="Enter full name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Password *</label>
+                        <input type="password" name="password" required minlength="6" placeholder="Enter password (min 6 characters)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Role *</label>
+                        <select name="role" required onchange="toggleEmployeeNameField(this)">
+                            <option value="">Select Role</option>
+                            <option value="admin">Admin</option>
+                            <option value="employee">Employee</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="employeeNameGroup" style="display: none;">
+                        <label>Employee Name (for sales tracking)</label>
+                        <input type="text" name="employee_name" placeholder="Enter employee name">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="fas fa-user-plus"></i> Create User
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit User Modal (Admin Only) -->
+        <div class="modal" id="editUserModal">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Edit User</h2>
+                    <span class="close" onclick="closeEditUserModal()">&times;</span>
+                </div>
+                <form id="editUserForm" onsubmit="submitEditUser(event)">
+                    <input type="hidden" name="user_id" id="editUserId">
+                    
+                    <div class="form-group">
+                        <label>Username *</label>
+                        <input type="text" name="username" id="editUserUsername" required minlength="3" readonly style="background: #f3f4f6;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" name="full_name" id="editUserFullName" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Role *</label>
+                        <select name="role" id="editUserRole" required onchange="toggleEmployeeNameFieldEdit(this)">
+                            <option value="admin">Admin</option>
+                            <option value="employee">Employee</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="editEmployeeNameGroup">
+                        <label>Employee Name (for sales tracking)</label>
+                        <input type="text" name="employee_name" id="editUserEmployeeName" placeholder="Enter employee name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Status *</label>
+                        <select name="is_active" id="editUserStatus" required>
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Reset Password (leave blank to keep current)</label>
+                        <input type="password" name="new_password" id="editUserPassword" minlength="6" placeholder="Enter new password (optional)">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="fas fa-save"></i> Update User
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
             let paymentChart = null;
@@ -2304,6 +2598,9 @@ app.get('/', (c) => {
                     case 'leads':
                         loadLeads();
                         break;
+                    case 'user-management':
+                        loadUsers();
+                        break;
                 }
             }
 
@@ -2441,13 +2738,16 @@ app.get('/', (c) => {
                     const response = await axios.get('/api/sales/current-month');
                     const sales = response.data.data;
                     
+                    // Filter out "Without GST" sales from dashboard display
+                    const filteredSales = sales.filter(sale => sale.sale_type === 'With');
+                    
                     const tbody = document.getElementById('salesTableBody');
-                    if (!sales || sales.length === 0) {
+                    if (!filteredSales || filteredSales.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: #6b7280;">No sales found for current month</td></tr>';
                         return;
                     }
                     
-                    tbody.innerHTML = sales.map(sale => {
+                    tbody.innerHTML = filteredSales.map(sale => {
                         const items = sale.items || [];
                         const products = items.length > 0 
                             ? items.map(item => \`\${item.product_name} (x\${item.quantity})\`).join(', ')
@@ -3614,7 +3914,13 @@ app.get('/', (c) => {
                 // Hide/show Excel Upload sidebar item
                 const uploadItem = document.querySelector('[onclick="showPage(\\'excel-upload\\')"]');
                 if (uploadItem) {
-                    uploadItem.parentElement.style.display = isAdmin ? 'block' : 'none';
+                    uploadItem.style.display = isAdmin ? 'block' : 'none';
+                }
+                
+                // Hide/show User Management sidebar item (admin only)
+                const userManagementItem = document.getElementById('userManagementMenuItem');
+                if (userManagementItem) {
+                    userManagementItem.style.display = isAdmin ? 'block' : 'none';
                 }
             }
             
@@ -3703,6 +4009,209 @@ app.get('/', (c) => {
                 } finally {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Leads Data';
+                }
+            }
+            
+            // Change Password Functions
+            async function changePassword(event) {
+                event.preventDefault();
+                
+                const currentPassword = document.getElementById('currentPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const statusDiv = document.getElementById('passwordChangeStatus');
+                
+                // Validate new passwords match
+                if (newPassword !== confirmPassword) {
+                    statusDiv.className = 'alert-error';
+                    statusDiv.textContent = 'New passwords do not match!';
+                    statusDiv.style.display = 'block';
+                    return;
+                }
+                
+                try {
+                    const response = await axios.post('/api/auth/change-password', {
+                        userId: currentUser.id,
+                        currentPassword,
+                        newPassword
+                    });
+                    
+                    if (response.data.success) {
+                        statusDiv.className = 'alert-success';
+                        statusDiv.textContent = response.data.message;
+                        statusDiv.style.display = 'block';
+                        
+                        // Clear form
+                        document.getElementById('changePasswordForm').reset();
+                        
+                        // Hide success message after 3 seconds
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 3000);
+                    }
+                } catch (error) {
+                    statusDiv.className = 'alert-error';
+                    statusDiv.textContent = error.response?.data?.error || 'Failed to change password';
+                    statusDiv.style.display = 'block';
+                }
+            }
+            
+            // User Management Functions
+            async function loadUsers() {
+                try {
+                    const response = await axios.get('/api/users');
+                    const users = response.data.data;
+                    
+                    const tbody = document.getElementById('usersTableBody');
+                    if (!users || users.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #6b7280;">No users found</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = users.map(user => \`
+                        <tr>
+                            <td>\${user.id}</td>
+                            <td><strong>\${user.username}</strong></td>
+                            <td>\${user.full_name}</td>
+                            <td><span class="badge \${user.role === 'admin' ? 'badge-error' : 'badge-success'}">\${user.role}</span></td>
+                            <td>\${user.employee_name || '-'}</td>
+                            <td><span class="badge \${user.is_active ? 'badge-success' : 'badge-warning'}">\${user.is_active ? 'Active' : 'Inactive'}</span></td>
+                            <td><small>\${new Date(user.created_at).toLocaleDateString()}</small></td>
+                            <td>
+                                <button class="btn-edit" onclick="editUser(\${user.id})" title="Edit User">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading users:', error);
+                    const tbody = document.getElementById('usersTableBody');
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #dc2626;">Error loading users</td></tr>';
+                }
+            }
+            
+            function openCreateUserModal() {
+                document.getElementById('createUserModal').classList.add('show');
+            }
+            
+            function closeCreateUserModal() {
+                document.getElementById('createUserModal').classList.remove('show');
+                document.getElementById('createUserForm').reset();
+                document.getElementById('employeeNameGroup').style.display = 'none';
+            }
+            
+            function toggleEmployeeNameField(selectElement) {
+                const employeeNameGroup = document.getElementById('employeeNameGroup');
+                if (selectElement.value === 'employee') {
+                    employeeNameGroup.style.display = 'block';
+                    employeeNameGroup.querySelector('input').required = true;
+                } else {
+                    employeeNameGroup.style.display = 'none';
+                    employeeNameGroup.querySelector('input').required = false;
+                }
+            }
+            
+            async function submitCreateUser(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                const data = {
+                    username: formData.get('username'),
+                    full_name: formData.get('full_name'),
+                    password: formData.get('password'),
+                    role: formData.get('role'),
+                    employee_name: formData.get('employee_name')
+                };
+                
+                try {
+                    const response = await axios.post('/api/users', data);
+                    
+                    if (response.data.success) {
+                        alert(response.data.message);
+                        closeCreateUserModal();
+                        loadUsers();
+                    }
+                } catch (error) {
+                    alert('Error: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            async function editUser(userId) {
+                try {
+                    const response = await axios.get('/api/users');
+                    const users = response.data.data;
+                    const user = users.find(u => u.id === userId);
+                    
+                    if (!user) {
+                        alert('User not found');
+                        return;
+                    }
+                    
+                    // Populate form
+                    document.getElementById('editUserId').value = user.id;
+                    document.getElementById('editUserUsername').value = user.username;
+                    document.getElementById('editUserFullName').value = user.full_name;
+                    document.getElementById('editUserRole').value = user.role;
+                    document.getElementById('editUserEmployeeName').value = user.employee_name || '';
+                    document.getElementById('editUserStatus').value = user.is_active;
+                    document.getElementById('editUserPassword').value = '';
+                    
+                    // Show/hide employee name field
+                    const editEmployeeNameGroup = document.getElementById('editEmployeeNameGroup');
+                    if (user.role === 'employee') {
+                        editEmployeeNameGroup.style.display = 'block';
+                    } else {
+                        editEmployeeNameGroup.style.display = 'none';
+                    }
+                    
+                    document.getElementById('editUserModal').classList.add('show');
+                } catch (error) {
+                    alert('Error loading user data: ' + error.message);
+                }
+            }
+            
+            function closeEditUserModal() {
+                document.getElementById('editUserModal').classList.remove('show');
+                document.getElementById('editUserForm').reset();
+            }
+            
+            function toggleEmployeeNameFieldEdit(selectElement) {
+                const editEmployeeNameGroup = document.getElementById('editEmployeeNameGroup');
+                if (selectElement.value === 'employee') {
+                    editEmployeeNameGroup.style.display = 'block';
+                } else {
+                    editEmployeeNameGroup.style.display = 'none';
+                }
+            }
+            
+            async function submitEditUser(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                const userId = formData.get('user_id');
+                
+                const data = {
+                    full_name: formData.get('full_name'),
+                    role: formData.get('role'),
+                    employee_name: formData.get('employee_name'),
+                    is_active: parseInt(formData.get('is_active')),
+                    new_password: formData.get('new_password')
+                };
+                
+                try {
+                    const response = await axios.put(\`/api/users/\${userId}\`, data);
+                    
+                    if (response.data.success) {
+                        alert(response.data.message);
+                        closeEditUserModal();
+                        loadUsers();
+                    }
+                } catch (error) {
+                    alert('Error: ' + (error.response?.data?.error || error.message));
                 }
             }
         </script>
