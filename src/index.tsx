@@ -1629,7 +1629,7 @@ app.get('/', (c) => {
                     </div>
                     <div id="monthlyTotalCard" class="loading" style="color: white;">Loading...</div>
                     <div id="monthlyTotalContent" style="display: none;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; padding: 10px 0;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; padding: 10px 0;">
                             <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
                                 <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
                                     <i class="fas fa-shopping-cart"></i> Total Sales
@@ -1641,12 +1641,6 @@ app.get('/', (c) => {
                                     <i class="fas fa-rupee-sign"></i> Total Revenue
                                 </div>
                                 <div style="font-size: 28px; font-weight: 700;" id="totalRevenue">₹0</div>
-                            </div>
-                            <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
-                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
-                                    <i class="fas fa-calculator"></i> Without Tax
-                                </div>
-                                <div style="font-size: 28px; font-weight: 700;" id="totalWithoutTax">₹0</div>
                             </div>
                             <div style="text-align: center; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
                                 <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
@@ -2915,7 +2909,6 @@ app.get('/', (c) => {
                     
                     document.getElementById('totalSalesCount').textContent = data.total_sales || 0;
                     document.getElementById('totalRevenue').textContent = '₹' + (data.total_revenue || 0).toLocaleString();
-                    document.getElementById('totalWithoutTax').textContent = '₹' + (data.total_without_tax || 0).toLocaleString();
                     document.getElementById('totalReceived').textContent = '₹' + (data.total_received || 0).toLocaleString();
                     document.getElementById('totalBalance').textContent = '₹' + (data.total_balance || 0).toLocaleString();
                 } catch (error) {
@@ -3008,16 +3001,13 @@ app.get('/', (c) => {
                     const response = await axios.get('/api/sales/current-month');
                     const sales = response.data.data;
                     
-                    // Filter out "Without GST" sales from dashboard display
-                    const filteredSales = sales.filter(sale => sale.sale_type === 'With');
-                    
                     const tbody = document.getElementById('salesTableBody');
-                    if (!filteredSales || filteredSales.length === 0) {
+                    if (!sales || sales.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: #6b7280;">No sales found for current month</td></tr>';
                         return;
                     }
                     
-                    tbody.innerHTML = filteredSales.map(sale => {
+                    tbody.innerHTML = sales.map(sale => {
                         const items = sale.items || [];
                         const products = items.length > 0 
                             ? items.map(item => \`\${item.product_name} (x\${item.quantity})\`).join(', ')
