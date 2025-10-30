@@ -897,6 +897,26 @@ app.put('/api/leads/:leadId', async (c) => {
   }
 });
 
+// Get customer details by customer code
+app.get('/api/leads/by-code/:customerCode', async (c) => {
+  const { env } = c;
+  const customerCode = c.req.param('customerCode');
+  
+  try {
+    const customer = await env.DB.prepare(`
+      SELECT * FROM leads WHERE customer_code = ? LIMIT 1
+    `).bind(customerCode).first();
+    
+    if (!customer) {
+      return c.json({ success: false, error: 'Customer not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: customer });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch customer' }, 500);
+  }
+});
+
 // Get single sale by ID
 app.get('/api/sales/:orderId', async (c) => {
   const { env } = c;
@@ -2083,17 +2103,11 @@ app.get('/', (c) => {
                             <div id="salesUploadStatus" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none;"></div>
                             
                             <div style="margin-top: 25px; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
-                                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Expected Format:</h4>
-                                <ul style="font-size: 13px; color: #6b7280; line-height: 1.8; margin-left: 20px;">
-                                    <li>Customer Code/Contact</li>
-                                    <li>Date of Sale</li>
-                                    <li>Employee Name</li>
-                                    <li>Product Name</li>
-                                    <li>Quantity</li>
-                                    <li>Unit Price</li>
-                                    <li>Sale Type (With/Without GST)</li>
-                                    <li>Account Received</li>
-                                </ul>
+                                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Expected CSV Format (Column Order):</h4>
+                                <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+                                    <p><strong>Headers:</strong> S.No, Month, Order Id, Sale Date, Cust Code, Sale Done By, Company Name, Customer Name, Mobile Number, Bill Amount, Amount Rcd, Balnc Payment, Round Off, With Bill, Billing Status, Yes or no, Blank1, P1 Code, 1st Product, P1 Qtty, P1 Rate, Blank2, P2 Code, 2nd Product, P2 Qtty, P2 Rate, Blank3, P3 Code, 3rd Product, P3 Qtty, P3 Rate, Blank5, P4 Code, 4rth Product, P4 Qtty, P4 Rate, Blank6, P5 Code, 5th Product, P5 Qtty, P5 Rate, Blank7, P6 Code, 6th Product, P6 Qtty, P6 Rate, 7th Product, P7 Quantity, P7 Rate, 8th Product, P8 Quantity, P8 Rate, 9th Product, P9 Quantity, P9 Rate, 10th Product, P10 Quantity, P10 Rate, Courier, Total Sale Amount, Transaction Reference Number, Remarks, Payment 1 received, Payment 2 received, Payment 3 received, Payment 4 received, Payment 5 received, Payment 6 received</p>
+                                    <p style="margin-top: 10px;"><strong>Key Columns:</strong> Cust Code, Sale Date, Sale Done By, Customer Name, Mobile, Company Name, Bill Amount, Amount Rcd, Balance Payment, Products (up to 10 with Code/Name/Quantity/Rate)</p>
+                                </div>
                             </div>
                         </div>
                         
@@ -2116,18 +2130,11 @@ app.get('/', (c) => {
                             <div id="leadsUploadStatus" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none;"></div>
                             
                             <div style="margin-top: 25px; padding: 15px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
-                                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Expected Format:</h4>
-                                <ul style="font-size: 13px; color: #6b7280; line-height: 1.8; margin-left: 20px;">
-                                    <li>Customer Code</li>
-                                    <li>Customer Name</li>
-                                    <li>Mobile Number</li>
-                                    <li>Alternate Mobile</li>
-                                    <li>Location</li>
-                                    <li>Company Name</li>
-                                    <li>GST Number</li>
-                                    <li>Email</li>
-                                    <li>Status</li>
-                                </ul>
+                                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Expected CSV Format (Column Order):</h4>
+                                <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+                                    <p><strong>Headers:</strong> Cust Code, Date, Customer Name, Location, Mobile Number, Follow Up Person, Remarks, Cust Email id, Company Name, GST Number, Company Address</p>
+                                    <p style="margin-top: 10px;"><strong>All columns are required</strong> as per your Google Sheets format</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2184,7 +2191,9 @@ app.get('/', (c) => {
                     <div class="card-header">
                         <h3 class="card-title">Current vs Previous Month Comparison</h3>
                     </div>
-                    <canvas id="monthComparisonChart"></canvas>
+                    <div style="max-height: 350px; padding: 20px;">
+                        <canvas id="monthComparisonChart"></canvas>
+                    </div>
                 </div>
                 
                 <!-- Employee-wise Sales Report -->
@@ -2412,8 +2421,24 @@ app.get('/', (c) => {
                 <form id="newSaleForm" onsubmit="submitNewSale(event)">
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Customer Code / Contact Number *</label>
-                            <input type="text" name="customer_code" required placeholder="Enter customer code or contact">
+                            <label>Customer Code *</label>
+                            <input type="text" id="newSaleCustomerCode" name="customer_code" required placeholder="Enter customer code" onblur="fetchCustomerDetails(this.value)">
+                            <small id="customerFetchStatus" style="display: none; font-size: 11px;"></small>
+                        </div>
+                        <div class="form-group">
+                            <label>Customer Name <span style="color: #10b981; font-size: 11px;">(Auto-filled)</span></label>
+                            <input type="text" id="newSaleCustomerName" name="customer_name" readonly style="background: #f3f4f6;" placeholder="Will be auto-filled">
+                        </div>
+                        <div class="form-group">
+                            <label>Mobile Number <span style="color: #10b981; font-size: 11px;">(Auto-filled)</span></label>
+                            <input type="text" id="newSaleMobileNumber" name="mobile_number" readonly style="background: #f3f4f6;" placeholder="Will be auto-filled">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Company Name <span style="color: #10b981; font-size: 11px;">(Auto-filled)</span></label>
+                            <input type="text" id="newSaleCompanyName" name="company_name" readonly style="background: #f3f4f6;" placeholder="Will be auto-filled">
                         </div>
                         <div class="form-group">
                             <label>Date of Sale *</label>
@@ -3692,6 +3717,50 @@ app.get('/', (c) => {
             }
 
             // Submit New Sale
+            async function fetchCustomerDetails(customerCode) {
+                if (!customerCode || customerCode.trim() === '') {
+                    return;
+                }
+                
+                const statusDiv = document.getElementById('customerFetchStatus');
+                statusDiv.style.display = 'block';
+                statusDiv.style.color = '#667eea';
+                statusDiv.textContent = 'Fetching customer details...';
+                
+                try {
+                    const response = await axios.get('/api/leads/by-code/' + encodeURIComponent(customerCode));
+                    
+                    if (response.data.success) {
+                        const customer = response.data.data;
+                        
+                        // Auto-fill customer details
+                        document.getElementById('newSaleCustomerName').value = customer.customer_name || '';
+                        document.getElementById('newSaleMobileNumber').value = customer.mobile_number || '';
+                        document.getElementById('newSaleCompanyName').value = customer.company_name || '';
+                        
+                        statusDiv.style.color = '#10b981';
+                        statusDiv.textContent = '✓ Customer details loaded';
+                        
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 3000);
+                    }
+                } catch (error) {
+                    if (error.response?.status === 404) {
+                        statusDiv.style.color = '#dc2626';
+                        statusDiv.textContent = '⚠ Customer not found in database';
+                        
+                        // Clear fields
+                        document.getElementById('newSaleCustomerName').value = '';
+                        document.getElementById('newSaleMobileNumber').value = '';
+                        document.getElementById('newSaleCompanyName').value = '';
+                    } else {
+                        statusDiv.style.color = '#dc2626';
+                        statusDiv.textContent = '⚠ Error fetching customer';
+                    }
+                }
+            }
+            
             async function submitNewSale(event) {
                 event.preventDefault();
                 
@@ -4579,6 +4648,7 @@ app.get('/', (c) => {
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
                         plugins: {
                             legend: {
                                 display: false
