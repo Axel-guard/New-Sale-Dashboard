@@ -293,7 +293,7 @@ app.get('/api/reports/incentives', async (c) => {
     const employeeSales = await env.DB.prepare(`
       SELECT 
         employee_name,
-        SUM(total_amount) as total_without_tax
+        SUM(subtotal) as total_without_tax
       FROM sales
       WHERE DATE(sale_date) >= DATE(?)
       GROUP BY employee_name
@@ -302,8 +302,9 @@ app.get('/api/reports/incentives', async (c) => {
     const incentiveData = employeeSales.results.map(emp => {
       const salesWithoutTax = emp.total_without_tax || 0;
       const achievementPct = (salesWithoutTax / targetAmount * 100).toFixed(2);
-      const incentiveEarned = salesWithoutTax > targetAmount 
-        ? (salesWithoutTax * incentivePercentage).toFixed(2)
+      const exceedingAmount = salesWithoutTax > targetAmount ? (salesWithoutTax - targetAmount) : 0;
+      const incentiveEarned = exceedingAmount > 0
+        ? (exceedingAmount * incentivePercentage).toFixed(2)
         : 0;
       
       return {
