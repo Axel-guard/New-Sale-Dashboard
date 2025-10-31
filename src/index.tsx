@@ -2795,19 +2795,19 @@ app.get('/', (c) => {
                             <small id="customerFetchStatus" style="display: none; font-size: 11px;"></small>
                         </div>
                         <div class="form-group">
-                            <label>Customer Name <span style="color: #10b981; font-size: 11px;">(Auto-filled)</span></label>
-                            <input type="text" id="newSaleCustomerName" name="customer_name" readonly style="background: #f3f4f6;" placeholder="Will be auto-filled">
+                            <label>Customer Name <span style="color: #10b981; font-size: 11px;">(Auto-filled or enter manually)</span></label>
+                            <input type="text" id="newSaleCustomerName" name="customer_name" placeholder="Will be auto-filled or enter manually">
                         </div>
                         <div class="form-group">
-                            <label>Mobile Number <span style="color: #10b981; font-size: 11px;">(Auto-filled)</span></label>
-                            <input type="text" id="newSaleMobileNumber" name="mobile_number" readonly style="background: #f3f4f6;" placeholder="Will be auto-filled">
+                            <label>Mobile Number <span style="color: #10b981; font-size: 11px;">(Auto-filled or enter manually)</span></label>
+                            <input type="text" id="newSaleMobileNumber" name="mobile_number" placeholder="Will be auto-filled or enter manually">
                         </div>
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Company Name <span style="color: #10b981; font-size: 11px;">(Auto-filled)</span></label>
-                            <input type="text" id="newSaleCompanyName" name="company_name" readonly style="background: #f3f4f6;" placeholder="Will be auto-filled">
+                            <label>Company Name <span style="color: #10b981; font-size: 11px;">(Auto-filled or enter manually)</span></label>
+                            <input type="text" id="newSaleCompanyName" name="company_name" placeholder="Will be auto-filled or enter manually">
                         </div>
                         <div class="form-group">
                             <label>Date of Sale *</label>
@@ -4228,8 +4228,11 @@ app.get('/', (c) => {
                         alert(\`Sale added successfully! Order ID: \${response.data.data.order_id}\`);
                         closeNewSaleModal();
                         loadDashboard();
+                    } else {
+                        alert('Error: ' + (response.data.error || 'Failed to add sale'));
                     }
                 } catch (error) {
+                    console.error('Error adding sale:', error);
                     alert('Error adding sale: ' + (error.response?.data?.error || error.message));
                 }
             }
