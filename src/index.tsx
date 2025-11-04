@@ -783,6 +783,36 @@ app.post('/api/sales/balance-payment', async (c) => {
   }
 });
 
+// Get balance payment history for current month
+app.get('/api/sales/balance-payment-history', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const paymentHistory = await env.DB.prepare(`
+      SELECT 
+        p.id,
+        p.order_id,
+        p.payment_date,
+        p.amount,
+        p.account_received,
+        p.payment_reference,
+        s.customer_name,
+        s.company_name
+      FROM payment_history p
+      JOIN sales s ON p.order_id = s.order_id
+      WHERE DATE(p.payment_date) >= DATE(?)
+      ORDER BY p.payment_date DESC
+    `).bind(currentMonthStart.toISOString()).all();
+    
+    return c.json({ success: true, data: paymentHistory.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch payment history' }, 500);
+  }
+});
+
 // Merge duplicate sales by order_id
 app.post('/api/sales/merge-duplicates', async (c) => {
   const { env } = c;
@@ -1969,6 +1999,98 @@ app.get('/', (c) => {
                 border: 1px solid #ef4444;
             }
             
+            /* Tabs Styling */
+            .tabs {
+                display: flex;
+                gap: 5px;
+                margin-bottom: 20px;
+            }
+            
+            .tab-btn {
+                padding: 12px 24px;
+                background: white;
+                border: none;
+                border-bottom: 3px solid transparent;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                color: #6b7280;
+                transition: all 0.3s;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .tab-btn:hover {
+                background: #f9fafb;
+                color: #374151;
+            }
+            
+            .tab-btn.active {
+                color: #667eea;
+                border-bottom-color: #667eea;
+                background: #f9fafb;
+            }
+            
+            .tab-content {
+                animation: fadeIn 0.3s;
+            }
+            
+            /* Autocomplete Dropdown Styling */
+            .autocomplete-dropdown {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 1px solid #d1d5db;
+                border-top: none;
+                border-radius: 0 0 6px 6px;
+                max-height: 300px;
+                overflow-y: auto;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                z-index: 1000;
+                margin-top: -1px;
+            }
+            
+            .autocomplete-item {
+                padding: 12px 15px;
+                cursor: pointer;
+                border-bottom: 1px solid #f3f4f6;
+                transition: background 0.2s;
+            }
+            
+            .autocomplete-item:hover {
+                background: #f3f4f6;
+            }
+            
+            .autocomplete-item:last-child {
+                border-bottom: none;
+            }
+            
+            .autocomplete-item-title {
+                font-weight: 600;
+                color: #1f2937;
+                margin-bottom: 4px;
+            }
+            
+            .autocomplete-item-subtitle {
+                font-size: 12px;
+                color: #6b7280;
+            }
+            
+            .autocomplete-no-results {
+                padding: 20px;
+                text-align: center;
+                color: #9ca3af;
+                font-style: italic;
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            
             @media (max-width: 768px) {
                 .chart-container {
                     grid-template-columns: 1fr;
@@ -1976,6 +2098,15 @@ app.get('/', (c) => {
                 
                 .product-row {
                     grid-template-columns: 1fr;
+                }
+                
+                .tabs {
+                    flex-wrap: wrap;
+                }
+                
+                .tab-btn {
+                    padding: 10px 16px;
+                    font-size: 13px;
                 }
             }
         </style>
@@ -2285,21 +2416,19 @@ app.get('/', (c) => {
                 <div class="card">
                     <h2 class="card-title" style="margin-bottom: 20px;">Customer Details</h2>
                     
-                    <!-- Search Box -->
-                    <div style="margin-bottom: 20px;">
+                    <!-- Search Box with Autocomplete -->
+                    <div style="margin-bottom: 20px; position: relative;">
                         <input 
                             type="text" 
                             id="customerSearchInput" 
                             placeholder="Search by Customer Code or Mobile Number..." 
                             style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                            oninput="searchCustomerWithAutocomplete()"
+                            onfocus="showCustomerSearchDropdown()"
                         >
-                        <button 
-                            class="btn-primary" 
-                            style="margin-top: 10px;"
-                            onclick="searchCustomer()"
-                        >
-                            <i class="fas fa-search"></i> Search Customer
-                        </button>
+                        <div id="customerSearchDropdown" class="autocomplete-dropdown" style="display: none;">
+                            <!-- Autocomplete results will appear here -->
+                        </div>
                     </div>
                     
                     <div id="customerDetailsResult" style="display: none;">
@@ -2357,6 +2486,22 @@ app.get('/', (c) => {
             <div class="page-content" id="sale-database-page">
                 <div class="card">
                     <h2 class="card-title" style="margin-bottom: 20px;">Complete Sales Database</h2>
+                    
+                    <!-- Search Box with Autocomplete -->
+                    <div style="margin-bottom: 20px; position: relative;">
+                        <input 
+                            type="text" 
+                            id="saleSearchInput" 
+                            placeholder="Search by Customer Name, Company, Order ID, or Mobile Number..." 
+                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                            oninput="searchSalesWithAutocomplete()"
+                            onfocus="showSaleSearchDropdown()"
+                        >
+                        <div id="saleSearchDropdown" class="autocomplete-dropdown" style="display: none;">
+                            <!-- Autocomplete results will appear here -->
+                        </div>
+                    </div>
+                    
                     <div class="table-container">
                         <table>
                             <thead>
@@ -2381,27 +2526,63 @@ app.get('/', (c) => {
 
             <div class="page-content" id="balance-payment-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Pending Balance Payments</h2>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Order ID</th>
-                                    <th>Date</th>
-                                    <th>Customer Name</th>
-                                    <th>Company Name</th>
-                                    <th>Employee</th>
-                                    <th>Contact</th>
-                                    <th>Total Amount</th>
-                                    <th>Received</th>
-                                    <th>Balance</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="balancePaymentTableBody">
-                                <tr><td colspan="10" class="loading">Loading...</td></tr>
-                            </tbody>
-                        </table>
+                    <h2 class="card-title" style="margin-bottom: 20px;">Balance Payments</h2>
+                    
+                    <!-- Tabs -->
+                    <div class="tabs" style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+                        <button class="tab-btn active" onclick="switchBalancePaymentTab('pending')" id="pending-balance-tab">
+                            <i class="fas fa-clock"></i> Pending Payments
+                        </button>
+                        <button class="tab-btn" onclick="switchBalancePaymentTab('history')" id="history-balance-tab">
+                            <i class="fas fa-history"></i> Payment History
+                        </button>
+                    </div>
+                    
+                    <!-- Pending Payments Tab -->
+                    <div id="pending-balance-content" class="tab-content">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>Date</th>
+                                        <th>Customer Name</th>
+                                        <th>Company Name</th>
+                                        <th>Employee</th>
+                                        <th>Contact</th>
+                                        <th>Total Amount</th>
+                                        <th>Received</th>
+                                        <th>Balance</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="balancePaymentTableBody">
+                                    <tr><td colspan="10" class="loading">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment History Tab -->
+                    <div id="history-balance-content" class="tab-content" style="display: none;">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>Customer Name</th>
+                                        <th>Company Name</th>
+                                        <th>Payment Date</th>
+                                        <th>Amount</th>
+                                        <th>Account</th>
+                                        <th>Payment Reference</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="balancePaymentHistoryTableBody">
+                                    <tr><td colspan="7" class="loading">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4356,6 +4537,7 @@ app.get('/', (c) => {
                 try {
                     const response = await axios.get('/api/sales');
                     const sales = response.data.data;
+                    allSalesForSearch = sales; // Store for search autocomplete
                     
                     const tbody = document.getElementById('allSalesTableBody');
                     const isAdmin = currentUser && currentUser.role === 'admin';
@@ -4437,6 +4619,75 @@ app.get('/', (c) => {
             function updatePaymentFor(orderId) {
                 openBalancePaymentModal();
                 document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
+            }
+
+            // Switch Balance Payment Tabs
+            function switchBalancePaymentTab(tab) {
+                // Update tab buttons
+                document.getElementById('pending-balance-tab').classList.remove('active');
+                document.getElementById('history-balance-tab').classList.remove('active');
+                
+                // Update content visibility
+                document.getElementById('pending-balance-content').style.display = 'none';
+                document.getElementById('history-balance-content').style.display = 'none';
+                
+                if (tab === 'pending') {
+                    document.getElementById('pending-balance-tab').classList.add('active');
+                    document.getElementById('pending-balance-content').style.display = 'block';
+                    loadBalancePayments();
+                } else if (tab === 'history') {
+                    document.getElementById('history-balance-tab').classList.add('active');
+                    document.getElementById('history-balance-content').style.display = 'block';
+                    loadBalancePaymentHistory();
+                }
+            }
+
+            // Load Balance Payment History
+            async function loadBalancePaymentHistory() {
+                try {
+                    const response = await axios.get('/api/sales/balance-payment-history');
+                    const payments = response.data.data;
+                    
+                    const tbody = document.getElementById('balancePaymentHistoryTableBody');
+                    if (!payments || payments.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #6b7280;">No balance payments recorded this month</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = payments.map(payment => {
+                        let paymentDate = 'N/A';
+                        try {
+                            if (payment.payment_date) {
+                                const date = new Date(payment.payment_date);
+                                if (!isNaN(date.getTime())) {
+                                    paymentDate = date.toLocaleDateString('en-IN', { 
+                                        day: '2-digit', 
+                                        month: 'short', 
+                                        year: 'numeric' 
+                                    });
+                                }
+                            }
+                        } catch (e) {
+                            paymentDate = 'Invalid Date';
+                        }
+                        
+                        return \`
+                        <tr>
+                            <td><strong>\${payment.order_id}</strong></td>
+                            <td>\${payment.customer_name || 'N/A'}</td>
+                            <td>\${payment.company_name || 'N/A'}</td>
+                            <td>\${paymentDate}</td>
+                            <td style="color: #10b981; font-weight: 600;">₹\${payment.amount.toLocaleString()}</td>
+                            <td>\${payment.account_received || 'N/A'}</td>
+                            <td>\${payment.payment_reference || 'N/A'}</td>
+                        </tr>
+                        \`;
+                    }).join('');
+                } catch (error) {
+                    console.error('Error loading balance payment history:', error);
+                    const tbody = document.getElementById('balancePaymentHistoryTableBody');
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #dc2626;">Error loading payment history</td></tr>';
+                }
             }
 
             async function loadLeads(search = '') {
@@ -4844,6 +5095,242 @@ app.get('/', (c) => {
             }
             
             // Search customer function
+            // Autocomplete for Customer Search
+            let customerSearchTimeout;
+            let allLeadsForSearch = [];
+            
+            async function searchCustomerWithAutocomplete() {
+                clearTimeout(customerSearchTimeout);
+                const searchTerm = document.getElementById('customerSearchInput').value.trim();
+                
+                if (!searchTerm || searchTerm.length < 2) {
+                    document.getElementById('customerSearchDropdown').style.display = 'none';
+                    return;
+                }
+                
+                customerSearchTimeout = setTimeout(async () => {
+                    try {
+                        const response = await axios.get('/api/leads?search=' + encodeURIComponent(searchTerm));
+                        const leads = response.data.data;
+                        displayCustomerAutocomplete(leads);
+                    } catch (error) {
+                        console.error('Error searching customers:', error);
+                    }
+                }, 300);
+            }
+            
+            function showCustomerSearchDropdown() {
+                if (allLeadsForSearch.length > 0) {
+                    displayCustomerAutocomplete(allLeadsForSearch);
+                }
+            }
+            
+            function displayCustomerAutocomplete(leads) {
+                const dropdown = document.getElementById('customerSearchDropdown');
+                
+                if (!leads || leads.length === 0) {
+                    dropdown.innerHTML = '<div class="autocomplete-no-results">No customers found</div>';
+                    dropdown.style.display = 'block';
+                    return;
+                }
+                
+                allLeadsForSearch = leads;
+                dropdown.innerHTML = leads.slice(0, 10).map(lead => \`
+                    <div class="autocomplete-item" onclick="selectCustomer('\${lead.customer_code}', '\${lead.mobile_number}')">
+                        <div class="autocomplete-item-title">\${lead.customer_name}</div>
+                        <div class="autocomplete-item-subtitle">
+                            Code: \${lead.customer_code} | Mobile: \${lead.mobile_number} | Company: \${lead.company_name || 'N/A'}
+                        </div>
+                    </div>
+                \`).join('');
+                dropdown.style.display = 'block';
+            }
+            
+            function selectCustomer(customerCode, mobileNumber) {
+                document.getElementById('customerSearchInput').value = customerCode;
+                document.getElementById('customerSearchDropdown').style.display = 'none';
+                searchCustomerByCode(customerCode);
+            }
+            
+            async function searchCustomerByCode(customerCode) {
+                try {
+                    const response = await axios.get('/api/leads?search=' + encodeURIComponent(customerCode));
+                    const leads = response.data.data;
+                    
+                    if (!leads || leads.length === 0) {
+                        alert('No customer found');
+                        return;
+                    }
+                    
+                    const customer = leads[0];
+                    
+                    // Display customer info
+                    document.getElementById('customerInfo').innerHTML = 
+                        '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">' +
+                            '<div><strong>Customer Code:</strong> ' + (customer.customer_code || 'N/A') + '</div>' +
+                            '<div><strong>Name:</strong> ' + customer.customer_name + '</div>' +
+                            '<div><strong>Mobile:</strong> ' + customer.mobile_number + '</div>' +
+                            '<div><strong>Alternate Mobile:</strong> ' + (customer.alternate_mobile || 'N/A') + '</div>' +
+                            '<div><strong>Company:</strong> ' + (customer.company_name || 'N/A') + '</div>' +
+                            '<div><strong>Email:</strong> ' + (customer.email || 'N/A') + '</div>' +
+                            '<div><strong>Location:</strong> ' + (customer.location || 'N/A') + '</div>' +
+                            '<div><strong>GST:</strong> ' + (customer.gst_number || 'N/A') + '</div>' +
+                        '</div>';
+                    
+                    // Fetch sales for this customer
+                    const salesResponse = await axios.get('/api/sales/current-month?page=1&limit=1000');
+                    const allSales = salesResponse.data.data;
+                    
+                    // Filter sales by customer code or mobile
+                    const customerSales = allSales.filter(sale => 
+                        sale.customer_code === customer.customer_code || 
+                        sale.customer_contact === customer.mobile_number
+                    );
+                    
+                    // Display sales
+                    const tbody = document.getElementById('customerSalesTableBody');
+                    if (customerSales.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No sales found for this customer</td></tr>';
+                    } else {
+                        tbody.innerHTML = customerSales.map(sale => {
+                            const items = sale.items || [];
+                            const products = items.length > 0 
+                                ? items.map(item => item.product_name + ' (x' + item.quantity + ')').join(', ')
+                                : 'No products';
+                            
+                            return '<tr>' +
+                                '<td><strong>' + sale.order_id + '</strong></td>' +
+                                '<td>' + new Date(sale.sale_date).toLocaleDateString() + '</td>' +
+                                '<td><small>' + products + '</small></td>' +
+                                '<td>₹' + sale.total_amount.toLocaleString() + '</td>' +
+                                '<td>' + (sale.balance_amount > 0 ? '<span style="color: #dc2626;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>') + '</td>' +
+                            '</tr>';
+                        }).join('');
+                    }
+                    
+                    document.getElementById('customerDetailsResult').style.display = 'block';
+                } catch (error) {
+                    console.error('Error loading customer:', error);
+                }
+            }
+            
+            // Autocomplete for Sale Database Search
+            let saleSearchTimeout;
+            let allSalesForSearch = [];
+            
+            async function searchSalesWithAutocomplete() {
+                clearTimeout(saleSearchTimeout);
+                const searchTerm = document.getElementById('saleSearchInput').value.trim().toLowerCase();
+                
+                if (!searchTerm || searchTerm.length < 2) {
+                    document.getElementById('saleSearchDropdown').style.display = 'none';
+                    loadAllSales(); // Show all sales
+                    return;
+                }
+                
+                saleSearchTimeout = setTimeout(async () => {
+                    if (allSalesForSearch.length === 0) {
+                        const response = await axios.get('/api/sales');
+                        allSalesForSearch = response.data.data;
+                    }
+                    
+                    const filtered = allSalesForSearch.filter(sale => 
+                        (sale.customer_name && sale.customer_name.toLowerCase().includes(searchTerm)) ||
+                        (sale.company_name && sale.company_name.toLowerCase().includes(searchTerm)) ||
+                        (sale.order_id && sale.order_id.toLowerCase().includes(searchTerm)) ||
+                        (sale.customer_contact && sale.customer_contact.includes(searchTerm))
+                    );
+                    
+                    displaySaleAutocomplete(filtered);
+                    filterSalesTable(filtered);
+                }, 300);
+            }
+            
+            function showSaleSearchDropdown() {
+                const searchTerm = document.getElementById('saleSearchInput').value.trim();
+                if (searchTerm.length >= 2 && allSalesForSearch.length > 0) {
+                    searchSalesWithAutocomplete();
+                }
+            }
+            
+            function displaySaleAutocomplete(sales) {
+                const dropdown = document.getElementById('saleSearchDropdown');
+                
+                if (!sales || sales.length === 0) {
+                    dropdown.innerHTML = '<div class="autocomplete-no-results">No sales found</div>';
+                    dropdown.style.display = 'block';
+                    return;
+                }
+                
+                dropdown.innerHTML = sales.slice(0, 10).map(sale => \`
+                    <div class="autocomplete-item" onclick="selectSale('\${sale.order_id}')">
+                        <div class="autocomplete-item-title">Order #\${sale.order_id} - \${sale.customer_name || 'N/A'}</div>
+                        <div class="autocomplete-item-subtitle">
+                            Company: \${sale.company_name || 'N/A'} | Date: \${new Date(sale.sale_date).toLocaleDateString()} | Amount: ₹\${sale.total_amount.toLocaleString()}
+                        </div>
+                    </div>
+                \`).join('');
+                dropdown.style.display = 'block';
+            }
+            
+            function selectSale(orderId) {
+                document.getElementById('saleSearchInput').value = orderId;
+                document.getElementById('saleSearchDropdown').style.display = 'none';
+                viewSaleDetails(orderId);
+            }
+            
+            function filterSalesTable(filteredSales) {
+                const tbody = document.getElementById('allSalesTableBody');
+                
+                if (!filteredSales || filteredSales.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #6b7280;">No sales found matching your search</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = filteredSales.map(sale => {
+                    let saleDate = 'N/A';
+                    try {
+                        if (sale.sale_date) {
+                            const date = new Date(sale.sale_date);
+                            if (!isNaN(date.getTime())) {
+                                saleDate = date.toLocaleDateString('en-IN', { 
+                                    day: '2-digit', 
+                                    month: 'short', 
+                                    year: 'numeric' 
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        saleDate = 'Invalid Date';
+                    }
+                    
+                    return \`
+                    <tr style="cursor: pointer;" onclick="viewSaleDetails('\${sale.order_id}')" title="Click to view sale details">
+                        <td><strong>\${sale.order_id}</strong></td>
+                        <td>\${saleDate}</td>
+                        <td>\${sale.customer_name || sale.customer_code}</td>
+                        <td>\${sale.employee_name}</td>
+                        <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
+                        <td>₹\${sale.total_amount.toLocaleString()}</td>
+                        <td>\${sale.balance_amount > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>'}</td>
+                        <td>
+                            \${currentUser && currentUser.role === 'admin' ? '<button class="btn-danger" style="padding: 5px 8px;" onclick="event.stopPropagation(); deleteSale(\\'' + sale.order_id + '\\')" title="Delete Sale"><i class="fas fa-trash"></i></button>' : '-'}
+                        </td>
+                    </tr>
+                    \`;
+                }).join('');
+            }
+            
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!event.target.closest('#customerSearchInput') && !event.target.closest('#customerSearchDropdown')) {
+                    document.getElementById('customerSearchDropdown').style.display = 'none';
+                }
+                if (!event.target.closest('#saleSearchInput') && !event.target.closest('#saleSearchDropdown')) {
+                    document.getElementById('saleSearchDropdown').style.display = 'none';
+                }
+            });
+
             async function searchCustomer() {
                 const searchTerm = document.getElementById('customerSearchInput').value.trim();
                 
