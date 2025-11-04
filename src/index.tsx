@@ -3867,24 +3867,28 @@ app.get('/', (c) => {
                     const response = await axios.get(\`/api/sales/order/\${orderId}\`);
                     const sale = response.data.data;
                     
-                    const productsTable = sale.items.map(item => \`
-                        <tr>
-                            <td>\${item.product_name}</td>
-                            <td>\${item.product_code || '-'}</td>
-                            <td>\${item.quantity}</td>
-                            <td>₹\${item.unit_price.toLocaleString()}</td>
-                            <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
-                        </tr>
-                    \`).join('');
+                    const productsTable = sale.items && sale.items.length > 0
+                        ? sale.items.map(item => \`
+                            <tr>
+                                <td>\${item.product_name}</td>
+                                <td>\${item.product_code || '-'}</td>
+                                <td>\${item.quantity}</td>
+                                <td>₹\${item.unit_price.toLocaleString()}</td>
+                                <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
+                            </tr>
+                        \`).join('')
+                        : '<tr><td colspan="5" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
                     
-                    const paymentsTable = sale.payments.map(payment => \`
-                        <tr>
-                            <td>\${new Date(payment.payment_date).toLocaleDateString()}</td>
-                            <td>₹\${payment.amount.toLocaleString()}</td>
-                            <td>\${payment.payment_reference || '-'}</td>
-                            <td>\${payment.account_received || '-'}</td>
-                        </tr>
-                    \`).join('');
+                    const paymentsTable = sale.payments && sale.payments.length > 0
+                        ? sale.payments.map(payment => \`
+                            <tr>
+                                <td>\${new Date(payment.payment_date).toLocaleDateString()}</td>
+                                <td>₹\${payment.amount.toLocaleString()}</td>
+                                <td>\${payment.payment_reference || '-'}</td>
+                                <td>\${payment.account_received || '-'}</td>
+                            </tr>
+                        \`).join('')
+                        : '<tr><td colspan="4" style="text-align: center; color: #9ca3af; padding: 20px;">No payments recorded</td></tr>';
                     
                     content.innerHTML = \`
                         <div style="margin-bottom: 20px;">
@@ -3973,7 +3977,7 @@ app.get('/', (c) => {
                             </div>
                         </div>
                         
-                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Payment History (\${sale.payments.length} payment(s))</h3>
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Payment History (\${sale.payments ? sale.payments.length : 0} payment(s))</h3>
                         <div class="table-container">
                             <table>
                                 <thead>
