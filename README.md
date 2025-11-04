@@ -102,8 +102,8 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 
 ## URLs
 
+- **Production**: https://webapp-6dk.pages.dev (Stable URL - always points to latest deployment)
 - **Local Development**: http://localhost:3000
-- **Public URL**: https://3000-id7zgaopnm7accybu066c-b32ec7bb.sandbox.novita.ai
 - **API Base**: `/api`
 
 ## API Endpoints
