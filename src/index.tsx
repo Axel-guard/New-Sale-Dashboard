@@ -1715,6 +1715,68 @@ app.delete('/api/quotations/:id', async (c) => {
   }
 });
 
+// ===== PRODUCT CATEGORIES API ENDPOINTS =====
+
+// Get all categories
+app.get('/api/categories', async (c) => {
+  const { env } = c;
+  try {
+    const categories = await env.DB.prepare(`SELECT * FROM product_categories ORDER BY category_name ASC`).all();
+    return c.json({ success: true, data: categories.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch categories' }, 500);
+  }
+});
+
+// Get products by category
+app.get('/api/products/category/:categoryId', async (c) => {
+  const { env } = c;
+  const categoryId = c.req.param('categoryId');
+  
+  try {
+    const products = await env.DB.prepare(`
+      SELECT * FROM products WHERE category_id = ? ORDER BY product_name ASC
+    `).bind(categoryId).all();
+    return c.json({ success: true, data: products.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch products' }, 500);
+  }
+});
+
+// Get all products
+app.get('/api/products', async (c) => {
+  const { env } = c;
+  try {
+    const products = await env.DB.prepare(`
+      SELECT p.*, pc.category_name 
+      FROM products p 
+      LEFT JOIN product_categories pc ON p.category_id = pc.id 
+      ORDER BY p.product_name ASC
+    `).all();
+    return c.json({ success: true, data: products.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch products' }, 500);
+  }
+});
+
+// Add new product
+app.post('/api/products', async (c) => {
+  const { env } = c;
+  try {
+    const body = await c.req.json();
+    const { product_name, category_id, unit_price } = body;
+    
+    await env.DB.prepare(`
+      INSERT INTO products (product_name, category_id, unit_price)
+      VALUES (?, ?, ?)
+    `).bind(product_name, category_id || null, unit_price || 0).run();
+    
+    return c.json({ success: true });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to add product' }, 500);
+  }
+});
+
 // Home page with dashboard
 app.get('/', (c) => {
   return c.html(`
@@ -3865,8 +3927,8 @@ app.get('/', (c) => {
                             <thead style="background: #f9fafb;">
                                 <tr>
                                     <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">#</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Category</th>
                                     <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Item Name</th>
-                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">HSN/SAC</th>
                                     <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Quantity</th>
                                     <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Unit Price</th>
                                     <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Amount</th>
@@ -3881,6 +3943,21 @@ app.get('/', (c) => {
                     <button type="button" class="btn-add" onclick="addQuotationItem()">
                         <i class="fas fa-plus"></i> Add Item
                     </button>
+                    
+                    <!-- Courier and Bill Type -->
+                    <div class="form-row" style="margin-top: 20px;">
+                        <div class="form-group">
+                            <label>Courier Charges</label>
+                            <input type="number" id="quotationCourierCost" name="courier_cost" min="0" step="0.01" value="0" onchange="calculateQuotationTotal()" placeholder="Enter courier charges">
+                        </div>
+                        <div class="form-group">
+                            <label>Bill Type</label>
+                            <select id="quotationBillType" name="bill_type" onchange="calculateQuotationTotal()">
+                                <option value="with">With GST (18%)</option>
+                                <option value="without">Without GST</option>
+                            </select>
+                        </div>
+                    </div>
 
                     <!-- Totals Section -->
                     <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -3888,7 +3965,10 @@ app.get('/', (c) => {
                             <div style="font-weight: 600;">Subtotal:</div>
                             <div style="text-align: right;" id="quotationSubtotal">₹0.00</div>
                             
-                            <div style="font-weight: 600;">GST (18%):</div>
+                            <div style="font-weight: 600;">Courier Charges:</div>
+                            <div style="text-align: right;" id="quotationCourierDisplay">₹0.00</div>
+                            
+                            <div style="font-weight: 600;" id="quotationGSTLabel">GST (18%):</div>
                             <div style="text-align: right;" id="quotationGST">₹0.00</div>
                             
                             <div style="font-weight: 700; font-size: 18px; padding-top: 10px; border-top: 2px solid #667eea; color: #667eea;">Total Amount:</div>
@@ -6004,19 +6084,37 @@ Prices are subject to change without prior notice.</textarea>
             }
 
             // Add Quotation Item Row
-            function addQuotationItem() {
+            async function addQuotationItem() {
                 quotationItemCounter++;
                 const tbody = document.getElementById('quotationItemsRows');
                 const row = document.createElement('tr');
                 row.setAttribute('data-item-id', quotationItemCounter);
+                
+                // Fetch categories for dropdown
+                let categoriesOptions = '<option value="">Select Category</option>';
+                try {
+                    const catResponse = await axios.get('/api/categories');
+                    if (catResponse.data.success) {
+                        categoriesOptions += catResponse.data.data.map(cat => 
+                            '<option value="' + cat.id + '">' + cat.category_name + '</option>'
+                        ).join('');
+                    }
+                } catch (error) {
+                    console.error('Error loading categories:', error);
+                }
+                
                 row.innerHTML = '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + quotationItemCounter + '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<input type="text" class="quotation-item-name" placeholder="Enter item name" ' +
+                        '<select class="quotation-item-category" onchange="loadProductsByCategory(this)" ' +
                                'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
+                            categoriesOptions +
+                        '</select>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<input type="text" class="quotation-item-hsn" placeholder="HSN/SAC" ' +
-                               'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">' +
+                        '<select class="quotation-item-product" onchange="fillProductPrice(this)" ' +
+                               'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
+                            '<option value="">Select Product</option>' +
+                        '</select>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
                         '<input type="number" class="quotation-item-quantity" value="1" min="1" ' +
@@ -6036,6 +6134,43 @@ Prices are subject to change without prior notice.</textarea>
                         '</button>' +
                     '</td>';
                 tbody.appendChild(row);
+            }
+            
+            // Load products by category
+            async function loadProductsByCategory(selectElement) {
+                const categoryId = selectElement.value;
+                const row = selectElement.closest('tr');
+                const productSelect = row.querySelector('.quotation-item-product');
+                
+                productSelect.innerHTML = '<option value="">Select Product</option>';
+                
+                if (!categoryId) return;
+                
+                try {
+                    const response = await axios.get('/api/products/category/' + categoryId);
+                    if (response.data.success) {
+                        const products = response.data.data;
+                        products.forEach(product => {
+                            const option = document.createElement('option');
+                            option.value = product.id;
+                            option.textContent = product.product_name;
+                            option.dataset.price = product.unit_price;
+                            productSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading products:', error);
+                }
+            }
+            
+            // Fill product price when product selected
+            function fillProductPrice(selectElement) {
+                const selectedOption = selectElement.options[selectElement.selectedIndex];
+                const price = selectedOption.dataset.price || 0;
+                const row = selectElement.closest('tr');
+                const priceInput = row.querySelector('.quotation-item-price');
+                priceInput.value = price;
+                calculateQuotationItemTotal(priceInput);
             }
 
             // Remove Quotation Item
@@ -6074,12 +6209,26 @@ Prices are subject to change without prior notice.</textarea>
                     subtotal += quantity * price;
                 });
                 
-                const gst = subtotal * 0.18;
-                const total = subtotal + gst;
+                const courierCost = parseFloat(document.getElementById('quotationCourierCost').value) || 0;
+                const billType = document.getElementById('quotationBillType').value;
+                const gst = billType === 'with' ? (subtotal + courierCost) * 0.18 : 0;
+                const total = subtotal + courierCost + gst;
                 
                 document.getElementById('quotationSubtotal').textContent = '₹' + subtotal.toFixed(2);
+                document.getElementById('quotationCourierDisplay').textContent = '₹' + courierCost.toFixed(2);
                 document.getElementById('quotationGST').textContent = '₹' + gst.toFixed(2);
                 document.getElementById('quotationTotal').textContent = '₹' + total.toFixed(2);
+                
+                // Show/hide GST row based on bill type
+                const gstLabel = document.getElementById('quotationGSTLabel');
+                const gstValue = document.getElementById('quotationGST');
+                if (billType === 'without') {
+                    gstLabel.style.display = 'none';
+                    gstValue.style.display = 'none';
+                } else {
+                    gstLabel.style.display = 'block';
+                    gstValue.style.display = 'block';
+                }
             }
 
             // Submit New Quotation
