@@ -4000,6 +4000,30 @@ Prices are subject to change without prior notice.</textarea>
             </div>
         </div>
 
+        <!-- Quotation Preview Modal -->
+        <div class="modal" id="quotationPreviewModal">
+            <div class="modal-content" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Quotation Preview</h2>
+                    <span class="close" onclick="document.getElementById('quotationPreviewModal').classList.remove('show')">&times;</span>
+                </div>
+                <div id="quotationPreviewContent">
+                    <div class="loading">Loading...</div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                    <button class="btn-primary" style="flex: 1;" onclick="downloadQuotationPDF()">
+                        <i class="fas fa-download"></i> Download PDF
+                    </button>
+                    <button class="btn-primary" style="flex: 1;" onclick="editCurrentQuotation()">
+                        <i class="fas fa-edit"></i> Edit Quotation
+                    </button>
+                    <button class="btn-secondary" style="flex: 1;" onclick="document.getElementById('quotationPreviewModal').classList.remove('show')">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
             let currentPage = 'dashboard'; // Track current page
@@ -6242,12 +6266,16 @@ Prices are subject to change without prior notice.</textarea>
                 const items = [];
                 const rows = document.querySelectorAll('#quotationItemsRows tr');
                 rows.forEach(row => {
+                    const productSelect = row.querySelector('.quotation-item-product');
+                    const productName = productSelect.options[productSelect.selectedIndex].text;
+                    const quantity = parseInt(row.querySelector('.quotation-item-quantity').value);
+                    const unitPrice = parseFloat(row.querySelector('.quotation-item-price').value);
+                    
                     const item = {
-                        product_name: row.querySelector('.quotation-item-name').value,
-                        hsn_sac: row.querySelector('.quotation-item-hsn').value,
-                        quantity: parseInt(row.querySelector('.quotation-item-quantity').value),
-                        unit_price: parseFloat(row.querySelector('.quotation-item-price').value),
-                        amount: parseFloat(row.querySelector('.quotation-item-quantity').value) * parseFloat(row.querySelector('.quotation-item-price').value)
+                        product_name: productName,
+                        quantity: quantity,
+                        unit_price: unitPrice,
+                        amount: quantity * unitPrice
                     };
                     items.push(item);
                 });
@@ -6259,8 +6287,10 @@ Prices are subject to change without prior notice.</textarea>
                 
                 // Calculate totals
                 const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-                const gst_amount = subtotal * 0.18;
-                const total_amount = subtotal + gst_amount;
+                const courierCost = parseFloat(formData.get('courier_cost')) || 0;
+                const billType = formData.get('bill_type');
+                const gst_amount = billType === 'with' ? (subtotal + courierCost) * 0.18 : 0;
+                const total_amount = subtotal + courierCost + gst_amount;
                 
                 const quotationData = {
                     quotation_number: formData.get('quotation_number'),
@@ -6274,6 +6304,8 @@ Prices are subject to change without prior notice.</textarea>
                     concern_person_contact: formData.get('concern_person_contact'),
                     items: items,
                     subtotal: subtotal,
+                    courier_cost: courierCost,
+                    bill_type: billType,
                     gst_amount: gst_amount,
                     total_amount: total_amount,
                     notes: formData.get('notes'),
@@ -6285,15 +6317,161 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.post('/api/quotations', quotationData);
                     
                     if (response.data.success) {
-                        alert('Quotation created successfully!');
+                        // Close new quotation modal
                         document.getElementById('newQuotationModal').classList.remove('show');
-                        form.reset();
+                        
+                        // Show preview modal
+                        viewQuotationPreview(quotationData.quotation_number);
+                        
+                        // Refresh quotations list if on that page
+                        if (currentPage === 'quotations') {
+                            loadQuotations();
+                        }
                     } else {
                         alert('Error creating quotation: ' + response.data.error);
                     }
                 } catch (error) {
                     console.error('Error:', error);
                     alert('Failed to create quotation. Please try again.');
+                }
+            }
+            
+            // View Quotation Preview
+            let currentQuotationNumber = null;
+            
+            async function viewQuotationPreview(quotationNumber) {
+                currentQuotationNumber = quotationNumber;
+                const modal = document.getElementById('quotationPreviewModal');
+                const content = document.getElementById('quotationPreviewContent');
+                
+                modal.classList.add('show');
+                content.innerHTML = '<div class="loading">Loading...</div>';
+                
+                try {
+                    const response = await axios.get('/api/quotations/' + quotationNumber);
+                    const quotation = response.data.data;
+                    
+                    const items = JSON.parse(quotation.items || '[]');
+                    const billType = quotation.bill_type || 'with';
+                    
+                    const itemsTable = items.map((item, index) => 
+                        '<tr>' +
+                            '<td style="border: 1px solid #e5e7eb; padding: 8px; text-align: center;">' + (index + 1) + '</td>' +
+                            '<td style="border: 1px solid #e5e7eb; padding: 8px;">' + item.product_name + '</td>' +
+                            '<td style="border: 1px solid #e5e7eb; padding: 8px; text-align: center;">' + item.quantity + '</td>' +
+                            '<td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">₹' + item.unit_price.toLocaleString() + '</td>' +
+                            '<td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">₹' + item.amount.toLocaleString() + '</td>' +
+                        '</tr>'
+                    ).join('');
+                    
+                    content.innerHTML = '<div style="padding: 20px; background: white;">' +
+                        '<div style="text-align: center; margin-bottom: 30px;">' +
+                            '<img src="/static/logo-white.jpg" alt="Axelguard" style="height: 60px; margin-bottom: 10px;">' +
+                            '<h1 style="color: #1f2937; font-size: 24px; margin: 0;">AXELGUARD</h1>' +
+                            '<p style="color: #6b7280; margin: 5px 0;">Security & Surveillance Solutions</p>' +
+                        '</div>' +
+                        
+                        '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">' +
+                            '<div>' +
+                                '<h3 style="font-size: 16px; font-weight: 600; color: #667eea; margin-bottom: 10px;">QUOTATION TO:</h3>' +
+                                '<p style="margin: 5px 0;"><strong>' + quotation.customer_name + '</strong></p>' +
+                                (quotation.company_name ? '<p style="margin: 5px 0;">' + quotation.company_name + '</p>' : '') +
+                                '<p style="margin: 5px 0;">' + (quotation.customer_address || '') + '</p>' +
+                                '<p style="margin: 5px 0;">Mobile: ' + (quotation.customer_contact || '') + '</p>' +
+                                (quotation.customer_email ? '<p style="margin: 5px 0;">Email: ' + quotation.customer_email + '</p>' : '') +
+                            '</div>' +
+                            '<div style="text-align: right;">' +
+                                '<h3 style="font-size: 16px; font-weight: 600; color: #667eea; margin-bottom: 10px;">QUOTATION DETAILS:</h3>' +
+                                '<p style="margin: 5px 0;"><strong>Quotation #:</strong> ' + quotation.quotation_number + '</p>' +
+                                '<p style="margin: 5px 0;"><strong>Date:</strong> ' + new Date(quotation.created_at).toLocaleDateString() + '</p>' +
+                            '</div>' +
+                        '</div>' +
+                        
+                        '<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">' +
+                            '<thead style="background: #667eea; color: white;">' +
+                                '<tr>' +
+                                    '<th style="border: 1px solid #667eea; padding: 10px; text-align: center;">#</th>' +
+                                    '<th style="border: 1px solid #667eea; padding: 10px; text-align: left;">Item Description</th>' +
+                                    '<th style="border: 1px solid #667eea; padding: 10px; text-align: center;">Qty</th>' +
+                                    '<th style="border: 1px solid #667eea; padding: 10px; text-align: right;">Unit Price</th>' +
+                                    '<th style="border: 1px solid #667eea; padding: 10px; text-align: right;">Amount</th>' +
+                                '</tr>' +
+                            '</thead>' +
+                            '<tbody>' + itemsTable + '</tbody>' +
+                        '</table>' +
+                        
+                        '<div style="margin-top: 30px; display: flex; justify-content: flex-end;">' +
+                            '<div style="width: 300px;">' +
+                                '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">' +
+                                    '<span><strong>Subtotal:</strong></span>' +
+                                    '<span>₹' + quotation.subtotal.toLocaleString() + '</span>' +
+                                '</div>' +
+                                (quotation.courier_cost > 0 ? 
+                                    '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">' +
+                                        '<span><strong>Courier Charges:</strong></span>' +
+                                        '<span>₹' + quotation.courier_cost.toLocaleString() + '</span>' +
+                                    '</div>' : '') +
+                                '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 2px solid #667eea; font-size: 18px; font-weight: 600; color: #667eea;">' +
+                                    '<span>Total Amount:</span>' +
+                                    '<span>₹' + quotation.total_amount.toLocaleString() + '</span>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        
+                        (quotation.notes ? '<div style="margin-top: 30px;"><h4 style="color: #667eea; margin-bottom: 10px;">Notes:</h4><p style="color: #6b7280;">' + quotation.notes + '</p></div>' : '') +
+                        
+                        '<div style="margin-top: 30px; padding: 15px; background: #f9fafb; border-radius: 8px;">' +
+                            '<h4 style="color: #667eea; margin-bottom: 10px;">Terms & Conditions:</h4>' +
+                            '<p style="color: #6b7280; white-space: pre-line;">' + (quotation.terms_conditions || 'Standard terms apply.') + '</p>' +
+                        '</div>' +
+                        
+                        '<div style="margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 2px solid #e5e7eb; padding-top: 20px;">' +
+                            '<p>Thank you for your business!</p>' +
+                            '<p>For any queries, please contact us.</p>' +
+                        '</div>' +
+                    '</div>';
+                } catch (error) {
+                    console.error('Error loading quotation:', error);
+                    content.innerHTML = '<div class="card" style="background: #fee2e2; color: #991b1b;">Error loading quotation details</div>';
+                }
+            }
+            
+            // View quotation details (same as preview, for clicking rows)
+            function viewQuotationDetails(quotationNumber) {
+                viewQuotationPreview(quotationNumber);
+            }
+            
+            // Download Quotation PDF
+            function downloadQuotationPDF() {
+                alert('PDF download functionality will be implemented. For now, use browser Print (Ctrl+P) to save as PDF.');
+                window.print();
+            }
+            
+            // Edit current quotation
+            function editCurrentQuotation() {
+                if (currentQuotationNumber) {
+                    editQuotation(currentQuotationNumber);
+                }
+            }
+            
+            // Edit quotation (to be implemented)
+            function editQuotation(quotationNumber) {
+                alert('Edit quotation functionality coming soon! Quotation: ' + quotationNumber);
+                // TODO: Open edit modal with quotation data
+            }
+            
+            // Delete quotation
+            async function deleteQuotation(quotationNumber) {
+                if (!confirm('Are you sure you want to delete quotation ' + quotationNumber + '?')) {
+                    return;
+                }
+                
+                try {
+                    await axios.delete('/api/quotations/' + quotationNumber);
+                    alert('Quotation deleted successfully');
+                    loadQuotations();
+                } catch (error) {
+                    alert('Error deleting quotation: ' + (error.response?.data?.error || error.message));
                 }
             }
             
