@@ -1,0 +1,431 @@
+# Quotation Modal HTML Code
+
+## Instructions
+Add this code after the "Edit Lead Modal" (around line 3663 in index.tsx)
+
+```html
+        <!-- New Quotation Modal -->
+        <div class="modal" id="newQuotationModal">
+            <div class="modal-content" style="max-width: 1200px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Create New Quotation</h2>
+                    <span class="close" onclick="document.getElementById('newQuotationModal').classList.remove('show')">&times;</span>
+                </div>
+                <form id="newQuotationForm" onsubmit="submitNewQuotation(event)">
+                    <input type="hidden" name="quotation_number" id="quotationNumber">
+                    
+                    <!-- Customer Search Section -->
+                    <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #374151;">
+                            <i class="fas fa-user"></i> Customer Details
+                        </h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Search Customer (Code or Mobile) *</label>
+                                <input type="text" id="quotationCustomerSearch" placeholder="Enter customer code or mobile number" onblur="fetchCustomerForQuotation(this.value)">
+                                <small id="quotationCustomerFetchStatus" style="display: none; font-size: 11px;"></small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Customer Information (Auto-filled or Manual) -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Code</label>
+                            <input type="text" id="quotationCustomerCode" name="customer_code" placeholder="Auto-filled or enter manually">
+                        </div>
+                        <div class="form-group">
+                            <label>Customer Name *</label>
+                            <input type="text" id="quotationCustomerName" name="customer_name" required placeholder="Auto-filled or enter manually">
+                        </div>
+                        <div class="form-group">
+                            <label>Mobile Number *</label>
+                            <input type="tel" id="quotationCustomerContact" name="customer_contact" required placeholder="Auto-filled or enter manually">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Email *</label>
+                            <input type="email" id="quotationCustomerEmail" name="customer_email" required placeholder="Enter email address">
+                        </div>
+                        <div class="form-group">
+                            <label>Company Name</label>
+                            <input type="text" id="quotationCompanyName" name="company_name" placeholder="Auto-filled or enter manually">
+                        </div>
+                        <div class="form-group">
+                            <label>Concern Person Name</label>
+                            <input type="text" id="quotationConcernPerson" name="concern_person_name" placeholder="Enter concern person name">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Concern Person Contact</label>
+                            <input type="tel" id="quotationConcernContact" name="concern_person_contact" placeholder="Enter concern person contact">
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Customer Address *</label>
+                            <textarea id="quotationCustomerAddress" name="customer_address" rows="2" required placeholder="Auto-filled or enter manually"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Items Section -->
+                    <h3 style="margin: 20px 0 15px 0; font-size: 16px; font-weight: 600; color: #374151;">
+                        <i class="fas fa-box"></i> Items
+                    </h3>
+                    <div id="quotationItemsTable" style="margin-bottom: 15px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead style="background: #f9fafb;">
+                                <tr>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">#</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Item Name</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">HSN/SAC</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Quantity</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Unit Price</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Amount</th>
+                                    <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotationItemsRows">
+                                <!-- Items will be added here dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-add" onclick="addQuotationItem()">
+                        <i class="fas fa-plus"></i> Add Item
+                    </button>
+
+                    <!-- Totals Section -->
+                    <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 400px; margin-left: auto;">
+                            <div style="font-weight: 600;">Subtotal:</div>
+                            <div style="text-align: right;" id="quotationSubtotal">₹0.00</div>
+                            
+                            <div style="font-weight: 600;">GST (18%):</div>
+                            <div style="text-align: right;" id="quotationGST">₹0.00</div>
+                            
+                            <div style="font-weight: 700; font-size: 18px; padding-top: 10px; border-top: 2px solid #667eea; color: #667eea;">Total Amount:</div>
+                            <div style="text-align: right; font-weight: 700; font-size: 18px; padding-top: 10px; border-top: 2px solid #667eea; color: #667eea;" id="quotationTotal">₹0.00</div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Information -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea name="notes" rows="3" placeholder="Add any additional notes"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Terms & Conditions</label>
+                            <textarea name="terms_conditions" rows="3" placeholder="Quotation validity, payment terms, etc.">This quotation is valid for 30 days from the date of issue.
+Payment terms: 100% advance or as mutually agreed.
+Prices are subject to change without prior notice.</textarea>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="submit" class="btn-primary" style="flex: 1;">
+                            <i class="fas fa-save"></i> Save Quotation
+                        </button>
+                        <button type="button" class="btn-primary" style="flex: 1; background: #10b981;" onclick="saveAndSendQuotation()">
+                            <i class="fas fa-envelope"></i> Save & Send Email
+                        </button>
+                        <button type="button" class="btn-primary" style="flex: 1; background: #f59e0b;" onclick="downloadQuotationPDF()">
+                            <i class="fas fa-download"></i> Download PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+```
+
+## Next: Add JavaScript Functions
+
+After adding the modal HTML, you need to add these JavaScript functions. Find the JavaScript section (around line 3800+) and add these functions:
+
+```javascript
+// ===== QUOTATION FUNCTIONS =====
+
+// Open New Quotation Modal
+function openNewQuotationModal() {
+    document.getElementById('actionMenu').classList.remove('show');
+    const modal = document.getElementById('newQuotationModal');
+    modal.classList.add('show');
+    
+    // Generate quotation number
+    generateQuotationNumber();
+    
+    // Clear form
+    document.getElementById('newQuotationForm').reset();
+    document.getElementById('quotationItemsRows').innerHTML = '';
+    
+    // Add first item row
+    addQuotationItem();
+}
+
+// Generate Quotation Number
+async function generateQuotationNumber() {
+    try {
+        const response = await axios.get('/api/quotations/generate-number');
+        if (response.data.success) {
+            document.getElementById('quotationNumber').value = response.data.quotation_number;
+        }
+    } catch (error) {
+        console.error('Error generating quotation number:', error);
+    }
+}
+
+// Fetch Customer Details for Quotation
+async function fetchCustomerForQuotation(searchTerm) {
+    if (!searchTerm || searchTerm.trim() === '') return;
+    
+    const statusEl = document.getElementById('quotationCustomerFetchStatus');
+    statusEl.style.display = 'block';
+    statusEl.style.color = '#667eea';
+    statusEl.textContent = 'Searching customer...';
+    
+    try {
+        const response = await axios.get(`/api/leads?search=${encodeURIComponent(searchTerm)}`);
+        
+        if (response.data.success && response.data.data.length > 0) {
+            const customer = response.data.data[0];
+            
+            // Fill in customer details
+            document.getElementById('quotationCustomerCode').value = customer.customer_code || '';
+            document.getElementById('quotationCustomerName').value = customer.customer_name || '';
+            document.getElementById('quotationCustomerContact').value = customer.mobile_number || '';
+            document.getElementById('quotationCustomerEmail').value = customer.email || '';
+            document.getElementById('quotationCompanyName').value = customer.company_name || '';
+            document.getElementById('quotationCustomerAddress').value = customer.complete_address || '';
+            
+            statusEl.style.color = '#10b981';
+            statusEl.textContent = '✓ Customer found and details filled!';
+            
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 3000);
+        } else {
+            statusEl.style.color = '#f59e0b';
+            statusEl.textContent = 'Customer not found. Please enter details manually.';
+            
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 3000);
+        }
+    } catch (error) {
+        console.error('Error fetching customer:', error);
+        statusEl.style.color = '#dc2626';
+        statusEl.textContent = 'Error fetching customer. Please enter manually.';
+    }
+}
+
+// Add Quotation Item Row
+let quotationItemCounter = 0;
+function addQuotationItem() {
+    quotationItemCounter++;
+    const tbody = document.getElementById('quotationItemsRows');
+    const row = document.createElement('tr');
+    row.setAttribute('data-item-id', quotationItemCounter);
+    row.innerHTML = `
+        <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${quotationItemCounter}</td>
+        <td style="padding: 8px; border: 1px solid #e5e7eb;">
+            <input type="text" class="quotation-item-name" placeholder="Enter item name" 
+                   style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>
+        </td>
+        <td style="padding: 8px; border: 1px solid #e5e7eb;">
+            <input type="text" class="quotation-item-hsn" placeholder="HSN/SAC" 
+                   style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">
+        </td>
+        <td style="padding: 8px; border: 1px solid #e5e7eb;">
+            <input type="number" class="quotation-item-quantity" value="1" min="1" 
+                   style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" 
+                   onchange="calculateQuotationItemTotal(this)" required>
+        </td>
+        <td style="padding: 8px; border: 1px solid #e5e7eb;">
+            <input type="number" class="quotation-item-price" value="0" min="0" step="0.01" 
+                   style="width: 120px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" 
+                   onchange="calculateQuotationItemTotal(this)" required>
+        </td>
+        <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: 600;" class="quotation-item-amount">₹0.00</td>
+        <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">
+            <button type="button" onclick="removeQuotationItem(this)" 
+                    style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(row);
+}
+
+// Remove Quotation Item
+function removeQuotationItem(button) {
+    const row = button.closest('tr');
+    row.remove();
+    calculateQuotationTotal();
+    
+    // Renumber items
+    const rows = document.querySelectorAll('#quotationItemsRows tr');
+    rows.forEach((row, index) => {
+        row.querySelector('td:first-child').textContent = index + 1;
+    });
+}
+
+// Calculate Quotation Item Total
+function calculateQuotationItemTotal(input) {
+    const row = input.closest('tr');
+    const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
+    const price = parseFloat(row.querySelector('.quotation-item-price').value) || 0;
+    const amount = quantity * price;
+    
+    row.querySelector('.quotation-item-amount').textContent = `₹${amount.toFixed(2)}`;
+    
+    calculateQuotationTotal();
+}
+
+// Calculate Quotation Total
+function calculateQuotationTotal() {
+    const rows = document.querySelectorAll('#quotationItemsRows tr');
+    let subtotal = 0;
+    
+    rows.forEach(row => {
+        const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
+        const price = parseFloat(row.querySelector('.quotation-item-price').value) || 0;
+        subtotal += quantity * price;
+    });
+    
+    const gst = subtotal * 0.18;
+    const total = subtotal + gst;
+    
+    document.getElementById('quotationSubtotal').textContent = `₹${subtotal.toFixed(2)}`;
+    document.getElementById('quotationGST').textContent = `₹${gst.toFixed(2)}`;
+    document.getElementById('quotationTotal').textContent = `₹${total.toFixed(2)}`;
+}
+
+// Submit New Quotation
+async function submitNewQuotation(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    // Collect items
+    const items = [];
+    const rows = document.querySelectorAll('#quotationItemsRows tr');
+    rows.forEach(row => {
+        const item = {
+            product_name: row.querySelector('.quotation-item-name').value,
+            hsn_sac: row.querySelector('.quotation-item-hsn').value,
+            quantity: parseInt(row.querySelector('.quotation-item-quantity').value),
+            unit_price: parseFloat(row.querySelector('.quotation-item-price').value),
+            amount: parseFloat(row.querySelector('.quotation-item-quantity').value) * parseFloat(row.querySelector('.quotation-item-price').value)
+        };
+        items.push(item);
+    });
+    
+    if (items.length === 0) {
+        alert('Please add at least one item');
+        return;
+    }
+    
+    // Calculate totals
+    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const gst_amount = subtotal * 0.18;
+    const total_amount = subtotal + gst_amount;
+    
+    const quotationData = {
+        quotation_number: formData.get('quotation_number'),
+        customer_code: formData.get('customer_code'),
+        customer_name: formData.get('customer_name'),
+        customer_contact: formData.get('customer_contact'),
+        customer_email: formData.get('customer_email'),
+        company_name: formData.get('company_name'),
+        customer_address: formData.get('customer_address'),
+        concern_person_name: formData.get('concern_person_name'),
+        concern_person_contact: formData.get('concern_person_contact'),
+        items: items,
+        subtotal: subtotal,
+        gst_amount: gst_amount,
+        total_amount: total_amount,
+        notes: formData.get('notes'),
+        terms_conditions: formData.get('terms_conditions'),
+        created_by: currentUser.fullName
+    };
+    
+    try {
+        const response = await axios.post('/api/quotations', quotationData);
+        
+        if (response.data.success) {
+            alert('Quotation created successfully!');
+            document.getElementById('newQuotationModal').classList.remove('show');
+            form.reset();
+            // Refresh page data if needed
+        } else {
+            alert('Error creating quotation: ' + response.data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to create quotation. Please try again.');
+    }
+}
+
+// Save and Send Quotation
+async function saveAndSendQuotation() {
+    // First save the quotation
+    const form = document.getElementById('newQuotationForm');
+    const event = new Event('submit', { cancelable: true });
+    
+    // Submit the form (this will call submitNewQuotation)
+    form.dispatchEvent(event);
+    
+    // Wait a bit for save to complete, then send email
+    setTimeout(async () => {
+        const quotationNumber = document.getElementById('quotationNumber').value;
+        const customerEmail = document.getElementById('quotationCustomerEmail').value;
+        
+        if (!customerEmail) {
+            alert('Please enter customer email address');
+            return;
+        }
+        
+        try {
+            const response = await axios.post(`/api/quotations/${quotationNumber}/send-email`, {
+                recipient_email: customerEmail
+            });
+            
+            if (response.data.success) {
+                alert('Quotation saved and email sent successfully!');
+                document.getElementById('newQuotationModal').classList.remove('show');
+            } else {
+                alert('Quotation saved but email failed: ' + response.data.error);
+            }
+        } catch (error) {
+            console.error('Error sending email:', error);
+            alert('Quotation saved but failed to send email. Please try again from quotation list.');
+        }
+    }, 1000);
+}
+
+// Download Quotation PDF
+function downloadQuotationPDF() {
+    alert('PDF download feature will be implemented. For now, please save the quotation and download from the quotation list.');
+}
+```
+
+## Summary
+
+After adding this code:
+
+1. ✅ Quotation modal will appear in "Add New" menu
+2. ✅ Customer search by code/mobile will work
+3. ✅ Items can be added/removed dynamically
+4. ✅ GST calculation happens automatically
+5. ✅ Quotation saves to database
+6. ⏳ Email sending needs Google Workspace setup
+7. ⏳ PDF download needs PDF generation library
+
+Next steps:
+1. Test the quotation modal
+2. Set up Google Workspace email (see QUOTATION_FEATURE_IMPLEMENTATION.md)
+3. Implement PDF generation

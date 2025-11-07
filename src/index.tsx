@@ -715,19 +715,20 @@ app.post('/api/sales', async (c) => {
     // Insert sale items
     for (const item of items) {
       if (item.product_name && item.quantity > 0 && item.unit_price > 0) {
+        const total_price = item.quantity * item.unit_price;
         await env.DB.prepare(`
-          INSERT INTO sale_items (order_id, product_name, quantity, unit_price)
-          VALUES (?, ?, ?, ?)
-        `).bind(order_id, item.product_name, item.quantity, item.unit_price).run();
+          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(sale_id, order_id, item.product_name, item.quantity, item.unit_price, total_price).run();
       }
     }
     
     // Insert initial payment if amount received
     if (amount_received > 0) {
       await env.DB.prepare(`
-        INSERT INTO payment_history (order_id, payment_date, amount, account_received, payment_reference)
-        VALUES (?, ?, ?, ?, ?)
-      `).bind(order_id, sale_date, amount_received, account_received || 'Not Specified', payment_reference).run();
+        INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(sale_id, order_id, sale_date, amount_received, account_received || 'Not Specified', payment_reference).run();
     }
     
     return c.json({
@@ -773,9 +774,9 @@ app.post('/api/sales/balance-payment', async (c) => {
     
     // Insert payment history
     await env.DB.prepare(`
-      INSERT INTO payment_history (order_id, payment_date, amount, account_received, payment_reference)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(order_id, payment_date, amount, account_received || 'Not Specified', payment_reference).run();
+      INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(sale.id, order_id, payment_date, amount, account_received || 'Not Specified', payment_reference).run();
     
     return c.json({ success: true, message: 'Payment updated successfully' });
   } catch (error) {
@@ -1514,6 +1515,206 @@ app.get('/api/customers', async (c) => {
   }
 });
 
+// ===== QUOTATION API ENDPOINTS =====
+
+// Create new quotation
+app.post('/api/quotations', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const {
+      quotation_number,
+      customer_code,
+      customer_name,
+      customer_contact,
+      customer_email,
+      company_name,
+      customer_address,
+      concern_person_name,
+      concern_person_contact,
+      items,
+      subtotal,
+      gst_amount,
+      total_amount,
+      notes,
+      terms_conditions,
+      created_by
+    } = body;
+    
+    // Insert quotation
+    await env.DB.prepare(`
+      INSERT INTO quotations (
+        quotation_number, customer_code, customer_name, customer_contact, customer_email,
+        company_name, customer_address, concern_person_name, concern_person_contact,
+        items, subtotal, gst_amount, total_amount, notes, terms_conditions, 
+        created_by, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+    `).bind(
+      quotation_number, customer_code, customer_name, customer_contact, customer_email,
+      company_name, customer_address, concern_person_name, concern_person_contact,
+      JSON.stringify(items), subtotal, gst_amount, total_amount, notes, terms_conditions,
+      created_by
+    ).run();
+    
+    // Insert quotation items
+    for (const item of items) {
+      await env.DB.prepare(`
+        INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        quotation_number, item.product_name, item.hsn_sac, item.quantity, item.unit_price, item.amount
+      ).run();
+    }
+    
+    return c.json({ success: true, quotation_number });
+  } catch (error) {
+    console.error('Error creating quotation:', error);
+    return c.json({ success: false, error: 'Failed to create quotation' }, 500);
+  }
+});
+
+// Get all quotations
+app.get('/api/quotations', async (c) => {
+  const { env } = c;
+  
+  try {
+    const quotations = await env.DB.prepare(`
+      SELECT * FROM quotations ORDER BY created_at DESC
+    `).all();
+    
+    return c.json({ success: true, data: quotations.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch quotations' }, 500);
+  }
+});
+
+// Generate quotation number (must be before :id route)
+app.get('/api/quotations/generate-number', async (c) => {
+  const { env } = c;
+  
+  try {
+    const latest = await env.DB.prepare(`
+      SELECT quotation_number FROM quotations ORDER BY created_at DESC LIMIT 1
+    `).first();
+    
+    let nextNumber = 1;
+    if (latest && latest.quotation_number) {
+      const match = latest.quotation_number.match(/Q(\\d+)/);
+      if (match) {
+        nextNumber = parseInt(match[1]) + 1;
+      }
+    }
+    
+    const quotationNumber = `Q${nextNumber.toString().padStart(4, '0')}`;
+    return c.json({ success: true, quotation_number: quotationNumber });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to generate quotation number' }, 500);
+  }
+});
+
+// Get single quotation
+app.get('/api/quotations/:id', async (c) => {
+  const { env } = c;
+  const quotation_number = c.req.param('id');
+  
+  try {
+    const quotation = await env.DB.prepare(`
+      SELECT * FROM quotations WHERE quotation_number = ?
+    `).bind(quotation_number).first();
+    
+    if (!quotation) {
+      return c.json({ success: false, error: 'Quotation not found' }, 404);
+    }
+    
+    const items = await env.DB.prepare(`
+      SELECT * FROM quotation_items WHERE quotation_number = ?
+    `).bind(quotation_number).all();
+    
+    return c.json({
+      success: true,
+      data: {
+        ...quotation,
+        items: items.results
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch quotation' }, 500);
+  }
+});
+
+// Update quotation
+app.put('/api/quotations/:id', async (c) => {
+  const { env } = c;
+  const quotation_number = c.req.param('id');
+  
+  try {
+    const body = await c.req.json();
+    const {
+      customer_code,
+      customer_name,
+      customer_contact,
+      customer_email,
+      company_name,
+      customer_address,
+      concern_person_name,
+      concern_person_contact,
+      items,
+      subtotal,
+      gst_amount,
+      total_amount,
+      notes,
+      terms_conditions,
+      status
+    } = body;
+    
+    await env.DB.prepare(`
+      UPDATE quotations 
+      SET customer_code = ?, customer_name = ?, customer_contact = ?, customer_email = ?,
+          company_name = ?, customer_address = ?, concern_person_name = ?, concern_person_contact = ?,
+          items = ?, subtotal = ?, gst_amount = ?, total_amount = ?, 
+          notes = ?, terms_conditions = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE quotation_number = ?
+    `).bind(
+      customer_code, customer_name, customer_contact, customer_email,
+      company_name, customer_address, concern_person_name, concern_person_contact,
+      JSON.stringify(items), subtotal, gst_amount, total_amount, 
+      notes, terms_conditions, status, quotation_number
+    ).run();
+    
+    // Delete old items and insert new ones
+    await env.DB.prepare(`DELETE FROM quotation_items WHERE quotation_number = ?`).bind(quotation_number).run();
+    
+    for (const item of items) {
+      await env.DB.prepare(`
+        INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        quotation_number, item.product_name, item.hsn_sac, item.quantity, item.unit_price, item.amount
+      ).run();
+    }
+    
+    return c.json({ success: true });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to update quotation' }, 500);
+  }
+});
+
+// Delete quotation
+app.delete('/api/quotations/:id', async (c) => {
+  const { env } = c;
+  const quotation_number = c.req.param('id');
+  
+  try {
+    await env.DB.prepare(`DELETE FROM quotation_items WHERE quotation_number = ?`).bind(quotation_number).run();
+    await env.DB.prepare(`DELETE FROM quotations WHERE quotation_number = ?`).bind(quotation_number).run();
+    
+    return c.json({ success: true });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to delete quotation' }, 500);
+  }
+});
+
 // Home page with dashboard
 app.get('/', (c) => {
   return c.html(`
@@ -1613,6 +1814,66 @@ app.get('/', (c) => {
             .sidebar-item.active {
                 background: #eef2ff;
                 border-left: 4px solid #667eea;
+            }
+            
+            /* Collapsible Menu Styles */
+            .sidebar-parent {
+                padding: 15px 20px;
+                border-bottom: 1px solid #e5e7eb;
+                cursor: pointer;
+                transition: all 0.3s;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-weight: 600;
+                color: #374151;
+            }
+            
+            .sidebar-parent:hover {
+                background: #f3f4f6;
+            }
+            
+            .sidebar-parent .chevron {
+                transition: transform 0.3s;
+                font-size: 12px;
+            }
+            
+            .sidebar-parent.expanded .chevron {
+                transform: rotate(180deg);
+            }
+            
+            .sidebar-children {
+                display: none;
+                background: #f9fafb;
+            }
+            
+            .sidebar-children.show {
+                display: block;
+            }
+            
+            .sidebar-child {
+                padding: 12px 20px 12px 45px;
+                border-bottom: 1px solid #e5e7eb;
+                cursor: pointer;
+                transition: all 0.3s;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 14px;
+                color: #6b7280;
+            }
+            
+            .sidebar-child:hover {
+                background: #e5e7eb;
+                padding-left: 50px;
+                color: #374151;
+            }
+            
+            .sidebar-child.active {
+                background: #eef2ff;
+                border-left: 4px solid #667eea;
+                color: #667eea;
+                font-weight: 500;
             }
             
             .main-content {
@@ -2136,11 +2397,6 @@ app.get('/', (c) => {
                         <i class="fas fa-sign-in-alt"></i> Sign In
                     </button>
                 </form>
-                <div style="margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px; font-size: 13px; color: #6b7280;">
-                    <strong>Demo Credentials:</strong><br>
-                    Admin: admin / admin123<br>
-                    Employee: akash / employee123
-                </div>
             </div>
         </div>
 
@@ -2163,53 +2419,100 @@ app.get('/', (c) => {
             </div>
 
         <div class="sidebar" id="sidebar">
+            <!-- Dashboard -->
             <div class="sidebar-item active" onclick="showPage('dashboard')">
                 <i class="fas fa-chart-line"></i>
                 <span>Dashboard</span>
             </div>
-            <div class="sidebar-item" onclick="showPage('reports')">
-                <i class="fas fa-chart-bar"></i>
-                <span>Reports & Analytics</span>
+            
+            <!-- Reports & Analytics -->
+            <div class="sidebar-parent" onclick="toggleSubmenu('reports-menu')">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Reports & Analytics</span>
+                </div>
+                <i class="fas fa-chevron-down chevron"></i>
             </div>
-            <div class="sidebar-item" onclick="showPage('courier-calculation')">
-                <i class="fas fa-shipping-fast"></i>
-                <span>Courier Charges Calculator</span>
+            <div class="sidebar-children" id="reports-menu">
+                <div class="sidebar-child" onclick="showPage('reports')">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Sales Reports</span>
+                </div>
             </div>
-            <div class="sidebar-item" onclick="showPage('order-details')">
-                <i class="fas fa-search"></i>
-                <span>Order Details by Order ID</span>
+            
+            <!-- Search -->
+            <div class="sidebar-parent" onclick="toggleSubmenu('search-menu')">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-search"></i>
+                    <span>Search</span>
+                </div>
+                <i class="fas fa-chevron-down chevron"></i>
             </div>
-            <div class="sidebar-item" onclick="showPage('customer-details')">
-                <i class="fas fa-users"></i>
-                <span>Customer Details</span>
+            <div class="sidebar-children" id="search-menu">
+                <div class="sidebar-child" onclick="showPage('customer-details')">
+                    <i class="fas fa-users"></i>
+                    <span>Customer Details</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('order-details')">
+                    <i class="fas fa-search"></i>
+                    <span>Order Details by Order ID</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('courier-calculation')">
+                    <i class="fas fa-shipping-fast"></i>
+                    <span>Courier Charges Calculator</span>
+                </div>
             </div>
-            <div class="sidebar-item" onclick="showPage('current-month-sale')">
-                <i class="fas fa-calendar-alt"></i>
-                <span>Current Months Sale</span>
+            
+            <!-- Sale -->
+            <div class="sidebar-parent" onclick="toggleSubmenu('sale-menu')">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Sale</span>
+                </div>
+                <i class="fas fa-chevron-down chevron"></i>
             </div>
-            <div class="sidebar-item" onclick="showPage('balance-payment')">
-                <i class="fas fa-money-bill-wave"></i>
-                <span>Balance Payment</span>
+            <div class="sidebar-children" id="sale-menu">
+                <div class="sidebar-child" onclick="showPage('current-month-sale')">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Current Month Sale</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('balance-payment')">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <span>Balance Payment</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('sale-database')">
+                    <i class="fas fa-database"></i>
+                    <span>Sale Database</span>
+                </div>
             </div>
-            <div class="sidebar-item" onclick="showPage('sale-database')">
-                <i class="fas fa-database"></i>
-                <span>Sale Database</span>
-            </div>
+            
+            <!-- Leads Database (standalone) -->
             <div class="sidebar-item" onclick="showPage('leads')">
                 <i class="fas fa-user-plus"></i>
                 <span>Leads Database</span>
             </div>
-            <div class="sidebar-item" onclick="showPage('excel-upload')">
-                <i class="fas fa-file-excel"></i>
-                <span>Upload Excel Data</span>
+            
+            <!-- Settings -->
+            <div class="sidebar-parent" onclick="toggleSubmenu('settings-menu')">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </div>
+                <i class="fas fa-chevron-down chevron"></i>
             </div>
-            <div class="sidebar-item" id="userManagementMenuItem" onclick="showPage('user-management')" style="display: none;">
-                <i class="fas fa-users-cog"></i>
-                <span>User Management</span>
-            </div>
-            <div class="sidebar-item" onclick="showPage('change-password')">
-                <i class="fas fa-key"></i>
-                <span>Change Password</span>
+            <div class="sidebar-children" id="settings-menu">
+                <div class="sidebar-child" id="userManagementMenuItem" onclick="showPage('user-management')" style="display: none;">
+                    <i class="fas fa-users-cog"></i>
+                    <span>User Management</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('change-password')">
+                    <i class="fas fa-key"></i>
+                    <span>Change Password</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('excel-upload')">
+                    <i class="fas fa-file-excel"></i>
+                    <span>Upload Excel Data</span>
+                </div>
             </div>
         </div>
 
@@ -2224,6 +2527,9 @@ app.get('/', (c) => {
                         <div class="action-menu" id="actionMenu">
                             <div class="action-menu-item" onclick="openNewSaleModal()">
                                 <i class="fas fa-shopping-cart"></i> New Sale
+                            </div>
+                            <div class="action-menu-item" onclick="openNewQuotationModal()">
+                                <i class="fas fa-file-invoice"></i> New Quotation
                             </div>
                             <div class="action-menu-item" onclick="openBalancePaymentModal()">
                                 <i class="fas fa-money-check-alt"></i> Balance Payment Update
@@ -3453,6 +3759,136 @@ app.get('/', (c) => {
             </div>
         </div>
 
+        <!-- New Quotation Modal -->
+        <div class="modal" id="newQuotationModal">
+            <div class="modal-content" style="max-width: 1200px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Create New Quotation</h2>
+                    <span class="close" onclick="document.getElementById('newQuotationModal').classList.remove('show')">&times;</span>
+                </div>
+                <form id="newQuotationForm" onsubmit="submitNewQuotation(event)">
+                    <input type="hidden" name="quotation_number" id="quotationNumber">
+                    
+                    <!-- Customer Search Section -->
+                    <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #374151;">
+                            <i class="fas fa-user"></i> Customer Details
+                        </h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Search Customer (Code or Mobile) *</label>
+                                <input type="text" id="quotationCustomerSearch" placeholder="Enter customer code or mobile number" onblur="fetchCustomerForQuotation(this.value)">
+                                <small id="quotationCustomerFetchStatus" style="display: none; font-size: 11px;"></small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Customer Information -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Code</label>
+                            <input type="text" id="quotationCustomerCode" name="customer_code" placeholder="Auto-filled or enter manually">
+                        </div>
+                        <div class="form-group">
+                            <label>Customer Name *</label>
+                            <input type="text" id="quotationCustomerName" name="customer_name" required placeholder="Auto-filled or enter manually">
+                        </div>
+                        <div class="form-group">
+                            <label>Mobile Number *</label>
+                            <input type="tel" id="quotationCustomerContact" name="customer_contact" required placeholder="Auto-filled or enter manually">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Customer Email *</label>
+                            <input type="email" id="quotationCustomerEmail" name="customer_email" required placeholder="Enter email address">
+                        </div>
+                        <div class="form-group">
+                            <label>Company Name</label>
+                            <input type="text" id="quotationCompanyName" name="company_name" placeholder="Auto-filled or enter manually">
+                        </div>
+                        <div class="form-group">
+                            <label>Concern Person Name</label>
+                            <input type="text" id="quotationConcernPerson" name="concern_person_name" placeholder="Enter concern person name">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Concern Person Contact</label>
+                            <input type="tel" id="quotationConcernContact" name="concern_person_contact" placeholder="Enter concern person contact">
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Customer Address *</label>
+                            <textarea id="quotationCustomerAddress" name="customer_address" rows="2" required placeholder="Auto-filled or enter manually"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Items Section -->
+                    <h3 style="margin: 20px 0 15px 0; font-size: 16px; font-weight: 600; color: #374151;">
+                        <i class="fas fa-box"></i> Items
+                    </h3>
+                    <div id="quotationItemsTable" style="margin-bottom: 15px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead style="background: #f9fafb;">
+                                <tr>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">#</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Item Name</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">HSN/SAC</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Quantity</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Unit Price</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Amount</th>
+                                    <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotationItemsRows">
+                                <!-- Items will be added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-add" onclick="addQuotationItem()">
+                        <i class="fas fa-plus"></i> Add Item
+                    </button>
+
+                    <!-- Totals Section -->
+                    <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 400px; margin-left: auto;">
+                            <div style="font-weight: 600;">Subtotal:</div>
+                            <div style="text-align: right;" id="quotationSubtotal">₹0.00</div>
+                            
+                            <div style="font-weight: 600;">GST (18%):</div>
+                            <div style="text-align: right;" id="quotationGST">₹0.00</div>
+                            
+                            <div style="font-weight: 700; font-size: 18px; padding-top: 10px; border-top: 2px solid #667eea; color: #667eea;">Total Amount:</div>
+                            <div style="text-align: right; font-weight: 700; font-size: 18px; padding-top: 10px; border-top: 2px solid #667eea; color: #667eea;" id="quotationTotal">₹0.00</div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Information -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea name="notes" rows="3" placeholder="Add any additional notes"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Terms & Conditions</label>
+                            <textarea name="terms_conditions" rows="3" placeholder="Quotation validity, payment terms, etc.">This quotation is valid for 30 days from the date of issue.
+Payment terms: 100% advance or as mutually agreed.
+Prices are subject to change without prior notice.</textarea>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="submit" class="btn-primary" style="flex: 1;">
+                            <i class="fas fa-save"></i> Save Quotation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
             let currentPage = 'dashboard'; // Track current page
@@ -3596,6 +4032,19 @@ app.get('/', (c) => {
                 sidebar.classList.toggle('open');
                 mainContent.classList.toggle('shifted');
             }
+            
+            // Toggle Submenu
+            function toggleSubmenu(menuId) {
+                const menu = document.getElementById(menuId);
+                const parent = event.target.closest('.sidebar-parent');
+                
+                // Toggle the clicked menu
+                menu.classList.toggle('show');
+                parent.classList.toggle('expanded');
+                
+                // Prevent event bubbling
+                event.stopPropagation();
+            }
 
             // Show Page
             function showPage(pageName) {
@@ -3616,11 +4065,18 @@ app.get('/', (c) => {
                 // Show selected page
                 document.getElementById(pageName + '-page').classList.add('active');
                 
-                // Update sidebar active state
-                document.querySelectorAll('.sidebar-item').forEach(item => {
+                // Update sidebar active state - remove from all items and children
+                document.querySelectorAll('.sidebar-item, .sidebar-child').forEach(item => {
                     item.classList.remove('active');
                 });
-                event.target.closest('.sidebar-item').classList.add('active');
+                
+                // Add active class to clicked item
+                if (event && event.target) {
+                    const clickedItem = event.target.closest('.sidebar-item') || event.target.closest('.sidebar-child');
+                    if (clickedItem) {
+                        clickedItem.classList.add('active');
+                    }
+                }
                 
                 // Load page data
                 loadPageData(pageName);
@@ -5314,7 +5770,7 @@ app.get('/', (c) => {
                         <td>₹\${sale.total_amount.toLocaleString()}</td>
                         <td>\${sale.balance_amount > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>'}</td>
                         <td>
-                            \${currentUser && currentUser.role === 'admin' ? '<button class="btn-danger" style="padding: 5px 8px;" onclick="event.stopPropagation(); deleteSale(\\'' + sale.order_id + '\\')" title="Delete Sale"><i class="fas fa-trash"></i></button>' : '-'}
+                            \${currentUser && currentUser.role === 'admin' ? '<button class="btn-primary" style="padding: 5px 12px; font-size: 12px; margin-right: 5px;" onclick="event.stopPropagation(); editSale(\\'' + sale.order_id + '\\')" title="Edit Sale"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 8px;" onclick="event.stopPropagation(); deleteSale(\\'' + sale.order_id + '\\')" title="Delete Sale"><i class="fas fa-trash"></i></button>' : '-'}
                         </td>
                     </tr>
                     \`;
@@ -5402,6 +5858,228 @@ app.get('/', (c) => {
                 } catch (error) {
                     console.error('Error searching customer:', error);
                     alert('Error searching customer: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // ===== QUOTATION FUNCTIONS =====
+            let quotationItemCounter = 0;
+
+            // Open New Quotation Modal
+            function openNewQuotationModal() {
+                document.getElementById('actionMenu').classList.remove('show');
+                const modal = document.getElementById('newQuotationModal');
+                modal.classList.add('show');
+                
+                // Generate quotation number
+                generateQuotationNumber();
+                
+                // Clear form
+                document.getElementById('newQuotationForm').reset();
+                document.getElementById('quotationItemsRows').innerHTML = '';
+                quotationItemCounter = 0;
+                
+                // Add first item row
+                addQuotationItem();
+            }
+
+            // Generate Quotation Number
+            async function generateQuotationNumber() {
+                try {
+                    const response = await axios.get('/api/quotations/generate-number');
+                    if (response.data.success) {
+                        document.getElementById('quotationNumber').value = response.data.quotation_number;
+                    }
+                } catch (error) {
+                    console.error('Error generating quotation number:', error);
+                }
+            }
+
+            // Fetch Customer Details for Quotation
+            async function fetchCustomerForQuotation(searchTerm) {
+                if (!searchTerm || searchTerm.trim() === '') return;
+                
+                const statusEl = document.getElementById('quotationCustomerFetchStatus');
+                statusEl.style.display = 'block';
+                statusEl.style.color = '#667eea';
+                statusEl.textContent = 'Searching customer...';
+                
+                try {
+                    const response = await axios.get('/api/leads?search=' + encodeURIComponent(searchTerm));
+                    
+                    if (response.data.success && response.data.data.length > 0) {
+                        const customer = response.data.data[0];
+                        
+                        // Fill in customer details
+                        document.getElementById('quotationCustomerCode').value = customer.customer_code || '';
+                        document.getElementById('quotationCustomerName').value = customer.customer_name || '';
+                        document.getElementById('quotationCustomerContact').value = customer.mobile_number || '';
+                        document.getElementById('quotationCustomerEmail').value = customer.email || '';
+                        document.getElementById('quotationCompanyName').value = customer.company_name || '';
+                        document.getElementById('quotationCustomerAddress').value = customer.complete_address || '';
+                        
+                        statusEl.style.color = '#10b981';
+                        statusEl.textContent = '✓ Customer found and details filled!';
+                        
+                        setTimeout(() => {
+                            statusEl.style.display = 'none';
+                        }, 3000);
+                    } else {
+                        statusEl.style.color = '#f59e0b';
+                        statusEl.textContent = 'Customer not found. Please enter details manually.';
+                        
+                        setTimeout(() => {
+                            statusEl.style.display = 'none';
+                        }, 3000);
+                    }
+                } catch (error) {
+                    console.error('Error fetching customer:', error);
+                    statusEl.style.color = '#dc2626';
+                    statusEl.textContent = 'Error fetching customer. Please enter manually.';
+                }
+            }
+
+            // Add Quotation Item Row
+            function addQuotationItem() {
+                quotationItemCounter++;
+                const tbody = document.getElementById('quotationItemsRows');
+                const row = document.createElement('tr');
+                row.setAttribute('data-item-id', quotationItemCounter);
+                row.innerHTML = '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + quotationItemCounter + '</td>' +
+                    '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
+                        '<input type="text" class="quotation-item-name" placeholder="Enter item name" ' +
+                               'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
+                    '</td>' +
+                    '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
+                        '<input type="text" class="quotation-item-hsn" placeholder="HSN/SAC" ' +
+                               'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">' +
+                    '</td>' +
+                    '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
+                        '<input type="number" class="quotation-item-quantity" value="1" min="1" ' +
+                               'style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" ' +
+                               'onchange="calculateQuotationItemTotal(this)" required>' +
+                    '</td>' +
+                    '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
+                        '<input type="number" class="quotation-item-price" value="0" min="0" step="0.01" ' +
+                               'style="width: 120px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" ' +
+                               'onchange="calculateQuotationItemTotal(this)" required>' +
+                    '</td>' +
+                    '<td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: 600;" class="quotation-item-amount">₹0.00</td>' +
+                    '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' +
+                        '<button type="button" onclick="removeQuotationItem(this)" ' +
+                                'style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">' +
+                            '<i class="fas fa-trash"></i>' +
+                        '</button>' +
+                    '</td>';
+                tbody.appendChild(row);
+            }
+
+            // Remove Quotation Item
+            function removeQuotationItem(button) {
+                const row = button.closest('tr');
+                row.remove();
+                calculateQuotationTotal();
+                
+                // Renumber items
+                const rows = document.querySelectorAll('#quotationItemsRows tr');
+                rows.forEach((row, index) => {
+                    row.querySelector('td:first-child').textContent = index + 1;
+                });
+            }
+
+            // Calculate Quotation Item Total
+            function calculateQuotationItemTotal(input) {
+                const row = input.closest('tr');
+                const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
+                const price = parseFloat(row.querySelector('.quotation-item-price').value) || 0;
+                const amount = quantity * price;
+                
+                row.querySelector('.quotation-item-amount').textContent = '₹' + amount.toFixed(2);
+                
+                calculateQuotationTotal();
+            }
+
+            // Calculate Quotation Total
+            function calculateQuotationTotal() {
+                const rows = document.querySelectorAll('#quotationItemsRows tr');
+                let subtotal = 0;
+                
+                rows.forEach(row => {
+                    const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
+                    const price = parseFloat(row.querySelector('.quotation-item-price').value) || 0;
+                    subtotal += quantity * price;
+                });
+                
+                const gst = subtotal * 0.18;
+                const total = subtotal + gst;
+                
+                document.getElementById('quotationSubtotal').textContent = '₹' + subtotal.toFixed(2);
+                document.getElementById('quotationGST').textContent = '₹' + gst.toFixed(2);
+                document.getElementById('quotationTotal').textContent = '₹' + total.toFixed(2);
+            }
+
+            // Submit New Quotation
+            async function submitNewQuotation(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                // Collect items
+                const items = [];
+                const rows = document.querySelectorAll('#quotationItemsRows tr');
+                rows.forEach(row => {
+                    const item = {
+                        product_name: row.querySelector('.quotation-item-name').value,
+                        hsn_sac: row.querySelector('.quotation-item-hsn').value,
+                        quantity: parseInt(row.querySelector('.quotation-item-quantity').value),
+                        unit_price: parseFloat(row.querySelector('.quotation-item-price').value),
+                        amount: parseFloat(row.querySelector('.quotation-item-quantity').value) * parseFloat(row.querySelector('.quotation-item-price').value)
+                    };
+                    items.push(item);
+                });
+                
+                if (items.length === 0) {
+                    alert('Please add at least one item');
+                    return;
+                }
+                
+                // Calculate totals
+                const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+                const gst_amount = subtotal * 0.18;
+                const total_amount = subtotal + gst_amount;
+                
+                const quotationData = {
+                    quotation_number: formData.get('quotation_number'),
+                    customer_code: formData.get('customer_code'),
+                    customer_name: formData.get('customer_name'),
+                    customer_contact: formData.get('customer_contact'),
+                    customer_email: formData.get('customer_email'),
+                    company_name: formData.get('company_name'),
+                    customer_address: formData.get('customer_address'),
+                    concern_person_name: formData.get('concern_person_name'),
+                    concern_person_contact: formData.get('concern_person_contact'),
+                    items: items,
+                    subtotal: subtotal,
+                    gst_amount: gst_amount,
+                    total_amount: total_amount,
+                    notes: formData.get('notes'),
+                    terms_conditions: formData.get('terms_conditions'),
+                    created_by: currentUser.fullName
+                };
+                
+                try {
+                    const response = await axios.post('/api/quotations', quotationData);
+                    
+                    if (response.data.success) {
+                        alert('Quotation created successfully!');
+                        document.getElementById('newQuotationModal').classList.remove('show');
+                        form.reset();
+                    } else {
+                        alert('Error creating quotation: ' + response.data.error);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Failed to create quotation. Please try again.');
                 }
             }
             
