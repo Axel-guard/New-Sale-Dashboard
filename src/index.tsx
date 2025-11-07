@@ -4666,6 +4666,8 @@ Prices are subject to change without prior notice.</textarea>
                         </div>
                         
                         \${sale.remarks ? '<div style="margin-top: 15px;"><label style="font-weight: 600; color: #6b7280;">Remarks:</label><div style="padding: 10px; background: #f9fafb; border-radius: 6px; margin-top: 5px;">' + sale.remarks + '</div></div>' : ''}
+                        
+                        \${currentUser && currentUser.role === 'admin' ? '<div style="display: flex; gap: 10px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #e5e7eb;"><button class="btn-primary" style="flex: 1;" onclick="closeSaleDetailsModal(); editSale(\\'' + sale.order_id + '\\');"><i class="fas fa-edit"></i> Edit Sale</button><button class="btn-danger" style="flex: 1;" onclick="if(confirm(\\'Are you sure you want to delete this sale?\\')) { closeSaleDetailsModal(); deleteSale(\\'' + sale.order_id + '\\'); }"><i class="fas fa-trash"></i> Delete Sale</button></div>' : ''}
                     \`;
                 } catch (error) {
                     console.error('Error loading sale details:', error);
