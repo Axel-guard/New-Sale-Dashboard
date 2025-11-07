@@ -2403,13 +2403,15 @@ app.get('/', (c) => {
         <!-- Main Dashboard (hidden until logged in) -->
         <div id="mainDashboard" style="display: none;">
             <div class="top-bar">
-                <div class="menu-toggle" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div class="menu-toggle" onclick="toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </div>
+                    <img src="/static/logo-white.jpg" alt="AxelGuard" onclick="showPage('dashboard')" style="height: 40px; width: auto; cursor: pointer;">
+                    <h1 onclick="showPage('dashboard')" style="cursor: pointer; margin: 0;">
+                        AxelGuard
+                    </h1>
                 </div>
-                <h1 onclick="showPage('dashboard')" style="cursor: pointer; display: flex; align-items: center; gap: 12px;">
-                    <img src="/static/logo-white.jpg" alt="AxelGuard" style="height: 40px; width: auto;">
-                    AxelGuard
-                </h1>
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <span id="userDisplay" style="font-size: 14px; color: white; font-weight: 500;"></span>
                     <button onclick="handleLogout()" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
@@ -2483,6 +2485,10 @@ app.get('/', (c) => {
                 <div class="sidebar-child" onclick="showPage('sale-database')">
                     <i class="fas fa-database"></i>
                     <span>Sale Database</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('quotations')">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Quotations</span>
                 </div>
             </div>
             
@@ -2824,6 +2830,31 @@ app.get('/', (c) => {
                             </thead>
                             <tbody id="allSalesTableBody">
                                 <tr><td colspan="8" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="quotations-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">Quotations</h2>
+                    
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Quotation #</th>
+                                    <th>Date</th>
+                                    <th>Customer Name</th>
+                                    <th>Company</th>
+                                    <th>Total Amount</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotationsTableBody">
+                                <tr><td colspan="7" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -4112,6 +4143,9 @@ Prices are subject to change without prior notice.</textarea>
                     case 'sale-database':
                         loadAllSales();
                         break;
+                    case 'quotations':
+                        loadQuotations();
+                        break;
                     case 'balance-payment':
                         loadBalancePayments();
                         break;
@@ -5024,6 +5058,37 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
 
+            async function loadQuotations() {
+                try {
+                    const response = await axios.get('/api/quotations');
+                    const quotations = response.data.data;
+                    
+                    const tbody = document.getElementById('quotationsTableBody');
+                    const isAdmin = currentUser && currentUser.role === 'admin';
+                    
+                    if (!quotations || quotations.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #6b7280;">No quotations found</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = quotations.map(quotation => {
+                        return '<tr style="cursor: pointer;" onclick="viewQuotationDetails(\\'' + quotation.quotation_number + '\\')" title="Click to view quotation details">' +
+                            '<td><strong>' + quotation.quotation_number + '</strong></td>' +
+                            '<td>' + new Date(quotation.created_at).toLocaleDateString() + '</td>' +
+                            '<td>' + quotation.customer_name + '</td>' +
+                            '<td>' + (quotation.company_name || 'N/A') + '</td>' +
+                            '<td>\u20b9' + quotation.total_amount.toLocaleString() + '</td>' +
+                            '<td><span class="badge ' + (quotation.status === 'sent' ? 'badge-success' : 'badge-warning') + '">' + quotation.status + '</span></td>' +
+                            '<td>' +
+                                (isAdmin ? '<button class="btn-primary" style="padding: 5px 12px; font-size: 12px; margin-right: 5px;" onclick="event.stopPropagation(); editQuotation(\\'' + quotation.quotation_number + '\\')"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="event.stopPropagation(); deleteQuotation(\\'' + quotation.quotation_number + '\\')"><i class="fas fa-trash"></i></button>' : '-') +
+                            '</td>' +
+                        '</tr>';
+                    }).join('');
+                } catch (error) {
+                    console.error('Error loading quotations:', error);
+                }
+            }
+
             async function loadBalancePayments() {
                 try {
                     const response = await axios.get('/api/sales/balance-payments');
@@ -5280,7 +5345,7 @@ Prices are subject to change without prior notice.</textarea>
             // Edit Sale Functions
             async function editSale(orderId) {
                 try {
-                    const response = await axios.get(\`/api/sales/\${orderId}\`);
+                    const response = await axios.get('/api/sales/' + orderId);
                     const sale = response.data.data;
                     
                     // Populate form fields
@@ -5296,7 +5361,7 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('editRemarks').value = sale.remarks || '';
                     
                     // Load products
-                    const itemsResponse = await axios.get(\`/api/sales/\${orderId}/items\`);
+                    const itemsResponse = await axios.get('/api/sales/' + orderId + '/items');
                     const items = itemsResponse.data.data;
                     
                     const productRows = document.getElementById('editProductRows');
@@ -5307,27 +5372,25 @@ Prices are subject to change without prior notice.</textarea>
                         const row = document.createElement('div');
                         row.className = 'product-row';
                         row.dataset.id = editProductCount;
-                        row.innerHTML = \`
-                            <div class="form-group" style="margin: 0;">
-                                <label>Product Name</label>
-                                <input type="text" name="items[\${editProductCount}][product_name]" value="\${item.product_name}" required>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label>Quantity</label>
-                                <input type="number" name="items[\${editProductCount}][quantity]" value="\${item.quantity}" min="0" required onchange="calculateEditSaleTotal()">
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label>Unit Price</label>
-                                <input type="number" name="items[\${editProductCount}][unit_price]" value="\${item.unit_price}" min="0" step="0.01" required onchange="calculateEditSaleTotal()">
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label>Total</label>
-                                <input type="number" class="product-total" readonly style="background: #f3f4f6;" value="\${item.quantity * item.unit_price}">
-                            </div>
-                            <button type="button" class="btn-remove" onclick="removeEditProductRow(\${editProductCount})">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        \`;
+                        row.innerHTML = '<div class="form-group" style="margin: 0;">' +
+                                '<label>Product Name</label>' +
+                                '<input type="text" name="items[' + editProductCount + '][product_name]" value="' + item.product_name + '" required>' +
+                            '</div>' +
+                            '<div class="form-group" style="margin: 0;">' +
+                                '<label>Quantity</label>' +
+                                '<input type="number" name="items[' + editProductCount + '][quantity]" value="' + item.quantity + '" min="0" required onchange="calculateEditSaleTotal()">' +
+                            '</div>' +
+                            '<div class="form-group" style="margin: 0;">' +
+                                '<label>Unit Price</label>' +
+                                '<input type="number" name="items[' + editProductCount + '][unit_price]" value="' + item.unit_price + '" min="0" step="0.01" required onchange="calculateEditSaleTotal()">' +
+                            '</div>' +
+                            '<div class="form-group" style="margin: 0;">' +
+                                '<label>Total</label>' +
+                                '<input type="number" class="product-total" readonly style="background: #f3f4f6;" value="' + (item.quantity * item.unit_price) + '">' +
+                            '</div>' +
+                            '<button type="button" class="btn-remove" onclick="removeEditProductRow(' + editProductCount + ')">' +
+                                '<i class="fas fa-times"></i>' +
+                            '</button>';
                         productRows.appendChild(row);
                         editProductCount++;
                     });
