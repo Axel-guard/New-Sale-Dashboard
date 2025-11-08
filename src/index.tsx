@@ -2807,7 +2807,7 @@ app.get('/', (c) => {
                     <i class="fas fa-key"></i>
                     <span>Change Password</span>
                 </div>
-                <div class="sidebar-child" onclick="showPage('excel-upload')">
+                <div class="sidebar-child" id="excelUploadMenuItem" onclick="showPage('excel-upload')">
                     <i class="fas fa-file-excel"></i>
                     <span>Upload Excel Data</span>
                 </div>
@@ -6915,7 +6915,7 @@ Prices are subject to change without prior notice.</textarea>
                                     '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Name :</strong> IDFC FIRST BANK LTD, NOIDA-SIXTEEN BRANCH</p>' +
                                     '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Account No. :</strong> 10188344828</p>' +
                                     '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank IFSC code :</strong> IDFB0020158</p>' +
-                                    '<p style="margin: 2px 0; font-size: 11px;"><strong>Account holder\\'s name :</strong> RealTrack Technology</p>' +
+                                    '<p style="margin: 2px 0; font-size: 11px;"><strong>Account Holder Name :</strong> RealTrack Technology</p>' +
                                 '</div>' +
                                 
                                 // Amount Summary
@@ -7113,7 +7113,7 @@ Prices are subject to change without prior notice.</textarea>
                                 '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Name :</strong> IDFC FIRST BANK LTD, NOIDA-SIXTEEN BRANCH</p>' +
                                 '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Account No. :</strong> 10188344828</p>' +
                                 '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank IFSC code :</strong> IDFB0020158</p>' +
-                                '<p style="margin: 2px 0; font-size: 11px;"><strong>Account holder\'s name :</strong> RealTrack Technology</p>' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><strong>Account Holder Name :</strong> RealTrack Technology</p>' +
                             '</div>' +
                             
                             // Amount Summary
@@ -7636,7 +7636,7 @@ Prices are subject to change without prior notice.</textarea>
             function showDashboard() {
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainDashboard').style.display = 'block';
-                document.getElementById('userDisplay').textContent = 'Hi ' + currentUser.employeeName;
+                document.getElementById('userDisplay').textContent = 'Hi ' + (currentUser.employeeName || currentUser.fullName || currentUser.username);
                 
                 // Update UI based on role
                 updateUIForRole();
@@ -7657,7 +7657,7 @@ Prices are subject to change without prior notice.</textarea>
                 });
                 
                 // Hide/show Excel Upload sidebar item
-                const uploadItem = document.querySelector('[onclick="showPage(\\'excel-upload\\')"]');
+                const uploadItem = document.getElementById('excelUploadMenuItem');
                 if (uploadItem) {
                     uploadItem.style.display = isAdmin ? 'block' : 'none';
                 }
