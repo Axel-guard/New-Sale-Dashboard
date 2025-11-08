@@ -6775,25 +6775,25 @@ Prices are subject to change without prior notice.</textarea>
                         '</div>' +
                         
                         '<div style="padding: 30px;">' +
-                            // Tax Invoice title and details grid
+                            // Estimate title and details grid
                             '<div style="display: grid; grid-template-columns: 1fr auto; gap: 20px; margin-bottom: 25px;">' +
-                                // Bill To section
+                                // Estimate For section
                                 '<div style="border: 1px solid #ddd; padding: 15px;">' +
-                                    '<h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold; color: #000;">Bill To:</h3>' +
+                                    '<h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold; color: ' + themeColor.primary + ';">Estimate For:</h3>' +
                                     '<p style="margin: 3px 0; font-size: 13px; font-weight: bold; text-transform: uppercase;">' + (quotation.company_name || quotation.customer_name) + '</p>' +
                                     '<p style="margin: 3px 0; font-size: 12px;">' + (quotation.customer_address || '') + '</p>' +
-                                    '<p style="margin: 3px 0; font-size: 12px;"><strong>Contact No.:</strong> ' + (quotation.customer_contact || '') + '</p>' +
+                                    (quotation.customer_contact ? '<p style="margin: 3px 0; font-size: 12px;"><strong>Contact No.:</strong> ' + quotation.customer_contact + '</p>' : '') +
                                     (quotation.gst_number ? '<p style="margin: 3px 0; font-size: 12px;"><strong>GSTIN Number:</strong> ' + quotation.gst_number + '</p>' : '') +
                                     (quotation.gst_number ? '<p style="margin: 3px 0; font-size: 12px;"><strong>State:</strong> ' + (quotation.gst_registered_address ? quotation.gst_registered_address.split(',').slice(-2).join(',').trim() : 'N/A') + '</p>' : '') +
                                 '</div>' +
                                 
-                                // Invoice details
+                                // Estimate details
                                 '<div style="min-width: 250px;">' +
-                                    '<h2 style="margin: 0 0 15px 0; font-size: 28px; font-weight: bold; color: ' + themeColor.primary + '; text-align: right;">Tax Invoice</h2>' +
+                                    '<h2 style="margin: 0 0 15px 0; font-size: 32px; font-weight: bold; color: ' + themeColor.primary + '; text-align: right;">Estimate</h2>' +
                                     '<table style="width: 100%; font-size: 12px; border-collapse: collapse;">' +
-                                        '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Invoice No.:</td><td style="padding: 4px; text-align: right;">' + quotation.quotation_number + '</td></tr>' +
+                                        '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Estimate No.:</td><td style="padding: 4px; text-align: right;">' + quotation.quotation_number + '</td></tr>' +
                                         '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Date:</td><td style="padding: 4px; text-align: right;">' + quotationDate + '</td></tr>' +
-                                        '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Place of Supply:</td><td style="padding: 4px; text-align: right;">27-Maharashtra</td></tr>' +
+                                        '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Place of Supply:</td><td style="padding: 4px; text-align: right;">29-Karnataka</td></tr>' +
                                     '</table>' +
                                 '</div>' +
                             '</div>' +
@@ -6859,6 +6859,7 @@ Prices are subject to change without prior notice.</textarea>
                                     '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">' +
                                         '<tr><td style="padding: 6px; background: #f3f4f6; font-weight: 600;">Sub Total</td><td style="padding: 6px; text-align: right; background: #f3f4f6;">' + currencySymbol + ' ' + quotation.subtotal.toFixed(2) + '</td></tr>' +
                                         (quotation.courier_cost > 0 ? '<tr><td style="padding: 6px;">Courier via ' + (quotation.courier_partner || 'Standard') + '</td><td style="padding: 6px; text-align: right;">' + currencySymbol + ' ' + quotation.courier_cost.toFixed(2) + '</td></tr>' : '') +
+                                        (quotation.gst_amount > 0 ? '<tr><td style="padding: 6px;">IGST@18%</td><td style="padding: 6px; text-align: right;">' + currencySymbol + ' ' + quotation.gst_amount.toFixed(2) + '</td></tr>' : '') +
                                         '<tr style="background: ' + themeColor.primary + '; color: white; font-weight: bold; font-size: 14px;"><td style="padding: 10px;">total</td><td style="padding: 10px; text-align: right;">' + currencySymbol + ' ' + quotation.total_amount.toFixed(2) + '</td></tr>' +
                                         '<tr><td colspan="2" style="padding: 6px; background: #f3f4f6; font-size: 10px;">Received</td></tr>' +
                                         '<tr><td colspan="2" style="padding: 6px; background: #f3f4f6; font-size: 10px; text-align: right;">' + currencySymbol + ' 0.00</td></tr>' +
@@ -6875,7 +6876,7 @@ Prices are subject to change without prior notice.</textarea>
                             
                             // Amount in Words
                             '<div style="margin: 20px 0; padding: 12px; background: #f3f4f6; border-left: 4px solid ' + themeColor.primary + ';">' +
-                                '<p style="margin: 0; font-size: 12px; font-weight: 600;">Invoice Amount In Words</p>' +
+                                '<p style="margin: 0; font-size: 12px; font-weight: 600;">Estimate Amount In Words</p>' +
                                 '<p style="margin: 5px 0 0 0; font-size: 13px; font-weight: bold; color: ' + themeColor.primary + ';">' + amountInWords + '</p>' +
                             '</div>' +
                             
@@ -7188,22 +7189,59 @@ Prices are subject to change without prior notice.</textarea>
                     itemsRows.innerHTML = '';
                     quotationItemCounter = 0;
                     
+                    // Load items - need to find category and product for each
                     for (const item of items) {
                         await addQuotationItem();
                         const row = itemsRows.lastElementChild;
                         
-                        // Note: We can't perfectly restore category/product selections
-                        // So we'll just set the product name and values
-                        const productSelect = row.querySelector('.quotation-item-product');
-                        const option = document.createElement('option');
-                        option.value = 'custom';
-                        option.textContent = item.product_name;
-                        option.selected = true;
-                        productSelect.appendChild(option);
+                        // Try to find the product in the database to get category
+                        try {
+                            const productResponse = await axios.get('/api/products');
+                            if (productResponse.data.success) {
+                                const allProducts = productResponse.data.data;
+                                const matchingProduct = allProducts.find(p => p.product_name === item.product_name);
+                                
+                                if (matchingProduct) {
+                                    // Found product - set category and product
+                                    const categorySelect = row.querySelector('.quotation-item-category');
+                                    categorySelect.value = matchingProduct.category_id;
+                                    
+                                    // Load products for this category
+                                    await loadProductsByCategory(categorySelect);
+                                    
+                                    // Set product
+                                    const productSelect = row.querySelector('.quotation-item-product');
+                                    productSelect.value = matchingProduct.id;
+                                } else {
+                                    // Product not found in database - add as custom
+                                    const productSelect = row.querySelector('.quotation-item-product');
+                                    const option = document.createElement('option');
+                                    option.value = 'custom_' + quotationItemCounter;
+                                    option.textContent = item.product_name;
+                                    option.selected = true;
+                                    productSelect.appendChild(option);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error finding product:', error);
+                            // Fallback to custom option
+                            const productSelect = row.querySelector('.quotation-item-product');
+                            const option = document.createElement('option');
+                            option.value = 'custom_' + quotationItemCounter;
+                            option.textContent = item.product_name;
+                            option.selected = true;
+                            productSelect.appendChild(option);
+                        }
                         
+                        // Set quantity and price
                         row.querySelector('.quotation-item-quantity').value = item.quantity;
                         row.querySelector('.quotation-item-price').value = item.unit_price;
-                        row.querySelector('.quotation-item-amount').textContent = '₹' + item.amount.toFixed(2);
+                        
+                        // Update amount display with currency symbol
+                        const currency = quotation.currency || 'INR';
+                        const currencySymbols = {'INR': '₹', 'USD': '$', 'EUR': '€', 'GBP': '£'};
+                        const symbol = currencySymbols[currency] || '₹';
+                        row.querySelector('.quotation-item-amount').textContent = symbol + item.amount.toFixed(2);
                     }
                     
                     // Set notes and terms
