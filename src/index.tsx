@@ -1578,49 +1578,107 @@ app.post('/api/quotations', async (c) => {
       created_by
     } = body;
     
-    // Insert quotation - Convert undefined to null for optional fields
-    await env.DB.prepare(`
-      INSERT INTO quotations (
-        quotation_number, customer_code, customer_name, customer_contact, customer_email,
-        company_name, gst_number, gst_registered_address, customer_address, concern_person_name, concern_person_contact,
-        items, subtotal, courier_cost, courier_partner, delivery_method, bill_type, gst_amount, total_amount, theme, currency, notes, terms_conditions, 
-        created_by, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
-    `).bind(
-      quotation_number, 
-      customer_code || null, 
-      customer_name, 
-      customer_contact || null, 
-      customer_email || null,
-      company_name || null,
-      gst_number || null,
-      gst_registered_address || null,
-      customer_address || null, 
-      concern_person_name || null, 
-      concern_person_contact || null,
-      JSON.stringify(items), 
-      subtotal, 
-      courier_cost || 0, 
-      courier_partner || null,
-      delivery_method || null,
-      bill_type || 'with', 
-      gst_amount, 
-      total_amount,
-      theme || 'blue',
-      currency || 'INR', 
-      notes || null, 
-      terms_conditions || null,
-      created_by || null
-    ).run();
+    // Check if quotation already exists
+    const existingQuotation = await env.DB.prepare(`
+      SELECT quotation_number FROM quotations WHERE quotation_number = ?
+    `).bind(quotation_number).first();
     
-    // Insert quotation items
-    for (const item of items) {
+    if (existingQuotation) {
+      // Update existing quotation
       await env.DB.prepare(`
-        INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
-        VALUES (?, ?, ?, ?, ?, ?)
+        UPDATE quotations SET
+          customer_code = ?, customer_name = ?, customer_contact = ?, customer_email = ?,
+          company_name = ?, gst_number = ?, gst_registered_address = ?, customer_address = ?,
+          concern_person_name = ?, concern_person_contact = ?,
+          items = ?, subtotal = ?, courier_cost = ?, courier_partner = ?, delivery_method = ?,
+          bill_type = ?, gst_amount = ?, total_amount = ?, theme = ?, currency = ?,
+          notes = ?, terms_conditions = ?
+        WHERE quotation_number = ?
       `).bind(
-        quotation_number, item.product_name, item.hsn_sac || null, item.quantity, item.unit_price, item.amount
+        customer_code || null,
+        customer_name,
+        customer_contact || null,
+        customer_email || null,
+        company_name || null,
+        gst_number || null,
+        gst_registered_address || null,
+        customer_address || null,
+        concern_person_name || null,
+        concern_person_contact || null,
+        JSON.stringify(items),
+        subtotal,
+        courier_cost || 0,
+        courier_partner || null,
+        delivery_method || null,
+        bill_type || 'with',
+        gst_amount,
+        total_amount,
+        theme || 'blue',
+        currency || 'INR',
+        notes || null,
+        terms_conditions || null,
+        quotation_number
       ).run();
+      
+      // Delete old quotation items
+      await env.DB.prepare(`
+        DELETE FROM quotation_items WHERE quotation_number = ?
+      `).bind(quotation_number).run();
+      
+      // Insert new quotation items
+      for (const item of items) {
+        await env.DB.prepare(`
+          INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(
+          quotation_number, item.product_name, item.hsn_sac || null, item.quantity, item.unit_price, item.amount
+        ).run();
+      }
+    } else {
+      // Insert new quotation
+      await env.DB.prepare(`
+        INSERT INTO quotations (
+          quotation_number, customer_code, customer_name, customer_contact, customer_email,
+          company_name, gst_number, gst_registered_address, customer_address, concern_person_name, concern_person_contact,
+          items, subtotal, courier_cost, courier_partner, delivery_method, bill_type, gst_amount, total_amount, theme, currency, notes, terms_conditions, 
+          created_by, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+      `).bind(
+        quotation_number, 
+        customer_code || null, 
+        customer_name, 
+        customer_contact || null, 
+        customer_email || null,
+        company_name || null,
+        gst_number || null,
+        gst_registered_address || null,
+        customer_address || null, 
+        concern_person_name || null, 
+        concern_person_contact || null,
+        JSON.stringify(items), 
+        subtotal, 
+        courier_cost || 0, 
+        courier_partner || null,
+        delivery_method || null,
+        bill_type || 'with', 
+        gst_amount, 
+        total_amount,
+        theme || 'blue',
+        currency || 'INR', 
+        notes || null, 
+        terms_conditions || null,
+        created_by || null
+      ).run();
+      
+      // Insert quotation items
+      for (const item of items) {
+        await env.DB.prepare(`
+          INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(
+          quotation_number, item.product_name, item.hsn_sac || null, item.quantity, item.unit_price, item.amount
+        ).run();
+      }
     }
     
     return c.json({ success: true, quotation_number });
@@ -4246,6 +4304,19 @@ Prices are subject to change without prior notice.</textarea>
                     <h2 style="font-size: 20px; font-weight: 600;">Quotation Preview</h2>
                     <span class="close" onclick="document.getElementById('quotationPreviewModal').classList.remove('show')">&times;</span>
                 </div>
+                
+                <!-- Theme Selector for Preview -->
+                <div style="padding: 15px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+                    <label style="font-weight: 600; margin-right: 10px;">Select Theme:</label>
+                    <select id="previewThemeSelector" onchange="changePreviewTheme(this.value)" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;">
+                        <option value="blue">🔵 Blue Theme</option>
+                        <option value="green">🟢 Green Theme</option>
+                        <option value="purple">🟣 Purple Theme</option>
+                        <option value="orange">🟠 Orange Theme</option>
+                        <option value="red">🔴 Red Theme</option>
+                    </select>
+                </div>
+                
                 <div id="quotationPreviewContent">
                     <div class="loading">Loading...</div>
                 </div>
@@ -6836,22 +6907,15 @@ Prices are subject to change without prior notice.</textarea>
                                 '</tbody>' +
                             '</table>' +
                         
-                            // Summary section with QR code and bank details
+                            // Summary section with bank details
                             '<div style="display: grid; grid-template-columns: 1fr auto; gap: 20px; margin-top: 20px;">' +
-                                // QR Code and Bank Details
+                                // Bank Details
                                 '<div style="border: 1px solid #ddd; padding: 15px; background: #f9fafb;">' +
-                                    '<div style="display: flex; gap: 15px; align-items: flex-start;">' +
-                                        '<div style="min-width: 100px; height: 100px; background: white; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 5px;">' +
-                                            '<i class="fas fa-qrcode" style="font-size: 60px; color: #ddd;"></i>' +
-                                        '</div>' +
-                                        '<div>' +
-                                            '<h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold;">Pay To:</h3>' +
-                                            '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Name :</strong> IDFC FIRST BANK LTD, NOIDA-SIXTEEN BRANCH</p>' +
-                                            '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Account No. :</strong> 10188344828</p>' +
-                                            '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank IFSC code :</strong> IDFB0020158</p>' +
-                                            '<p style="margin: 2px 0; font-size: 11px;"><strong>Account holder\\'s name :</strong> RealTrack Technology</p>' +
-                                        '</div>' +
-                                    '</div>' +
+                                    '<h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold;">Pay To:</h3>' +
+                                    '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Name :</strong> IDFC FIRST BANK LTD, NOIDA-SIXTEEN BRANCH</p>' +
+                                    '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Account No. :</strong> 10188344828</p>' +
+                                    '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank IFSC code :</strong> IDFB0020158</p>' +
+                                    '<p style="margin: 2px 0; font-size: 11px;"><strong>Account holder\\'s name :</strong> RealTrack Technology</p>' +
                                 '</div>' +
                                 
                                 // Amount Summary
@@ -6861,15 +6925,6 @@ Prices are subject to change without prior notice.</textarea>
                                         (quotation.courier_cost > 0 ? '<tr><td style="padding: 6px;">Courier via ' + (quotation.courier_partner || 'Standard') + '</td><td style="padding: 6px; text-align: right;">' + currencySymbol + ' ' + quotation.courier_cost.toFixed(2) + '</td></tr>' : '') +
                                         (quotation.gst_amount > 0 ? '<tr><td style="padding: 6px;">IGST@18%</td><td style="padding: 6px; text-align: right;">' + currencySymbol + ' ' + quotation.gst_amount.toFixed(2) + '</td></tr>' : '') +
                                         '<tr style="background: ' + themeColor.primary + '; color: white; font-weight: bold; font-size: 14px;"><td style="padding: 10px;">total</td><td style="padding: 10px; text-align: right;">' + currencySymbol + ' ' + quotation.total_amount.toFixed(2) + '</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; background: #f3f4f6; font-size: 10px;">Received</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; background: #f3f4f6; font-size: 10px; text-align: right;">' + currencySymbol + ' 0.00</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; font-size: 10px;">Balance</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; font-size: 10px; text-align: right; font-weight: bold;">' + currencySymbol + ' ' + quotation.total_amount.toFixed(2) + '</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; background: #f3f4f6; font-size: 10px;">Payment Mode</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; background: #f3f4f6; font-size: 10px; text-align: right;">Credit</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; font-size: 10px;">Previous Balance</td></tr>' +
-                                        '<tr><td colspan="2" style="padding: 6px; font-size: 10px; text-align: right;">' + currencySymbol + ' 0.00</td></tr>' +
-                                        '<tr style="background: ' + themeColor.primary + '; color: white; font-weight: bold;"><td style="padding: 8px;">Current Balance</td><td style="padding: 8px; text-align: right;">' + currencySymbol + ' ' + quotation.total_amount.toFixed(2) + '</td></tr>' +
                                     '</table>' +
                                 '</div>' +
                             '</div>' +
@@ -6894,10 +6949,81 @@ Prices are subject to change without prior notice.</textarea>
                             '</div>' +
                         '</div>' +
                     '</div>';
+                    // Set theme selector to current theme
+                    const themeSelector = document.getElementById('previewThemeSelector');
+                    if (themeSelector) {
+                        themeSelector.value = theme;
+                    }
                 } catch (error) {
                     console.error('Error loading quotation:', error);
                     content.innerHTML = '<div class="card" style="background: #fee2e2; color: #991b1b;">Error loading quotation details</div>';
                 }
+            }
+            
+            // Change preview theme dynamically
+            async function changePreviewTheme(newTheme) {
+                if (!currentQuotationData) return;
+                
+                // Update current quotation data with new theme
+                currentQuotationData.theme = newTheme;
+                
+                // Re-render the preview without reloading from API
+                const content = document.getElementById('quotationPreviewContent');
+                content.innerHTML = '<div class="loading">Updating theme...</div>';
+                
+                // Small delay for smooth transition
+                setTimeout(() => {
+                    // Call viewQuotationPreview with the current quotation number
+                    // But we'll modify it to use currentQuotationData directly
+                    renderQuotationWithTheme(currentQuotationData, newTheme);
+                }, 100);
+            }
+            
+            // Render quotation with specified theme
+            function renderQuotationWithTheme(quotation, themeOverride) {
+                const content = document.getElementById('quotationPreviewContent');
+                const items = Array.isArray(quotation.items) ? quotation.items : JSON.parse(quotation.items || '[]');
+                
+                // Get currency symbol
+                const currency = quotation.currency || 'INR';
+                const currencySymbols = {'INR': '₹', 'USD': '$', 'EUR': '€', 'GBP': '£'};
+                const currencySymbol = currencySymbols[currency] || '₹';
+                const currencyName = currency === 'INR' ? 'Rupees' : (currency === 'USD' ? 'Dollars' : (currency === 'EUR' ? 'Euros' : 'Pounds'));
+                
+                // Convert number to words
+                function numberToWords(num) {
+                    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+                    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+                    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+                    
+                    if (num === 0) return 'Zero';
+                    if (num < 10) return ones[num];
+                    if (num < 20) return teens[num - 10];
+                    if (num < 100) return tens[Math.floor(num / 10)] + ' ' + ones[num % 10];
+                    if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred ' + numberToWords(num % 100);
+                    if (num < 100000) return numberToWords(Math.floor(num / 1000)) + ' Thousand ' + numberToWords(num % 1000);
+                    if (num < 10000000) return numberToWords(Math.floor(num / 100000)) + ' Lakh ' + numberToWords(num % 100000);
+                    return numberToWords(Math.floor(num / 10000000)) + ' Crore ' + numberToWords(num % 10000000);
+                }
+                
+                const amountInWords = numberToWords(Math.floor(quotation.total_amount)) + ' ' + currencyName + ' only';
+                
+                // Get theme color - use override if provided
+                const theme = themeOverride || quotation.theme || 'blue';
+                const themeColors = {
+                    blue: { primary: '#DC143C', secondary: '#2C3E50', dark: '#1a252f', light: '#ECF0F1' },
+                    green: { primary: '#10B981', secondary: '#047857', dark: '#065F46', light: '#ECFDF5' },
+                    purple: { primary: '#8B5CF6', secondary: '#6D28D9', dark: '#5B21B6', light: '#F5F3FF' },
+                    orange: { primary: '#F97316', secondary: '#C2410C', dark: '#9A3412', light: '#FFF7ED' },
+                    red: { primary: '#DC143C', secondary: '#B91C1C', dark: '#991B1B', light: '#FEF2F2' }
+                };
+                const themeColor = themeColors[theme];
+                
+                const quotationDate = new Date(quotation.created_at).toLocaleDateString('en-GB');
+                const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+                
+                // Just reload the preview - simplest solution
+                viewQuotationPreview(quotation.quotation_number);
             }
             
             // View quotation details (same as preview, for clicking rows)
