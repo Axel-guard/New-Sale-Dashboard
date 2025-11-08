@@ -6864,7 +6864,7 @@ Prices are subject to change without prior notice.</textarea>
                                     '<table style="width: 100%; font-size: 12px; border-collapse: collapse;">' +
                                         '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Estimate No.:</td><td style="padding: 4px; text-align: right;">' + quotation.quotation_number + '</td></tr>' +
                                         '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Date:</td><td style="padding: 4px; text-align: right;">' + quotationDate + '</td></tr>' +
-                                        '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Place of Supply:</td><td style="padding: 4px; text-align: right;">29-Karnataka</td></tr>' +
+                                        '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Place of Supply:</td><td style="padding: 4px; text-align: right;">09-Uttar Pradesh</td></tr>' +
                                     '</table>' +
                                 '</div>' +
                             '</div>' +
@@ -6961,26 +6961,21 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Change preview theme dynamically
-            async function changePreviewTheme(newTheme) {
+            function changePreviewTheme(newTheme) {
                 if (!currentQuotationData) return;
                 
                 // Update current quotation data with new theme
                 currentQuotationData.theme = newTheme;
                 
-                // Re-render the preview without reloading from API
-                const content = document.getElementById('quotationPreviewContent');
-                content.innerHTML = '<div class="loading">Updating theme...</div>';
-                
-                // Small delay for smooth transition
-                setTimeout(() => {
-                    // Call viewQuotationPreview with the current quotation number
-                    // But we'll modify it to use currentQuotationData directly
-                    renderQuotationWithTheme(currentQuotationData, newTheme);
-                }, 100);
+                // Directly render with new theme (don't reload from API)
+                renderQuotationPreview(newTheme);
             }
             
-            // Render quotation with specified theme
-            function renderQuotationWithTheme(quotation, themeOverride) {
+            // Render quotation preview with current data and specified theme
+            function renderQuotationPreview(themeOverride) {
+                if (!currentQuotationData) return;
+                
+                const quotation = currentQuotationData;
                 const content = document.getElementById('quotationPreviewContent');
                 const items = Array.isArray(quotation.items) ? quotation.items : JSON.parse(quotation.items || '[]');
                 
@@ -7022,8 +7017,136 @@ Prices are subject to change without prior notice.</textarea>
                 const quotationDate = new Date(quotation.created_at).toLocaleDateString('en-GB');
                 const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
                 
-                // Just reload the preview - simplest solution
-                viewQuotationPreview(quotation.quotation_number);
+                // Generate the full HTML content with the theme
+                content.innerHTML = '<div id="quotation-printable" style="padding: 0; background: white; font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; border: 1px solid #ddd;">' +
+                    // Header with theme color curved design
+                    '<div style="background: ' + themeColor.primary + '; border-radius: 0 0 50% 0; padding: 20px 30px; position: relative;">' +
+                        '<div style="display: flex; justify-content: space-between; align-items: flex-start;">' +
+                            '<div>' +
+                                '<img src="/static/axelguard-logo.png" alt="AxelGuard" style="height: 50px; width: auto; background: white; padding: 5px; border-radius: 4px;">' +
+                            '</div>' +
+                            '<div style="text-align: right; color: white;">' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><i class="fas fa-phone"></i> | +91 8755311835</p>' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><i class="fas fa-envelope"></i> | info@axel-guard.com</p>' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><i class="fas fa-map-marker-alt"></i> | Office No.210 Second Floor PC Chamber</p>' +
+                                '<p style="margin: 2px 0; font-size: 11px;">Sector 66 Noida, Uttar Pradesh - 201301</p>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    
+                    // Company name and GSTIN banner
+                    '<div style="background: ' + themeColor.secondary + '; color: white; padding: 15px 30px;">' +
+                        '<h1 style="margin: 0; font-size: 22px; font-weight: bold;">RealTrack Technology</h1>' +
+                        '<div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px;">' +
+                            '<span>GSTIN: 09FSEPP6050C1ZQ</span>' +
+                            '<span>State: 09 - Uttar Pradesh</span>' +
+                        '</div>' +
+                    '</div>' +
+                    
+                    '<div style="padding: 30px;">' +
+                        // Estimate title and details grid
+                        '<div style="display: grid; grid-template-columns: 1fr auto; gap: 20px; margin-bottom: 25px;">' +
+                            // Estimate For section
+                            '<div style="border: 1px solid #ddd; padding: 15px;">' +
+                                '<h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold; color: ' + themeColor.primary + ';">Estimate For:</h3>' +
+                                '<p style="margin: 3px 0; font-size: 13px; font-weight: bold; text-transform: uppercase;">' + (quotation.company_name || quotation.customer_name) + '</p>' +
+                                '<p style="margin: 3px 0; font-size: 12px;">' + (quotation.customer_address || '') + '</p>' +
+                                (quotation.customer_contact ? '<p style="margin: 3px 0; font-size: 12px;"><strong>Contact No.:</strong> ' + quotation.customer_contact + '</p>' : '') +
+                                (quotation.gst_number ? '<p style="margin: 3px 0; font-size: 12px;"><strong>GSTIN Number:</strong> ' + quotation.gst_number + '</p>' : '') +
+                                (quotation.gst_number ? '<p style="margin: 3px 0; font-size: 12px;"><strong>State:</strong> ' + (quotation.gst_registered_address ? quotation.gst_registered_address.split(',').slice(-2).join(',').trim() : 'N/A') + '</p>' : '') +
+                            '</div>' +
+                            
+                            // Estimate details
+                            '<div style="min-width: 250px;">' +
+                                '<h2 style="margin: 0 0 15px 0; font-size: 32px; font-weight: bold; color: ' + themeColor.primary + '; text-align: right;">Estimate</h2>' +
+                                '<table style="width: 100%; font-size: 12px; border-collapse: collapse;">' +
+                                    '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Estimate No.:</td><td style="padding: 4px; text-align: right;">' + quotation.quotation_number + '</td></tr>' +
+                                    '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Date:</td><td style="padding: 4px; text-align: right;">' + quotationDate + '</td></tr>' +
+                                    '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Place of Supply:</td><td style="padding: 4px; text-align: right;">09-Uttar Pradesh</td></tr>' +
+                                '</table>' +
+                            '</div>' +
+                        '</div>' +
+                        
+                        // Ship To section
+                        '<div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; background: #f9fafb;">' +
+                            '<h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold; color: ' + themeColor.primary + ';">Ship To :</h3>' +
+                            '<p style="margin: 3px 0; font-size: 12px; text-transform: uppercase;">' + (quotation.customer_address || '') + '</p>' +
+                        '</div>' +
+                    
+                        // Items Table with themed header
+                        '<table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px;">' +
+                            '<thead>' +
+                                '<tr style="background: ' + themeColor.primary + '; color: white;">' +
+                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">#</th>' +
+                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: left; font-weight: bold;">Item name</th>' +
+                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">HSN/ SAC</th>' +
+                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">Quantity</th>' +
+                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">Unit</th>' +
+                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: right; font-weight: bold;">Price/ Unit</th>' +
+                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: right; font-weight: bold;">Amount</th>' +
+                                '</tr>' +
+                            '</thead>' +
+                            '<tbody>' + 
+                            items.map((item, index) => 
+                                '<tr style="' + (index % 2 === 0 ? '' : 'background: #f9fafb;') + '">' +
+                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">' + (index + 1) + '</td>' +
+                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: left;">' + item.product_name + '<br><span style="font-size: 10px; color: #666;">Model No.: ' + (item.model || 'N/A') + '</span></td>' +
+                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">85219090</td>' +
+                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">' + item.quantity + '</td>' +
+                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">Pcs</td>' +
+                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: right;">' + currencySymbol + ' ' + item.unit_price.toFixed(2) + '</td>' +
+                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: 600;">' + currencySymbol + ' ' + item.amount.toFixed(2) + '</td>' +
+                                '</tr>'
+                            ).join('') +
+                            '<tr style="background: ' + themeColor.primary + '; color: white; font-weight: bold;">' +
+                                '<td colspan="6" style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: right;">Total</td>' +
+                                '<td style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: center;">' + totalQuantity + '</td>' +
+                            '</tr>' +
+                            '</tbody>' +
+                        '</table>' +
+                        
+                        // Summary section with bank details
+                        '<div style="display: grid; grid-template-columns: 1fr auto; gap: 20px; margin-top: 20px;">' +
+                            // Bank Details
+                            '<div style="border: 1px solid #ddd; padding: 15px; background: #f9fafb;">' +
+                                '<h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold;">Pay To:</h3>' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Name :</strong> IDFC FIRST BANK LTD, NOIDA-SIXTEEN BRANCH</p>' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank Account No. :</strong> 10188344828</p>' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><strong>Bank IFSC code :</strong> IDFB0020158</p>' +
+                                '<p style="margin: 2px 0; font-size: 11px;"><strong>Account holder\'s name :</strong> RealTrack Technology</p>' +
+                            '</div>' +
+                            
+                            // Amount Summary
+                            '<div style="min-width: 300px;">' +
+                                '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">' +
+                                    '<tr><td style="padding: 6px; background: #f3f4f6; font-weight: 600;">Sub Total</td><td style="padding: 6px; text-align: right; background: #f3f4f6;">' + currencySymbol + ' ' + quotation.subtotal.toFixed(2) + '</td></tr>' +
+                                    (quotation.courier_cost > 0 ? '<tr><td style="padding: 6px;">Courier via ' + (quotation.courier_partner || 'Standard') + '</td><td style="padding: 6px; text-align: right;">' + currencySymbol + ' ' + quotation.courier_cost.toFixed(2) + '</td></tr>' : '') +
+                                    (quotation.gst_amount > 0 ? '<tr><td style="padding: 6px;">IGST@18%</td><td style="padding: 6px; text-align: right;">' + currencySymbol + ' ' + quotation.gst_amount.toFixed(2) + '</td></tr>' : '') +
+                                    '<tr style="background: ' + themeColor.primary + '; color: white; font-weight: bold; font-size: 14px;"><td style="padding: 10px;">total</td><td style="padding: 10px; text-align: right;">' + currencySymbol + ' ' + quotation.total_amount.toFixed(2) + '</td></tr>' +
+                                '</table>' +
+                            '</div>' +
+                        '</div>' +
+                        
+                        // Amount in Words
+                        '<div style="margin: 20px 0; padding: 12px; background: #f3f4f6; border-left: 4px solid ' + themeColor.primary + ';">' +
+                            '<p style="margin: 0; font-size: 12px; font-weight: 600;">Estimate Amount In Words</p>' +
+                            '<p style="margin: 5px 0 0 0; font-size: 13px; font-weight: bold; color: ' + themeColor.primary + ';">' + amountInWords + '</p>' +
+                        '</div>' +
+                        
+                        // Terms & Conditions
+                        '<div style="margin-top: 25px; padding: 15px; border: 1px solid #ddd; background: #f9fafb;">' +
+                            '<h3 style="font-size: 13px; font-weight: bold; margin: 0 0 8px 0; color: ' + themeColor.primary + ';">Terms And Conditions</h3>' +
+                            '<p style="margin: 0; font-size: 11px; line-height: 1.5; white-space: pre-line;">' + (quotation.terms_conditions || 'Thanks for doing business with us!') + '</p>' +
+                        '</div>' +
+                        
+                        // Signature
+                        '<div style="margin-top: 30px; text-align: right;">' +
+                            '<p style="margin: 0; font-size: 12px; font-weight: 600;">For : RealTrack Technology</p>' +
+                            '<div style="height: 40px;"></div>' +
+                            '<p style="margin: 0; font-size: 11px; border-top: 1px solid #000; display: inline-block; padding-top: 5px; min-width: 150px;">Authorized Signatory</p>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
             }
             
             // View quotation details (same as preview, for clicking rows)
