@@ -1697,10 +1697,10 @@ app.post('/api/quotations', async (c) => {
       // Insert new quotation items
       for (const item of items) {
         await env.DB.prepare(`
-          INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
+          INSERT INTO quotation_items (quotation_number, product_name, model, quantity, unit_price, amount)
           VALUES (?, ?, ?, ?, ?, ?)
         `).bind(
-          quotation_number, item.product_name, item.hsn_sac || null, item.quantity, item.unit_price, item.amount
+          quotation_number, item.product_name, null, item.quantity, item.unit_price, item.amount
         ).run();
       }
     } else {
@@ -1743,10 +1743,10 @@ app.post('/api/quotations', async (c) => {
       // Insert quotation items
       for (const item of items) {
         await env.DB.prepare(`
-          INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
+          INSERT INTO quotation_items (quotation_number, product_name, model, quantity, unit_price, amount)
           VALUES (?, ?, ?, ?, ?, ?)
         `).bind(
-          quotation_number, item.product_name, item.hsn_sac || null, item.quantity, item.unit_price, item.amount
+          quotation_number, item.product_name, null, item.quantity, item.unit_price, item.amount
         ).run();
       }
     }
@@ -1877,10 +1877,10 @@ app.put('/api/quotations/:id', async (c) => {
     
     for (const item of items) {
       await env.DB.prepare(`
-        INSERT INTO quotation_items (quotation_number, item_name, hsn_sac, quantity, unit_price, amount)
+        INSERT INTO quotation_items (quotation_number, product_name, model, quantity, unit_price, amount)
         VALUES (?, ?, ?, ?, ?, ?)
       `).bind(
-        quotation_number, item.product_name, item.hsn_sac, item.quantity, item.unit_price, item.amount
+        quotation_number, item.product_name, null, item.quantity, item.unit_price, item.amount
       ).run();
     }
     
