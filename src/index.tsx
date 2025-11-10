@@ -4216,29 +4216,35 @@ app.get('/', (c) => {
                     <!-- Courier and Bill Type -->
                     <div class="form-row" style="margin-top: 20px;">
                         <div class="form-group">
-                            <label>Courier Partner</label>
-                            <select id="quotationCourierPartner" name="courier_partner" onchange="loadDeliveryMethods()">
-                                <option value="">Select Courier Partner</option>
-                                <option value="DTDC">DTDC</option>
-                                <option value="Blue Dart">Blue Dart</option>
-                                <option value="Delhivery">Delhivery</option>
-                                <option value="Professional Courier">Professional Courier</option>
+                            <label>Courier Company</label>
+                            <select id="quotationCourierPartner" name="courier_partner" onchange="loadQuotationDeliveryMethods()">
+                                <option value="">Select Courier</option>
+                                <option value="Trackon">Trackon</option>
+                                <option value="Porter">Porter</option>
+                                <option value="SM Express">SM Express</option>
+                                <option value="India Post">India Post</option>
+                                <option value="Tirupati">Tirupati</option>
+                                <option value="Fedex">Fedex</option>
+                                <option value="DHL">DHL</option>
                                 <option value="Self Pickup">Self Pickup</option>
-                                <option value="Hand Delivery">Hand Delivery</option>
+                                <option value="DTDC">DTDC</option>
+                                <option value="Professional Courier">Professional Courier</option>
+                                <option value="Self Deliver">Self Deliver</option>
+                                <option value="Other">Other</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Delivery Method</label>
-                            <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateCourierCharges()">
-                                <option value="">Select Delivery Method</option>
+                            <label>Courier Mode</label>
+                            <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateQuotationCourierCharges()">
+                                <option value="">Select Mode</option>
                             </select>
                         </div>
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Estimated Weight (kg)</label>
-                            <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="1" onchange="calculateCourierCharges()" placeholder="Package weight">
+                            <label>Total Weight (Auto-calculated from products)</label>
+                            <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="0" readonly style="background: #f3f4f6;" placeholder="Auto-calculated">
                         </div>
                         <div class="form-group">
                             <label>Courier Charges (Auto-calculated)</label>
@@ -6592,7 +6598,82 @@ Prices are subject to change without prior notice.</textarea>
                 calculateTotalWeight(); // Recalculate weight when quantity changes
             }
             
-            // Load delivery methods based on courier partner from database
+            // Load delivery methods for quotation (same as courier calculation page)
+            function loadQuotationDeliveryMethods() {
+                const company = document.getElementById('quotationCourierPartner').value;
+                const methodSelect = document.getElementById('quotationDeliveryMethod');
+                
+                methodSelect.innerHTML = '<option value="">Select Mode</option>';
+                
+                if (!company) {
+                    document.getElementById('quotationCourierCost').value = 0;
+                    calculateQuotationTotal();
+                    return;
+                }
+                
+                // For Self Pickup and Self Deliver, no charges
+                if (company === 'Self Pickup' || company === 'Self Deliver') {
+                    document.getElementById('quotationCourierCost').value = 0;
+                    calculateQuotationTotal();
+                    return;
+                }
+                
+                // Add standard modes for all other courier partners
+                methodSelect.innerHTML += '<option value="Surface">Surface</option>';
+                methodSelect.innerHTML += '<option value="Air">Air</option>';
+                methodSelect.innerHTML += '<option value="Priority">Priority next day</option>';
+                methodSelect.innerHTML += '<option value="Bus">Bus</option>';
+            }
+            
+            // Calculate courier charges for quotation (same logic as courier calculation page)
+            function calculateQuotationCourierCharges() {
+                const company = document.getElementById('quotationCourierPartner').value;
+                const mode = document.getElementById('quotationDeliveryMethod').value;
+                const totalWeight = parseFloat(document.getElementById('quotationWeight').value) || 0;
+                
+                if (!company || !mode || totalWeight === 0) {
+                    document.getElementById('quotationCourierCost').value = 0;
+                    calculateQuotationTotal();
+                    return;
+                }
+                
+                // Calculate rate per kg based on company and mode (same as courier calculation page)
+                let ratePerKg = 0;
+                
+                if (company === 'Trackon') {
+                    if (mode === 'Air') {
+                        ratePerKg = 110;
+                    } else if (mode === 'Surface') {
+                        ratePerKg = 90;
+                    } else if (mode === 'Priority') {
+                        ratePerKg = 130;
+                    } else if (mode === 'Bus') {
+                        ratePerKg = 80;
+                    }
+                } else {
+                    // Default rates for other couriers
+                    if (mode === 'Air') {
+                        ratePerKg = 100;
+                    } else if (mode === 'Surface') {
+                        ratePerKg = 80;
+                    } else if (mode === 'Priority') {
+                        ratePerKg = 120;
+                    } else if (mode === 'Bus') {
+                        ratePerKg = 70;
+                    }
+                }
+                
+                // Calculate costs (same as courier calculation page)
+                const baseCost = totalWeight * ratePerKg;
+                const fuelCharge = baseCost * 0.10; // 10% fuel charge
+                const totalCost = baseCost + fuelCharge;
+                
+                // Update courier cost field
+                document.getElementById('quotationCourierCost').value = totalCost.toFixed(2);
+                calculateQuotationTotal();
+            }
+            
+            // Load delivery methods based on courier partner from database (OLD FUNCTION - KEEP FOR COMPATIBILITY)
             async function loadDeliveryMethods() {
                 const partner = document.getElementById('quotationCourierPartner').value;
                 const methodSelect = document.getElementById('quotationDeliveryMethod');
