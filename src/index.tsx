@@ -1711,7 +1711,7 @@ app.post('/api/quotations', async (c) => {
           company_name, gst_number, gst_registered_address, customer_address, concern_person_name, concern_person_contact,
           items, subtotal, courier_cost, courier_partner, delivery_method, bill_type, gst_amount, total_amount, theme, currency, notes, terms_conditions, 
           created_by, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         quotation_number, 
         customer_code || null, 
@@ -1736,7 +1736,8 @@ app.post('/api/quotations', async (c) => {
         currency || 'INR', 
         notes || null, 
         terms_conditions || null,
-        created_by || null
+        created_by || null,
+        'draft'
       ).run();
       
       // Insert quotation items
