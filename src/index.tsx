@@ -7018,12 +7018,16 @@ Prices are subject to change without prior notice.</textarea>
                 };
                 
                 try {
+                    console.log('📤 Submitting quotation data:', quotationData);
+                    
                     // First, update lead data if manually edited
                     if (currentLeadId) {
                         await updateLeadFromQuotationForm(currentLeadId, quotationData);
                     }
                     
                     const response = await axios.post('/api/quotations', quotationData);
+                    
+                    console.log('📥 Server response:', response.data);
                     
                     if (response.data.success) {
                         // Close new quotation modal
@@ -7037,11 +7041,14 @@ Prices are subject to change without prior notice.</textarea>
                             loadQuotations();
                         }
                     } else {
+                        console.error('❌ Server error:', response.data.error);
                         alert('Error creating quotation: ' + response.data.error);
                     }
                 } catch (error) {
-                    console.error('Error:', error);
-                    alert('Failed to create quotation. Please try again.');
+                    console.error('❌ Error details:', error);
+                    console.error('Error response:', error.response?.data);
+                    console.error('Error status:', error.response?.status);
+                    alert('Failed to create quotation. Please try again. Check console for details.');
                 }
             }
             
