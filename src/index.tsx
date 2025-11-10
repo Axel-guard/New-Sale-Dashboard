@@ -6573,10 +6573,12 @@ Prices are subject to change without prior notice.</textarea>
                         '</select>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<select class="quotation-item-product" data-weight="0" onchange="calculateQuotationTotalWeight()" ' +
-                               'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
+                        '<select class="quotation-item-product" data-weight="0" onchange="handleQuotationProductChange(this)" ' +
+                               'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; margin-bottom: 4px;" required>' +
                             '<option value="">Select Category First</option>' +
                         '</select>' +
+                        '<input type="text" class="custom-product-name" placeholder="Enter custom product name" ' +
+                               'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; display: none;">' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
                         '<input type="number" class="quotation-item-quantity" value="1" min="1" ' +
@@ -6603,6 +6605,7 @@ Prices are subject to change without prior notice.</textarea>
                 const category = selectElement.value;
                 const row = selectElement.closest('tr');
                 const productSelect = row.querySelector('.quotation-item-product');
+                const customInput = row.querySelector('.custom-product-name');
                 
                 productSelect.innerHTML = '<option value="">Select Product</option>';
                 
@@ -6614,7 +6617,37 @@ Prices are subject to change without prior notice.</textarea>
                         option.dataset.weight = product.weight;
                         productSelect.appendChild(option);
                     });
+                    
+                    // Add "Custom Product" option for Accessories category
+                    if (category === 'I-MDVR Accessories') {
+                        const customOption = document.createElement('option');
+                        customOption.value = 'custom';
+                        customOption.textContent = '--- Custom Product ---';
+                        customOption.dataset.weight = 0;
+                        productSelect.appendChild(customOption);
+                    }
                 }
+                
+                // Hide custom input by default
+                if (customInput) {
+                    customInput.style.display = 'none';
+                    customInput.value = '';
+                }
+            }
+            
+            // Handle product selection change - show custom input if needed
+            function handleQuotationProductChange(selectElement) {
+                const row = selectElement.closest('tr');
+                const customInput = row.querySelector('.custom-product-name');
+                
+                if (selectElement.value === 'custom' && customInput) {
+                    customInput.style.display = 'block';
+                    customInput.focus();
+                } else if (customInput) {
+                    customInput.style.display = 'none';
+                }
+                
+                calculateQuotationTotalWeight();
             }
             
             // Calculate total weight from selected products (SAME AS SALE FORM)
@@ -6968,7 +7001,16 @@ Prices are subject to change without prior notice.</textarea>
                 const rows = document.querySelectorAll('#quotationItemsRows tr');
                 rows.forEach(row => {
                     const productSelect = row.querySelector('.quotation-item-product');
-                    const productName = productSelect.options[productSelect.selectedIndex].text;
+                    const customInput = row.querySelector('.custom-product-name');
+                    
+                    // Use custom product name if "custom" is selected
+                    let productName;
+                    if (productSelect.value === 'custom' && customInput && customInput.value.trim()) {
+                        productName = customInput.value.trim();
+                    } else {
+                        productName = productSelect.options[productSelect.selectedIndex].text;
+                    }
+                    
                     const quantity = parseInt(row.querySelector('.quotation-item-quantity').value);
                     const unitPrice = parseFloat(row.querySelector('.quotation-item-price').value);
                     
@@ -7023,9 +7065,36 @@ Prices are subject to change without prior notice.</textarea>
                 try {
                     console.log('📤 Submitting quotation data:', quotationData);
                     
-                    // First, update lead data if manually edited
+                    // Update existing lead OR create new lead if data was entered manually
                     if (currentLeadId) {
+                        // Update existing lead
                         await updateLeadFromQuotationForm(currentLeadId, quotationData);
+                    } else if (quotationData.customer_name && quotationData.customer_contact) {
+                        // Create new lead from quotation data
+                        try {
+                            const newLeadData = {
+                                customer_code: quotationData.customer_code || null,
+                                customer_name: quotationData.customer_name,
+                                mobile_number: quotationData.customer_contact,
+                                alternate_mobile: quotationData.concern_person_contact || null,
+                                email: quotationData.customer_email || null,
+                                company_name: quotationData.company_name || null,
+                                gst_number: quotationData.gst_number || null,
+                                location: null,
+                                complete_address: quotationData.customer_address || quotationData.gst_registered_address || null,
+                                lead_status: 'New',
+                                lead_source: 'Quotation',
+                                assigned_to: currentUser.fullName
+                            };
+                            
+                            const leadResponse = await axios.post('/api/leads', newLeadData);
+                            if (leadResponse.data.success) {
+                                console.log('✅ New lead created:', leadResponse.data.lead_id);
+                            }
+                        } catch (error) {
+                            console.error('Error creating new lead:', error);
+                            // Don't fail quotation creation if lead creation fails
+                        }
                     }
                     
                     const response = await axios.post('/api/quotations', quotationData);
@@ -7232,6 +7301,13 @@ Prices are subject to change without prior notice.</textarea>
                                 '<p style="margin: 5px 0 0 0; font-size: 13px; font-weight: bold; color: ' + themeColor.primary + ';">' + amountInWords + '</p>' +
                             '</div>' +
                             
+                            // Notes (only if provided)
+                            (quotation.notes && quotation.notes.trim() ? 
+                                '<div style="margin-top: 25px; padding: 15px; border: 1px solid #ddd; background: #fffbeb;">' +
+                                    '<h3 style="font-size: 13px; font-weight: bold; margin: 0 0 8px 0; color: ' + themeColor.primary + ';">Notes</h3>' +
+                                    '<p style="margin: 0; font-size: 11px; line-height: 1.5; white-space: pre-line;">' + quotation.notes + '</p>' +
+                                '</div>' : '') +
+                            
                             // Terms & Conditions
                             '<div style="margin-top: 25px; padding: 15px; border: 1px solid #ddd; background: #f9fafb;">' +
                                 '<h3 style="font-size: 13px; font-weight: bold; margin: 0 0 8px 0; color: ' + themeColor.primary + ';">Terms And Conditions</h3>' +
@@ -7428,6 +7504,13 @@ Prices are subject to change without prior notice.</textarea>
                             '<p style="margin: 0; font-size: 12px; font-weight: 600;">Estimate Amount In Words</p>' +
                             '<p style="margin: 5px 0 0 0; font-size: 13px; font-weight: bold; color: ' + themeColor.primary + ';">' + amountInWords + '</p>' +
                         '</div>' +
+                        
+                        // Notes (only if provided)
+                        (quotation.notes && quotation.notes.trim() ? 
+                            '<div style="margin-top: 25px; padding: 15px; border: 1px solid #ddd; background: #fffbeb;">' +
+                                '<h3 style="font-size: 13px; font-weight: bold; margin: 0 0 8px 0; color: ' + themeColor.primary + ';">Notes</h3>' +
+                                '<p style="margin: 0; font-size: 11px; line-height: 1.5; white-space: pre-line;">' + quotation.notes + '</p>' +
+                            '</div>' : '') +
                         
                         // Terms & Conditions
                         '<div style="margin-top: 25px; padding: 15px; border: 1px solid #ddd; background: #f9fafb;">' +
@@ -7736,48 +7819,53 @@ Prices are subject to change without prior notice.</textarea>
                     itemsRows.innerHTML = '';
                     quotationItemCounter = 0;
                     
-                    // Load items - need to find category and product for each
+                    // Load items - find category and product in productCatalog
                     for (const item of items) {
                         await addQuotationItem();
                         const row = itemsRows.lastElementChild;
                         
-                        // Try to find the product in the database to get category
-                        try {
-                            const productResponse = await axios.get('/api/products');
-                            if (productResponse.data.success) {
-                                const allProducts = productResponse.data.data;
-                                const matchingProduct = allProducts.find(p => p.product_name === item.product_name);
+                        let foundProduct = false;
+                        
+                        // Search through productCatalog to find matching product
+                        for (const [categoryKey, products] of Object.entries(productCatalog)) {
+                            const matchingProduct = products.find(p => p.name === item.product_name);
+                            
+                            if (matchingProduct) {
+                                // Found product! Set category first
+                                const categorySelect = row.querySelector('.quotation-item-category');
+                                categorySelect.value = categoryKey;
                                 
-                                if (matchingProduct) {
-                                    // Found product - set category and product
-                                    const categorySelect = row.querySelector('.quotation-item-category');
-                                    categorySelect.value = matchingProduct.category_id;
-                                    
-                                    // Load products for this category
-                                    await loadProductsByCategory(categorySelect);
-                                    
-                                    // Set product
+                                // Trigger category change to load products
+                                updateQuotationProductOptions(categorySelect);
+                                
+                                // Then set product
+                                setTimeout(() => {
                                     const productSelect = row.querySelector('.quotation-item-product');
-                                    productSelect.value = matchingProduct.id;
-                                } else {
-                                    // Product not found in database - add as custom
-                                    const productSelect = row.querySelector('.quotation-item-product');
-                                    const option = document.createElement('option');
-                                    option.value = 'custom_' + quotationItemCounter;
-                                    option.textContent = item.product_name;
-                                    option.selected = true;
-                                    productSelect.appendChild(option);
-                                }
+                                    productSelect.value = matchingProduct.name;
+                                }, 50);
+                                
+                                foundProduct = true;
+                                break;
                             }
-                        } catch (error) {
-                            console.error('Error finding product:', error);
-                            // Fallback to custom option
-                            const productSelect = row.querySelector('.quotation-item-product');
-                            const option = document.createElement('option');
-                            option.value = 'custom_' + quotationItemCounter;
-                            option.textContent = item.product_name;
-                            option.selected = true;
-                            productSelect.appendChild(option);
+                        }
+                        
+                        if (!foundProduct) {
+                            // Product not in catalog - must be custom product
+                            const categorySelect = row.querySelector('.quotation-item-category');
+                            categorySelect.value = 'I-MDVR Accessories'; // Default to Accessories for custom
+                            updateQuotationProductOptions(categorySelect);
+                            
+                            setTimeout(() => {
+                                const productSelect = row.querySelector('.quotation-item-product');
+                                productSelect.value = 'custom';
+                                
+                                // Show custom product name input
+                                const customInput = row.querySelector('.custom-product-name');
+                                if (customInput) {
+                                    customInput.style.display = 'block';
+                                    customInput.value = item.product_name;
+                                }
+                            }, 50);
                         }
                         
                         // Set quantity and price
