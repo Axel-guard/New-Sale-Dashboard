@@ -953,6 +953,57 @@ app.post('/api/leads', async (c) => {
   }
 });
 
+// Update lead
+app.put('/api/leads/:leadId', async (c) => {
+  const { env } = c;
+  const leadId = c.req.param('leadId');
+  
+  try {
+    const body = await c.req.json();
+    const {
+      customer_code,
+      customer_name,
+      mobile_number,
+      alternate_mobile,
+      location,
+      company_name,
+      gst_number,
+      email,
+      complete_address
+    } = body;
+    
+    await env.DB.prepare(`
+      UPDATE leads SET
+        customer_code = ?,
+        customer_name = ?,
+        mobile_number = ?,
+        alternate_mobile = ?,
+        location = ?,
+        company_name = ?,
+        gst_number = ?,
+        email = ?,
+        complete_address = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(
+      customer_code || null,
+      customer_name,
+      mobile_number,
+      alternate_mobile || null,
+      location || null,
+      company_name || null,
+      gst_number || null,
+      email || null,
+      complete_address || null,
+      leadId
+    ).run();
+    
+    return c.json({ success: true });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to update lead' }, 500);
+  }
+});
+
 // Get single lead by ID
 app.get('/api/leads/:leadId', async (c) => {
   const { env } = c;
@@ -4231,42 +4282,52 @@ app.get('/', (c) => {
                         <i class="fas fa-plus"></i> Add Item
                     </button>
                     
-                    <!-- Courier and Bill Type -->
-                    <div class="form-row" style="margin-top: 20px;">
-                        <div class="form-group">
-                            <label>Courier Company</label>
-                            <select id="quotationCourierPartner" name="courier_partner" onchange="loadQuotationDeliveryMethods()">
-                                <option value="">Select Courier</option>
-                                <option value="Trackon">Trackon</option>
-                                <option value="Porter">Porter</option>
-                                <option value="SM Express">SM Express</option>
-                                <option value="India Post">India Post</option>
-                                <option value="Tirupati">Tirupati</option>
-                                <option value="Fedex">Fedex</option>
-                                <option value="DHL">DHL</option>
-                                <option value="Self Pickup">Self Pickup</option>
-                                <option value="DTDC">DTDC</option>
-                                <option value="Professional Courier">Professional Courier</option>
-                                <option value="Self Deliver">Self Deliver</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Courier Mode</label>
-                            <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateQuotationCourierCharges()">
-                                <option value="">Select Mode</option>
-                            </select>
-                        </div>
+                    <!-- Courier Option Checkbox -->
+                    <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                        <label style="display: flex; align-items: center; font-size: 15px; font-weight: 500; cursor: pointer;">
+                            <input type="checkbox" id="includeCourierCheckbox" checked onchange="toggleCourierSection()" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
+                            <span>Include Courier Charges</span>
+                        </label>
                     </div>
                     
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Total Weight (Auto-calculated from products)</label>
-                            <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="0" readonly style="background: #f3f4f6;" placeholder="Auto-calculated">
+                    <!-- Courier Section -->
+                    <div id="courierSection" style="margin-top: 15px;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Courier Company</label>
+                                <select id="quotationCourierPartner" name="courier_partner" onchange="loadQuotationDeliveryMethods()">
+                                    <option value="">Select Courier</option>
+                                    <option value="Trackon">Trackon</option>
+                                    <option value="Porter">Porter</option>
+                                    <option value="SM Express">SM Express</option>
+                                    <option value="India Post">India Post</option>
+                                    <option value="Tirupati">Tirupati</option>
+                                    <option value="Fedex">Fedex</option>
+                                    <option value="DHL">DHL</option>
+                                    <option value="Self Pickup">Self Pickup</option>
+                                    <option value="DTDC">DTDC</option>
+                                    <option value="Professional Courier">Professional Courier</option>
+                                    <option value="Self Deliver">Self Deliver</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Courier Mode</label>
+                                <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateQuotationCourierCharges()">
+                                    <option value="">Select Mode</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Courier Charges (Auto-calculated)</label>
-                            <input type="number" id="quotationCourierCost" name="courier_cost" min="0" step="0.01" value="0" readonly style="background: #f3f4f6;">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Total Weight (Auto-calculated from products)</label>
+                                <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="0" readonly style="background: #f3f4f6;" placeholder="Auto-calculated">
+                            </div>
+                            <div class="form-group">
+                                <label>Courier Charges (Auto-calculated)</label>
+                                <input type="number" id="quotationCourierCost" name="courier_cost" min="0" step="0.01" value="0" readonly style="background: #f3f4f6;">
+                            </div>
                         </div>
                     </div>
                     
@@ -6420,6 +6481,9 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
 
+            // Store the current lead ID for updating
+            let currentLeadId = null;
+            
             // Fetch Customer Details for Quotation from LEADS table
             async function fetchCustomerForQuotation(searchTerm) {
                 if (!searchTerm || searchTerm.trim() === '') return;
@@ -6434,6 +6498,7 @@ Prices are subject to change without prior notice.</textarea>
                     
                     if (response.data.success) {
                         const lead = response.data.data;
+                        currentLeadId = lead.id; // Store lead ID for updating
                         
                         // Fill in customer details from LEADS table
                         document.getElementById('quotationCustomerCode').value = lead.customer_code || '';
@@ -6454,6 +6519,7 @@ Prices are subject to change without prior notice.</textarea>
                             statusEl.style.display = 'none';
                         }, 3000);
                     } else {
+                        currentLeadId = null; // No lead found
                         statusEl.style.color = '#f59e0b';
                         statusEl.textContent = 'Customer not found. Please enter details manually.';
                         
@@ -6463,6 +6529,7 @@ Prices are subject to change without prior notice.</textarea>
                     }
                 } catch (error) {
                     console.error('Error fetching customer:', error);
+                    currentLeadId = null;
                     statusEl.style.color = '#f59e0b';
                     statusEl.textContent = 'Customer not found. Please enter details manually.';
                     
@@ -6780,6 +6847,21 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
 
+            // Toggle Courier Section
+            function toggleCourierSection() {
+                const checkbox = document.getElementById('includeCourierCheckbox');
+                const courierSection = document.getElementById('courierSection');
+                
+                if (checkbox.checked) {
+                    courierSection.style.display = 'block';
+                } else {
+                    courierSection.style.display = 'none';
+                    // Reset courier cost to 0
+                    document.getElementById('quotationCourierCost').value = 0;
+                    calculateQuotationTotal();
+                }
+            }
+            
             // Calculate Quotation Total
             function updateCurrencyDisplay() {
                 const currency = document.getElementById('quotationCurrency').value;
@@ -6805,7 +6887,9 @@ Prices are subject to change without prior notice.</textarea>
                     subtotal += quantity * price;
                 });
                 
-                const courierCost = parseFloat(document.getElementById('quotationCourierCost').value) || 0;
+                // Check if courier is included
+                const includeCourier = document.getElementById('includeCourierCheckbox').checked;
+                const courierCost = includeCourier ? (parseFloat(document.getElementById('quotationCourierCost').value) || 0) : 0;
                 const billType = document.getElementById('quotationBillType').value;
                 const gst = billType === 'with' ? (subtotal + courierCost) * 0.18 : 0;
                 const total = subtotal + courierCost + gst;
@@ -6837,6 +6921,28 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
 
+            // Update Lead Data from Quotation Form
+            async function updateLeadFromQuotationForm(leadId, quotationData) {
+                try {
+                    const updateData = {
+                        customer_code: quotationData.customer_code,
+                        customer_name: quotationData.customer_name,
+                        mobile_number: quotationData.customer_contact,
+                        email: quotationData.customer_email,
+                        company_name: quotationData.company_name,
+                        gst_number: quotationData.gst_number,
+                        complete_address: quotationData.customer_address || quotationData.gst_registered_address,
+                        alternate_mobile: quotationData.concern_person_contact
+                    };
+                    
+                    await axios.put('/api/leads/' + leadId, updateData);
+                    console.log('Lead data updated successfully');
+                } catch (error) {
+                    console.error('Error updating lead data:', error);
+                    // Don't fail quotation creation if lead update fails
+                }
+            }
+            
             // Submit New Quotation
             async function submitNewQuotation(event) {
                 event.preventDefault();
@@ -6902,6 +7008,11 @@ Prices are subject to change without prior notice.</textarea>
                 };
                 
                 try {
+                    // First, update lead data if manually edited
+                    if (currentLeadId) {
+                        await updateLeadFromQuotationForm(currentLeadId, quotationData);
+                    }
+                    
                     const response = await axios.post('/api/quotations', quotationData);
                     
                     if (response.data.success) {
