@@ -6652,7 +6652,7 @@ Prices are subject to change without prior notice.</textarea>
                 if (weightInput) {
                     weightInput.value = totalWeight.toFixed(2);
                     // Recalculate courier charges with new weight
-                    calculateCourierCharges();
+                    calculateQuotationCourierCharges(); // FIXED: Use correct function name
                 }
             }
 
