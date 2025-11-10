@@ -6864,7 +6864,6 @@ Prices are subject to change without prior notice.</textarea>
                                     '<table style="width: 100%; font-size: 12px; border-collapse: collapse;">' +
                                         '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Estimate No.:</td><td style="padding: 4px; text-align: right;">' + quotation.quotation_number + '</td></tr>' +
                                         '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Date:</td><td style="padding: 4px; text-align: right;">' + quotationDate + '</td></tr>' +
-                                        '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Place of Supply:</td><td style="padding: 4px; text-align: right;">09-Uttar Pradesh</td></tr>' +
                                     '</table>' +
                                 '</div>' +
                             '</div>' +
@@ -6881,7 +6880,6 @@ Prices are subject to change without prior notice.</textarea>
                                     '<tr style="background: ' + themeColor.primary + '; color: white;">' +
                                         '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">#</th>' +
                                         '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: left; font-weight: bold;">Item name</th>' +
-                                        '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">HSN/ SAC</th>' +
                                         '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">Quantity</th>' +
                                         '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">Unit</th>' +
                                         '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: right; font-weight: bold;">Price/ Unit</th>' +
@@ -6893,7 +6891,6 @@ Prices are subject to change without prior notice.</textarea>
                                     '<tr style="' + (index % 2 === 0 ? '' : 'background: #f9fafb;') + '">' +
                                         '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">' + (index + 1) + '</td>' +
                                         '<td style="border: 1px solid #ddd; padding: 8px; text-align: left;">' + item.product_name + '<br><span style="font-size: 10px; color: #666;">Model No.: ' + (item.model || 'N/A') + '</span></td>' +
-                                        '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">85219090</td>' +
                                         '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">' + item.quantity + '</td>' +
                                         '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">Pcs</td>' +
                                         '<td style="border: 1px solid #ddd; padding: 8px; text-align: right;">' + currencySymbol + ' ' + item.unit_price.toFixed(2) + '</td>' +
@@ -6901,7 +6898,7 @@ Prices are subject to change without prior notice.</textarea>
                                     '</tr>'
                                 ).join('') +
                                 '<tr style="background: ' + themeColor.primary + '; color: white; font-weight: bold;">' +
-                                    '<td colspan="6" style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: right;">Total</td>' +
+                                    '<td colspan="5" style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: right;">Total</td>' +
                                     '<td style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: center;">' + totalQuantity + '</td>' +
                                 '</tr>' +
                                 '</tbody>' +
@@ -6944,7 +6941,9 @@ Prices are subject to change without prior notice.</textarea>
                             // Signature
                             '<div style="margin-top: 30px; text-align: right;">' +
                                 '<p style="margin: 0; font-size: 12px; font-weight: 600;">For : RealTrack Technology</p>' +
-                                '<div style="height: 40px;"></div>' +
+                                '<div style="height: 60px; margin: 10px 0;">' +
+                                    '<img src="https://page.gensparksite.com/v1/base64_upload/1ea85f1279eb3a46af1b1039e04318e5" alt="Signature" style="height: 50px; width: auto;">' +
+                                '</div>' +
                                 '<p style="margin: 0; font-size: 11px; border-top: 1px solid #000; display: inline-block; padding-top: 5px; min-width: 150px;">Authorized Signatory</p>' +
                             '</div>' +
                         '</div>' +
@@ -7062,7 +7061,6 @@ Prices are subject to change without prior notice.</textarea>
                                 '<table style="width: 100%; font-size: 12px; border-collapse: collapse;">' +
                                     '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Estimate No.:</td><td style="padding: 4px; text-align: right;">' + quotation.quotation_number + '</td></tr>' +
                                     '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Date:</td><td style="padding: 4px; text-align: right;">' + quotationDate + '</td></tr>' +
-                                    '<tr><td style="padding: 4px; background: #f3f4f6; font-weight: bold;">Place of Supply:</td><td style="padding: 4px; text-align: right;">09-Uttar Pradesh</td></tr>' +
                                 '</table>' +
                             '</div>' +
                         '</div>' +
@@ -7079,7 +7077,6 @@ Prices are subject to change without prior notice.</textarea>
                                 '<tr style="background: ' + themeColor.primary + '; color: white;">' +
                                     '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">#</th>' +
                                     '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: left; font-weight: bold;">Item name</th>' +
-                                    '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">HSN/ SAC</th>' +
                                     '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">Quantity</th>' +
                                     '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: center; font-weight: bold;">Unit</th>' +
                                     '<th style="border: 1px solid ' + themeColor.primary + '; padding: 10px; text-align: right; font-weight: bold;">Price/ Unit</th>' +
@@ -7091,7 +7088,6 @@ Prices are subject to change without prior notice.</textarea>
                                 '<tr style="' + (index % 2 === 0 ? '' : 'background: #f9fafb;') + '">' +
                                     '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">' + (index + 1) + '</td>' +
                                     '<td style="border: 1px solid #ddd; padding: 8px; text-align: left;">' + item.product_name + '<br><span style="font-size: 10px; color: #666;">Model No.: ' + (item.model || 'N/A') + '</span></td>' +
-                                    '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">85219090</td>' +
                                     '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">' + item.quantity + '</td>' +
                                     '<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">Pcs</td>' +
                                     '<td style="border: 1px solid #ddd; padding: 8px; text-align: right;">' + currencySymbol + ' ' + item.unit_price.toFixed(2) + '</td>' +
@@ -7099,7 +7095,7 @@ Prices are subject to change without prior notice.</textarea>
                                 '</tr>'
                             ).join('') +
                             '<tr style="background: ' + themeColor.primary + '; color: white; font-weight: bold;">' +
-                                '<td colspan="6" style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: right;">Total</td>' +
+                                '<td colspan="5" style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: right;">Total</td>' +
                                 '<td style="border: 1px solid ' + themeColor.primary + '; padding: 8px; text-align: center;">' + totalQuantity + '</td>' +
                             '</tr>' +
                             '</tbody>' +
@@ -7142,7 +7138,9 @@ Prices are subject to change without prior notice.</textarea>
                         // Signature
                         '<div style="margin-top: 30px; text-align: right;">' +
                             '<p style="margin: 0; font-size: 12px; font-weight: 600;">For : RealTrack Technology</p>' +
-                            '<div style="height: 40px;"></div>' +
+                            '<div style="height: 60px; margin: 10px 0;">' +
+                                '<img src="https://page.gensparksite.com/v1/base64_upload/1ea85f1279eb3a46af1b1039e04318e5" alt="Signature" style="height: 50px; width: auto;">' +
+                            '</div>' +
                             '<p style="margin: 0; font-size: 11px; border-top: 1px solid #000; display: inline-block; padding-top: 5px; min-width: 150px;">Authorized Signatory</p>' +
                         '</div>' +
                     '</div>' +
