@@ -6570,7 +6570,7 @@ Prices are subject to change without prior notice.</textarea>
                         '</select>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<select class="quotation-item-product" data-weight="0" onchange="calculateQuotationTotal()" ' +
+                        '<select class="quotation-item-product" data-weight="0" onchange="calculateQuotationTotalWeight()" ' +
                                'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
                             '<option value="">Select Category First</option>' +
                         '</select>' +
@@ -6578,7 +6578,7 @@ Prices are subject to change without prior notice.</textarea>
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
                         '<input type="number" class="quotation-item-quantity" value="1" min="1" ' +
                                'style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" ' +
-                               'onchange="calculateQuotationTotal()" required>' +
+                               'onchange="calculateQuotationTotalWeight()" required>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
                         '<input type="number" class="quotation-item-price" value="0" min="0" step="0.01" ' +
@@ -6884,9 +6884,6 @@ Prices are subject to change without prior notice.</textarea>
                 });
                 
                 console.log('Subtotal:', subtotal);
-                
-                // Recalculate total weight
-                calculateQuotationTotalWeight();
                 
                 // Check if courier is included
                 const includeCourier = document.getElementById('includeCourierCheckbox') ? document.getElementById('includeCourierCheckbox').checked : true;
