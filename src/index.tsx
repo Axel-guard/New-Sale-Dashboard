@@ -1523,16 +1523,26 @@ app.get('/api/customers/search/:query', async (c) => {
   const query = c.req.param('query');
   
   try {
-    // Try to find by customer_code first, then by phone
-    let customer = await env.DB.prepare(`
-      SELECT * FROM customers WHERE customer_code = ? LIMIT 1
-    `).bind(query).first();
+    let customer;
     
-    if (!customer) {
-      // Try by phone if not found by customer_code
+    // Logic: 1-4 digits = customer_code, 5+ digits = phone number
+    if (query.length <= 4) {
+      // Search by customer_code
+      customer = await env.DB.prepare(`
+        SELECT * FROM customers WHERE customer_code = ? LIMIT 1
+      `).bind(query).first();
+    } else {
+      // Search by phone number
       customer = await env.DB.prepare(`
         SELECT * FROM customers WHERE phone = ? LIMIT 1
       `).bind(query).first();
+      
+      // If not found by phone, try customer_code as fallback
+      if (!customer) {
+        customer = await env.DB.prepare(`
+          SELECT * FROM customers WHERE customer_code = ? LIMIT 1
+        `).bind(query).first();
+      }
     }
     
     if (!customer) {
