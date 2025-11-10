@@ -6372,6 +6372,9 @@ Prices are subject to change without prior notice.</textarea>
                 // Generate quotation number
                 generateQuotationNumber();
                 
+                // Load courier partners from database
+                loadCourierPartners();
+                
                 // Clear form
                 document.getElementById('newQuotationForm').reset();
                 document.getElementById('quotationItemsRows').innerHTML = '';
@@ -6517,6 +6520,7 @@ Prices are subject to change without prior notice.</textarea>
                             option.value = product.id;
                             option.textContent = product.product_name;
                             option.dataset.price = product.unit_price;
+                            option.dataset.weight = product.weight || 0;
                             productSelect.appendChild(option);
                         });
                     }
@@ -6525,14 +6529,40 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
-            // Fill product price when product selected
+            // Fill product price when product selected and calculate total weight
             function fillProductPrice(selectElement) {
                 const selectedOption = selectElement.options[selectElement.selectedIndex];
                 const price = selectedOption.dataset.price || 0;
+                const weight = selectedOption.dataset.weight || 0;
                 const row = selectElement.closest('tr');
                 const priceInput = row.querySelector('.quotation-item-price');
                 priceInput.value = price;
+                
+                // Store weight in row for calculation
+                row.dataset.productWeight = weight;
+                
                 calculateQuotationItemTotal(priceInput);
+                calculateTotalWeight();
+            }
+            
+            // Calculate total weight of all selected products
+            function calculateTotalWeight() {
+                const rows = document.querySelectorAll('#quotationItemsRows tr');
+                let totalWeight = 0;
+                
+                rows.forEach(row => {
+                    const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
+                    const weight = parseFloat(row.dataset.productWeight) || 0;
+                    totalWeight += quantity * weight;
+                });
+                
+                // Update weight input
+                const weightInput = document.getElementById('quotationWeight');
+                if (weightInput) {
+                    weightInput.value = totalWeight.toFixed(2);
+                    // Recalculate courier charges with new weight
+                    calculateCourierCharges();
+                }
             }
 
             // Remove Quotation Item
@@ -6548,6 +6578,7 @@ Prices are subject to change without prior notice.</textarea>
                 });
             }
 
+            // Update calculateQuotationItemTotal to also recalculate weight
             // Calculate Quotation Item Total
             function calculateQuotationItemTotal(input) {
                 const row = input.closest('tr');
@@ -6558,10 +6589,11 @@ Prices are subject to change without prior notice.</textarea>
                 row.querySelector('.quotation-item-amount').textContent = '₹' + amount.toFixed(2);
                 
                 calculateQuotationTotal();
+                calculateTotalWeight(); // Recalculate weight when quantity changes
             }
             
-            // Load delivery methods based on courier partner
-            function loadDeliveryMethods() {
+            // Load delivery methods based on courier partner from database
+            async function loadDeliveryMethods() {
                 const partner = document.getElementById('quotationCourierPartner').value;
                 const methodSelect = document.getElementById('quotationDeliveryMethod');
                 
@@ -6573,14 +6605,52 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
-                // Load delivery methods based on partner
-                if (partner === 'Self Pickup') {
-                    methodSelect.innerHTML += '<option value="Self Pickup">Self Pickup</option>';
-                } else if (partner === 'Hand Delivery') {
-                    methodSelect.innerHTML += '<option value="Hand Delivery">Hand Delivery</option>';
-                } else {
-                    methodSelect.innerHTML += '<option value="Surface">Surface</option>';
-                    methodSelect.innerHTML += '<option value="Express">Express</option>';
+                // Special handling for Self Pickup and Hand Delivery
+                if (partner === 'Self Pickup' || partner === 'Hand Delivery') {
+                    methodSelect.innerHTML += '<option value="' + partner + '">' + partner + '</option>';
+                    document.getElementById('quotationCourierCost').value = 0;
+                    calculateQuotationTotal();
+                    return;
+                }
+                
+                // Load delivery methods from database
+                try {
+                    const response = await axios.get('/api/courier-rates');
+                    if (response.data.success) {
+                        const rates = response.data.data.filter(r => r.courier_partner === partner);
+                        const methods = [...new Set(rates.map(r => r.delivery_method))];
+                        
+                        methods.forEach(method => {
+                            methodSelect.innerHTML += '<option value="' + method + '">' + method + '</option>';
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading delivery methods:', error);
+                }
+            }
+            
+            // Load courier partners from database
+            async function loadCourierPartners() {
+                try {
+                    const response = await axios.get('/api/courier-rates');
+                    if (response.data.success) {
+                        const partners = [...new Set(response.data.data.map(r => r.courier_partner))];
+                        const partnerSelect = document.getElementById('quotationCourierPartner');
+                        
+                        // Keep the default option
+                        partnerSelect.innerHTML = '<option value="">Select Courier Partner</option>';
+                        
+                        // Add database partners
+                        partners.forEach(partner => {
+                            partnerSelect.innerHTML += '<option value="' + partner + '">' + partner + '</option>';
+                        });
+                        
+                        // Add special options
+                        partnerSelect.innerHTML += '<option value="Self Pickup">Self Pickup</option>';
+                        partnerSelect.innerHTML += '<option value="Hand Delivery">Hand Delivery</option>';
+                    }
+                } catch (error) {
+                    console.error('Error loading courier partners:', error);
                 }
             }
             
@@ -6941,7 +7011,7 @@ Prices are subject to change without prior notice.</textarea>
                             // Signature
                             '<div style="margin-top: 30px; text-align: right;">' +
                                 '<p style="margin: 0; font-size: 12px; font-weight: 600;">For : RealTrack Technology</p>' +
-                                '<div style="height: 60px; margin: 10px 0;">' +
+                                '<div style="height: 60px; margin: 10px 0; display: flex; justify-content: flex-end;">' +
                                     '<img src="https://page.gensparksite.com/v1/base64_upload/1ea85f1279eb3a46af1b1039e04318e5" alt="Signature" style="height: 50px; width: auto;">' +
                                 '</div>' +
                                 '<p style="margin: 0; font-size: 11px; border-top: 1px solid #000; display: inline-block; padding-top: 5px; min-width: 150px;">Authorized Signatory</p>' +
@@ -7138,7 +7208,7 @@ Prices are subject to change without prior notice.</textarea>
                         // Signature
                         '<div style="margin-top: 30px; text-align: right;">' +
                             '<p style="margin: 0; font-size: 12px; font-weight: 600;">For : RealTrack Technology</p>' +
-                            '<div style="height: 60px; margin: 10px 0;">' +
+                            '<div style="height: 60px; margin: 10px 0; display: flex; justify-content: flex-end;">' +
                                 '<img src="https://page.gensparksite.com/v1/base64_upload/1ea85f1279eb3a46af1b1039e04318e5" alt="Signature" style="height: 50px; width: auto;">' +
                             '</div>' +
                             '<p style="margin: 0; font-size: 11px; border-top: 1px solid #000; display: inline-block; padding-top: 5px; min-width: 150px;">Authorized Signatory</p>' +
