@@ -6396,8 +6396,8 @@ Prices are subject to change without prior notice.</textarea>
                 // Generate quotation number
                 generateQuotationNumber();
                 
-                // Load courier partners from database
-                loadCourierPartners();
+                // Don't load courier partners from database - use hardcoded list that matches courier calculator
+                // loadCourierPartners(); // REMOVED - hardcoded list in HTML is correct
                 
                 // Clear form
                 document.getElementById('newQuotationForm').reset();
