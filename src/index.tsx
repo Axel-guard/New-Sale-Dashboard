@@ -1753,8 +1753,10 @@ app.post('/api/quotations', async (c) => {
     
     return c.json({ success: true, quotation_number });
   } catch (error) {
-    console.error('Error creating quotation:', error);
-    return c.json({ success: false, error: 'Failed to create quotation' }, 500);
+    console.error('❌ Error creating quotation:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    return c.json({ success: false, error: 'Failed to create quotation', details: error.message }, 500);
   }
 });
 
