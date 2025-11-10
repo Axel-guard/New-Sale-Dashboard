@@ -1517,7 +1517,7 @@ app.get('/api/customers', async (c) => {
 
 // ===== QUOTATION API ENDPOINTS =====
 
-// Search customer by code or phone
+// Search customer by code or phone from LEADS table
 app.get('/api/customers/search/:query', async (c) => {
   const { env } = c;
   const query = c.req.param('query');
@@ -1525,22 +1525,29 @@ app.get('/api/customers/search/:query', async (c) => {
   try {
     let customer;
     
-    // Logic: 1-4 digits = customer_code, 5+ digits = phone number
+    // Logic: 1-4 digits = customer_code, 5+ digits = mobile number
     if (query.length <= 4) {
       // Search by customer_code
       customer = await env.DB.prepare(`
-        SELECT * FROM customers WHERE customer_code = ? LIMIT 1
+        SELECT * FROM leads WHERE customer_code = ? LIMIT 1
       `).bind(query).first();
     } else {
-      // Search by phone number
+      // Search by mobile number
       customer = await env.DB.prepare(`
-        SELECT * FROM customers WHERE phone = ? LIMIT 1
+        SELECT * FROM leads WHERE mobile_number = ? LIMIT 1
       `).bind(query).first();
       
-      // If not found by phone, try customer_code as fallback
+      // If not found by mobile, try alternate_mobile
       if (!customer) {
         customer = await env.DB.prepare(`
-          SELECT * FROM customers WHERE customer_code = ? LIMIT 1
+          SELECT * FROM leads WHERE alternate_mobile = ? LIMIT 1
+        `).bind(query).first();
+      }
+      
+      // If still not found, try customer_code as fallback
+      if (!customer) {
+        customer = await env.DB.prepare(`
+          SELECT * FROM leads WHERE customer_code = ? LIMIT 1
         `).bind(query).first();
       }
     }
@@ -1551,6 +1558,7 @@ app.get('/api/customers/search/:query', async (c) => {
     
     return c.json({ success: true, data: customer });
   } catch (error) {
+    console.error('Customer search error:', error);
     return c.json({ success: false, error: 'Failed to search customer' }, 500);
   }
 });
@@ -6412,7 +6420,7 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
 
-            // Fetch Customer Details for Quotation
+            // Fetch Customer Details for Quotation from LEADS table
             async function fetchCustomerForQuotation(searchTerm) {
                 if (!searchTerm || searchTerm.trim() === '') return;
                 
@@ -6425,22 +6433,22 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.get('/api/customers/search/' + encodeURIComponent(searchTerm));
                     
                     if (response.data.success) {
-                        const customer = response.data.data;
+                        const lead = response.data.data;
                         
-                        // Fill in customer details from customers table
-                        document.getElementById('quotationCustomerCode').value = customer.customer_code || '';
-                        document.getElementById('quotationCustomerName').value = customer.name || '';
-                        document.getElementById('quotationCustomerContact').value = customer.phone || '';
-                        document.getElementById('quotationCustomerEmail').value = customer.email || '';
-                        document.getElementById('quotationCompanyName').value = customer.company_name || '';
-                        document.getElementById('quotationGSTNumber').value = customer.gst_number || '';
-                        document.getElementById('quotationGSTAddress').value = customer.gst_registered_address || '';
-                        document.getElementById('quotationCustomerAddress').value = customer.address || '';
-                        document.getElementById('quotationConcernPerson').value = customer.concern_person_name || '';
-                        document.getElementById('quotationConcernContact').value = customer.concern_person_contact || '';
+                        // Fill in customer details from LEADS table
+                        document.getElementById('quotationCustomerCode').value = lead.customer_code || '';
+                        document.getElementById('quotationCustomerName').value = lead.customer_name || '';
+                        document.getElementById('quotationCustomerContact').value = lead.mobile_number || '';
+                        document.getElementById('quotationCustomerEmail').value = lead.email || '';
+                        document.getElementById('quotationCompanyName').value = lead.company_name || '';
+                        document.getElementById('quotationGSTNumber').value = lead.gst_number || '';
+                        document.getElementById('quotationGSTAddress').value = lead.complete_address || '';
+                        document.getElementById('quotationCustomerAddress').value = lead.complete_address || '';
+                        document.getElementById('quotationConcernPerson').value = lead.customer_name || '';  // Use customer name as concern person
+                        document.getElementById('quotationConcernContact').value = lead.alternate_mobile || lead.mobile_number || '';
                         
                         statusEl.style.color = '#10b981';
-                        statusEl.textContent = '✓ Customer found and details filled!';
+                        statusEl.textContent = '✓ Customer found and details filled from leads!';
                         
                         setTimeout(() => {
                             statusEl.style.display = 'none';
