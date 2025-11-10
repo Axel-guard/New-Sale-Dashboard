@@ -4155,7 +4155,10 @@ app.get('/', (c) => {
         <div class="modal" id="newQuotationModal">
             <div class="modal-content" style="max-width: 1200px;">
                 <div class="modal-header">
-                    <h2 style="font-size: 20px; font-weight: 600;">Create New Quotation</h2>
+                    <h2 style="font-size: 20px; font-weight: 600;">
+                        Create New Quotation 
+                        <span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 10px;">v3.0</span>
+                    </h2>
                     <span class="close" onclick="document.getElementById('newQuotationModal').classList.remove('show')">&times;</span>
                 </div>
                 <form id="newQuotationForm" onsubmit="submitNewQuotation(event)">
@@ -6848,15 +6851,30 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             function calculateQuotationTotal() {
+                console.log('🔥 QUOTATION CALC v3.0 RUNNING 🔥');
                 const rows = document.querySelectorAll('#quotationItemsRows tr');
                 let subtotal = 0;
                 
+                console.log('calculateQuotationTotal: Found', rows.length, 'rows');
+                
                 // Calculate subtotal and update row amounts
                 rows.forEach(row => {
-                    const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
-                    const price = parseFloat(row.querySelector('.quotation-item-price').value) || 0;
+                    const qtyInput = row.querySelector('.quotation-item-quantity');
+                    const priceInput = row.querySelector('.quotation-item-price');
+                    
+                    console.log('Input elements:', {
+                        qtyInput: qtyInput,
+                        priceInput: priceInput,
+                        qtyValue: qtyInput?.value,
+                        priceValue: priceInput?.value
+                    });
+                    
+                    const quantity = parseFloat(qtyInput?.value) || 0;
+                    const price = parseFloat(priceInput?.value) || 0;
                     const amount = quantity * price;
                     subtotal += amount;
+                    
+                    console.log('Row:', 'qty=', quantity, 'price=', price, 'amount=', amount);
                     
                     // Update row amount display
                     const amountCell = row.querySelector('.quotation-item-amount');
@@ -6865,18 +6883,25 @@ Prices are subject to change without prior notice.</textarea>
                     }
                 });
                 
+                console.log('Subtotal:', subtotal);
+                
                 // Recalculate total weight
                 calculateQuotationTotalWeight();
                 
                 // Check if courier is included
-                const includeCourier = document.getElementById('includeCourierCheckbox').checked;
-                const courierCost = includeCourier ? (parseFloat(document.getElementById('quotationCourierCost').value) || 0) : 0;
-                const billType = document.getElementById('quotationBillType').value;
+                const includeCourier = document.getElementById('includeCourierCheckbox') ? document.getElementById('includeCourierCheckbox').checked : true;
+                const courierCostInput = document.getElementById('quotationCourierCost');
+                const courierCost = includeCourier && courierCostInput ? (parseFloat(courierCostInput.value) || 0) : 0;
+                const billTypeSelect = document.getElementById('quotationBillType');
+                const billType = billTypeSelect ? billTypeSelect.value : 'with';
                 const gst = billType === 'with' ? (subtotal + courierCost) * 0.18 : 0;
                 const total = subtotal + courierCost + gst;
                 
+                console.log('Courier:', courierCost, 'GST:', gst, 'Total:', total);
+                
                 // Get currency symbol
-                const currency = document.getElementById('quotationCurrency') ? document.getElementById('quotationCurrency').value : 'INR';
+                const currencySelect = document.getElementById('quotationCurrency');
+                const currency = currencySelect ? currencySelect.value : 'INR';
                 const currencySymbols = {
                     'INR': '₹',
                     'USD': '$',
@@ -6885,10 +6910,17 @@ Prices are subject to change without prior notice.</textarea>
                 };
                 const symbol = currencySymbols[currency] || '₹';
                 
-                document.getElementById('quotationSubtotal').textContent = symbol + subtotal.toFixed(2);
-                document.getElementById('quotationCourierDisplay').textContent = symbol + courierCost.toFixed(2);
-                document.getElementById('quotationGST').textContent = symbol + gst.toFixed(2);
-                document.getElementById('quotationTotal').textContent = symbol + total.toFixed(2);
+                const subtotalEl = document.getElementById('quotationSubtotal');
+                const courierDisplayEl = document.getElementById('quotationCourierDisplay');
+                const gstEl = document.getElementById('quotationGST');
+                const totalEl = document.getElementById('quotationTotal');
+                
+                if (subtotalEl) subtotalEl.textContent = symbol + subtotal.toFixed(2);
+                if (courierDisplayEl) courierDisplayEl.textContent = symbol + courierCost.toFixed(2);
+                if (gstEl) gstEl.textContent = symbol + gst.toFixed(2);
+                if (totalEl) totalEl.textContent = symbol + total.toFixed(2);
+                
+                console.log('Elements found:', {subtotalEl: !!subtotalEl, courierDisplayEl: !!courierDisplayEl, gstEl: !!gstEl, totalEl: !!totalEl});
                 
                 // Show/hide GST row based on bill type
                 const gstLabel = document.getElementById('quotationGSTLabel');
@@ -7930,6 +7962,8 @@ Prices are subject to change without prior notice.</textarea>
             
             // Check for existing session on page load
             window.addEventListener('DOMContentLoaded', () => {
+                console.log('🚀 AXELGUARD CRM v3.0 LOADED 🚀');
+                console.log('Timestamp:', new Date().toISOString());
                 const storedUser = sessionStorage.getItem('user');
                 if (storedUser) {
                     currentUser = JSON.parse(storedUser);
