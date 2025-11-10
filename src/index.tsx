@@ -6540,47 +6540,47 @@ Prices are subject to change without prior notice.</textarea>
             }
 
             // Add Quotation Item Row
-            async function addQuotationItem() {
+            function addQuotationItem() {
                 quotationItemCounter++;
                 const tbody = document.getElementById('quotationItemsRows');
                 const row = document.createElement('tr');
                 row.setAttribute('data-item-id', quotationItemCounter);
                 
-                // Fetch categories for dropdown
-                let categoriesOptions = '<option value="">Select Category</option>';
-                try {
-                    const catResponse = await axios.get('/api/categories');
-                    if (catResponse.data.success) {
-                        categoriesOptions += catResponse.data.data.map(cat => 
-                            '<option value="' + cat.id + '">' + cat.category_name + '</option>'
-                        ).join('');
-                    }
-                } catch (error) {
-                    console.error('Error loading categories:', error);
-                }
+                // Use SAME productCatalog as sale form
+                const categoriesOptions = '<option value="">Select Category</option>' +
+                    '<option value="A-MDVR">MDVR</option>' +
+                    '<option value="B-Monitors & Monitor Kit">Monitors & Monitor Kit</option>' +
+                    '<option value="C-Cameras">Cameras</option>' +
+                    '<option value="D-Dashcam">Dashcam</option>' +
+                    '<option value="E-GPS">GPS</option>' +
+                    '<option value="F-Storage">Storage</option>' +
+                    '<option value="G-RFID Tags">RFID Tags</option>' +
+                    '<option value="H-RFID Reader">RFID Reader</option>' +
+                    '<option value="I-MDVR Accessories">MDVR Accessories</option>' +
+                    '<option value="J-Other Products">Other Products</option>';
                 
                 row.innerHTML = '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + quotationItemCounter + '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<select class="quotation-item-category" onchange="loadProductsByCategory(this)" ' +
+                        '<select class="quotation-item-category" onchange="updateQuotationProductOptions(this)" ' +
                                'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
                             categoriesOptions +
                         '</select>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<select class="quotation-item-product" onchange="fillProductPrice(this)" ' +
+                        '<select class="quotation-item-product" data-weight="0" onchange="calculateQuotationTotal()" ' +
                                'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
-                            '<option value="">Select Product</option>' +
+                            '<option value="">Select Category First</option>' +
                         '</select>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
                         '<input type="number" class="quotation-item-quantity" value="1" min="1" ' +
                                'style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" ' +
-                               'onchange="calculateQuotationItemTotal(this)" required>' +
+                               'onchange="calculateQuotationTotal()" required>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
                         '<input type="number" class="quotation-item-price" value="0" min="0" step="0.01" ' +
                                'style="width: 120px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" ' +
-                               'onchange="calculateQuotationItemTotal(this)" required>' +
+                               'onchange="calculateQuotationTotal()" required>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: 600;" class="quotation-item-amount">₹0.00</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' +
@@ -6592,68 +6592,52 @@ Prices are subject to change without prior notice.</textarea>
                 tbody.appendChild(row);
             }
             
-            // Load products by category
-            async function loadProductsByCategory(selectElement) {
-                const categoryId = selectElement.value;
+            // Update product options when category changes (USE SAME LOGIC AS SALE FORM)
+            function updateQuotationProductOptions(selectElement) {
+                const category = selectElement.value;
                 const row = selectElement.closest('tr');
                 const productSelect = row.querySelector('.quotation-item-product');
                 
                 productSelect.innerHTML = '<option value="">Select Product</option>';
                 
-                if (!categoryId) return;
-                
-                try {
-                    const response = await axios.get('/api/products/category/' + categoryId);
-                    if (response.data.success) {
-                        const products = response.data.data;
-                        products.forEach(product => {
-                            const option = document.createElement('option');
-                            option.value = product.id;
-                            option.textContent = product.product_name;
-                            option.dataset.price = product.unit_price;
-                            option.dataset.weight = product.weight || 0;
-                            productSelect.appendChild(option);
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error loading products:', error);
+                if (category && productCatalog[category]) {
+                    productCatalog[category].forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.name;
+                        option.textContent = product.name;
+                        option.dataset.weight = product.weight;
+                        productSelect.appendChild(option);
+                    });
                 }
             }
             
-            // Fill product price when product selected and calculate total weight
-            function fillProductPrice(selectElement) {
-                const selectedOption = selectElement.options[selectElement.selectedIndex];
-                const price = selectedOption.dataset.price || 0;
-                const weight = selectedOption.dataset.weight || 0;
-                const row = selectElement.closest('tr');
-                const priceInput = row.querySelector('.quotation-item-price');
-                priceInput.value = price;
-                
-                // Store weight in row for calculation
-                row.dataset.productWeight = weight;
-                
-                calculateQuotationItemTotal(priceInput);
-                calculateTotalWeight();
-            }
-            
-            // Calculate total weight of all selected products
-            function calculateTotalWeight() {
+            // Calculate total weight from selected products (SAME AS SALE FORM)
+            function calculateQuotationTotalWeight() {
                 const rows = document.querySelectorAll('#quotationItemsRows tr');
                 let totalWeight = 0;
                 
                 rows.forEach(row => {
-                    const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
-                    const weight = parseFloat(row.dataset.productWeight) || 0;
-                    totalWeight += quantity * weight;
+                    const productSelect = row.querySelector('.quotation-item-product');
+                    const quantityInput = row.querySelector('.quotation-item-quantity');
+                    
+                    if (productSelect && quantityInput) {
+                        const selectedOption = productSelect.options[productSelect.selectedIndex];
+                        const weight = parseFloat(selectedOption.dataset.weight) || 0;
+                        const quantity = parseFloat(quantityInput.value) || 0;
+                        totalWeight += weight * quantity;
+                    }
                 });
                 
                 // Update weight input
                 const weightInput = document.getElementById('quotationWeight');
                 if (weightInput) {
                     weightInput.value = totalWeight.toFixed(2);
-                    // Recalculate courier charges with new weight
-                    calculateQuotationCourierCharges(); // FIXED: Use correct function name
                 }
+                
+                // Recalculate courier charges
+                calculateQuotationCourierCharges();
+                
+                return totalWeight;
             }
 
             // Remove Quotation Item
@@ -6667,20 +6651,6 @@ Prices are subject to change without prior notice.</textarea>
                 rows.forEach((row, index) => {
                     row.querySelector('td:first-child').textContent = index + 1;
                 });
-            }
-
-            // Update calculateQuotationItemTotal to also recalculate weight
-            // Calculate Quotation Item Total
-            function calculateQuotationItemTotal(input) {
-                const row = input.closest('tr');
-                const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
-                const price = parseFloat(row.querySelector('.quotation-item-price').value) || 0;
-                const amount = quantity * price;
-                
-                row.querySelector('.quotation-item-amount').textContent = '₹' + amount.toFixed(2);
-                
-                calculateQuotationTotal();
-                calculateTotalWeight(); // Recalculate weight when quantity changes
             }
             
             // Load delivery methods for quotation (same as courier calculation page)
@@ -6881,11 +6851,22 @@ Prices are subject to change without prior notice.</textarea>
                 const rows = document.querySelectorAll('#quotationItemsRows tr');
                 let subtotal = 0;
                 
+                // Calculate subtotal and update row amounts
                 rows.forEach(row => {
                     const quantity = parseFloat(row.querySelector('.quotation-item-quantity').value) || 0;
                     const price = parseFloat(row.querySelector('.quotation-item-price').value) || 0;
-                    subtotal += quantity * price;
+                    const amount = quantity * price;
+                    subtotal += amount;
+                    
+                    // Update row amount display
+                    const amountCell = row.querySelector('.quotation-item-amount');
+                    if (amountCell) {
+                        amountCell.textContent = '₹' + amount.toFixed(2);
+                    }
                 });
+                
+                // Recalculate total weight
+                calculateQuotationTotalWeight();
                 
                 // Check if courier is included
                 const includeCourier = document.getElementById('includeCourierCheckbox').checked;
