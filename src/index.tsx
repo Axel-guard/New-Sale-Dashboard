@@ -2161,6 +2161,373 @@ app.post('/api/products', async (c) => {
   }
 });
 
+// ===== INVENTORY MANAGEMENT API ENDPOINTS =====
+
+// Get all inventory
+app.get('/api/inventory', async (c) => {
+  const { env } = c;
+  const status = c.req.query('status');
+  const search = c.req.query('search');
+  
+  try {
+    let query = 'SELECT * FROM inventory';
+    const params = [];
+    const conditions = [];
+    
+    if (status) {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+    
+    if (search) {
+      conditions.push('(device_serial_no LIKE ? OR model_name LIKE ? OR customer_name LIKE ?)');
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    query += ' ORDER BY created_at DESC LIMIT 1000';
+    
+    const inventory = await env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: inventory.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch inventory' }, 500);
+  }
+});
+
+// Get single inventory item by serial number
+app.get('/api/inventory/:serialNo', async (c) => {
+  const { env } = c;
+  const serialNo = c.req.param('serialNo');
+  
+  try {
+    const item = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no = ?
+    `).bind(serialNo).first();
+    
+    if (!item) {
+      return c.json({ success: false, error: 'Device not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: item });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch device' }, 500);
+  }
+});
+
+// Upload inventory from Excel
+app.post('/api/inventory/upload', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { items } = body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return c.json({ success: false, error: 'No inventory items provided' }, 400);
+    }
+    
+    let inserted = 0;
+    let updated = 0;
+    let failed = 0;
+    
+    for (const item of items) {
+      try {
+        // Check if device already exists
+        const existing = await env.DB.prepare(`
+          SELECT id FROM inventory WHERE device_serial_no = ?
+        `).bind(item.device_serial_no).first();
+        
+        if (existing) {
+          // Update existing
+          await env.DB.prepare(`
+            UPDATE inventory SET
+              model_name = ?,
+              in_date = ?,
+              dispatch_date = ?,
+              cust_code = ?,
+              sale_date = ?,
+              customer_name = ?,
+              cust_city = ?,
+              cust_mobile = ?,
+              dispatch_reason = ?,
+              warranty_provide = ?,
+              old_serial_no = ?,
+              license_renew_time = ?,
+              user_id = ?,
+              password = ?,
+              account_activation_date = ?,
+              account_expiry_date = ?,
+              order_id = ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE device_serial_no = ?
+          `).bind(
+            item.model_name,
+            item.in_date || null,
+            item.dispatch_date || null,
+            item.cust_code || null,
+            item.sale_date || null,
+            item.customer_name || null,
+            item.cust_city || null,
+            item.cust_mobile || null,
+            item.dispatch_reason || null,
+            item.warranty_provide || null,
+            item.old_serial_no || null,
+            item.license_renew_time || null,
+            item.user_id || null,
+            item.password || null,
+            item.account_activation_date || null,
+            item.account_expiry_date || null,
+            item.order_id || null,
+            item.device_serial_no
+          ).run();
+          updated++;
+        } else {
+          // Insert new
+          await env.DB.prepare(`
+            INSERT INTO inventory (
+              model_name, device_serial_no, in_date, dispatch_date, cust_code,
+              sale_date, customer_name, cust_city, cust_mobile, dispatch_reason,
+              warranty_provide, old_serial_no, license_renew_time, user_id, password,
+              account_activation_date, account_expiry_date, order_id, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            item.model_name,
+            item.device_serial_no,
+            item.in_date || null,
+            item.dispatch_date || null,
+            item.cust_code || null,
+            item.sale_date || null,
+            item.customer_name || null,
+            item.cust_city || null,
+            item.cust_mobile || null,
+            item.dispatch_reason || null,
+            item.warranty_provide || null,
+            item.old_serial_no || null,
+            item.license_renew_time || null,
+            item.user_id || null,
+            item.password || null,
+            item.account_activation_date || null,
+            item.account_expiry_date || null,
+            item.order_id || null,
+            item.dispatch_date ? 'Dispatched' : 'In Stock'
+          ).run();
+          inserted++;
+        }
+      } catch (err) {
+        failed++;
+        console.error('Error processing item:', err);
+      }
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: `Processed ${items.length} items: ${inserted} inserted, ${updated} updated, ${failed} failed`,
+      stats: { inserted, updated, failed }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to upload inventory' }, 500);
+  }
+});
+
+// Dispatch device
+app.post('/api/inventory/dispatch', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const {
+      inventory_id,
+      device_serial_no,
+      dispatch_date,
+      customer_name,
+      customer_code,
+      customer_mobile,
+      customer_city,
+      dispatch_reason,
+      courier_name,
+      tracking_number,
+      notes
+    } = body;
+    
+    // Get current user
+    const username = c.req.header('X-User') || 'system';
+    
+    // Update inventory status
+    await env.DB.prepare(`
+      UPDATE inventory SET
+        status = 'Dispatched',
+        dispatch_date = ?,
+        customer_name = ?,
+        cust_code = ?,
+        cust_mobile = ?,
+        cust_city = ?,
+        dispatch_reason = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(dispatch_date, customer_name, customer_code, customer_mobile, customer_city, dispatch_reason, inventory_id).run();
+    
+    // Create dispatch record
+    await env.DB.prepare(`
+      INSERT INTO dispatch_records (
+        inventory_id, device_serial_no, dispatch_date, customer_name, customer_code,
+        customer_mobile, customer_city, dispatch_reason, courier_name, tracking_number,
+        dispatched_by, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      inventory_id, device_serial_no, dispatch_date, customer_name, customer_code,
+      customer_mobile, customer_city, dispatch_reason, courier_name, tracking_number,
+      username, notes
+    ).run();
+    
+    // Log status change
+    await env.DB.prepare(`
+      INSERT INTO inventory_status_history (
+        inventory_id, device_serial_no, old_status, new_status, changed_by, change_reason
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(inventory_id, device_serial_no, 'In Stock', 'Dispatched', username, dispatch_reason).run();
+    
+    return c.json({ success: true, message: 'Device dispatched successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to dispatch device' }, 500);
+  }
+});
+
+// Get recent dispatches
+app.get('/api/inventory/dispatches', async (c) => {
+  const { env } = c;
+  
+  try {
+    const dispatches = await env.DB.prepare(`
+      SELECT 
+        dr.*,
+        i.model_name
+      FROM dispatch_records dr
+      LEFT JOIN inventory i ON dr.inventory_id = i.id
+      ORDER BY dr.dispatch_date DESC
+      LIMIT 50
+    `).all();
+    
+    return c.json({ success: true, data: dispatches.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch dispatches' }, 500);
+  }
+});
+
+// Submit quality check
+app.post('/api/inventory/quality-check', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const {
+      inventory_id,
+      device_serial_no,
+      check_date,
+      pass_fail,
+      test_results,
+      notes
+    } = body;
+    
+    // Get current user
+    const username = c.req.header('X-User') || 'system';
+    
+    // Create quality check record
+    await env.DB.prepare(`
+      INSERT INTO quality_check (
+        inventory_id, device_serial_no, check_date, checked_by,
+        test_results, pass_fail, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      inventory_id, device_serial_no, check_date, username,
+      test_results, pass_fail, notes
+    ).run();
+    
+    // Update inventory status based on result
+    const newStatus = pass_fail === 'Pass' ? 'In Stock' : 'Defective';
+    await env.DB.prepare(`
+      UPDATE inventory SET
+        status = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(newStatus, inventory_id).run();
+    
+    // Log status change
+    await env.DB.prepare(`
+      INSERT INTO inventory_status_history (
+        inventory_id, device_serial_no, old_status, new_status, changed_by, change_reason
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(inventory_id, device_serial_no, 'Quality Check', newStatus, username, `QC Result: ${pass_fail}`).run();
+    
+    return c.json({ success: true, message: 'Quality check submitted successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to submit quality check' }, 500);
+  }
+});
+
+// Get recent quality checks
+app.get('/api/inventory/quality-checks', async (c) => {
+  const { env } = c;
+  
+  try {
+    const checks = await env.DB.prepare(`
+      SELECT 
+        qc.*,
+        i.model_name
+      FROM quality_check qc
+      LEFT JOIN inventory i ON qc.inventory_id = i.id
+      ORDER BY qc.check_date DESC
+      LIMIT 50
+    `).all();
+    
+    return c.json({ success: true, data: checks.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch quality checks' }, 500);
+  }
+});
+
+// Get inventory reports/stats
+app.get('/api/inventory/stats', async (c) => {
+  const { env } = c;
+  
+  try {
+    const stats = await env.DB.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'In Stock' THEN 1 ELSE 0 END) as in_stock,
+        SUM(CASE WHEN status = 'Dispatched' THEN 1 ELSE 0 END) as dispatched,
+        SUM(CASE WHEN status = 'Quality Check' THEN 1 ELSE 0 END) as quality_check,
+        SUM(CASE WHEN status = 'Defective' THEN 1 ELSE 0 END) as defective,
+        SUM(CASE WHEN status = 'Returned' THEN 1 ELSE 0 END) as returned
+      FROM inventory
+    `).first();
+    
+    return c.json({ success: true, data: stats });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch stats' }, 500);
+  }
+});
+
+// Get inventory activity history
+app.get('/api/inventory/activity', async (c) => {
+  const { env } = c;
+  
+  try {
+    const activity = await env.DB.prepare(`
+      SELECT * FROM inventory_status_history
+      ORDER BY changed_at DESC
+      LIMIT 100
+    `).all();
+    
+    return c.json({ success: true, data: activity.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch activity' }, 500);
+  }
+});
+
 // Home page with dashboard
 app.get('/', (c) => {
   return c.html(`
@@ -3044,6 +3411,33 @@ app.get('/', (c) => {
                 <span>Leads Database</span>
             </div>
             
+            <!-- Inventory Management -->
+            <div class="sidebar-parent" onclick="toggleSubmenu('inventory-menu')">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-boxes"></i>
+                    <span>Inventory</span>
+                </div>
+                <i class="fas fa-chevron-down chevron"></i>
+            </div>
+            <div class="sidebar-children" id="inventory-menu">
+                <div class="sidebar-child" onclick="showPage('inventory-stock')">
+                    <i class="fas fa-warehouse"></i>
+                    <span>Inventory Stock</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('dispatch')">
+                    <i class="fas fa-shipping-fast"></i>
+                    <span>Dispatch</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('quality-check')">
+                    <i class="fas fa-clipboard-check"></i>
+                    <span>Quality Check</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('inventory-reports')">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Reports</span>
+                </div>
+            </div>
+            
             <!-- Settings -->
             <div class="sidebar-parent" onclick="toggleSubmenu('settings-menu')">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -3517,6 +3911,349 @@ app.get('/', (c) => {
                                 <tr><td colspan="11" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inventory Stock Page -->
+            <div class="page-content" id="inventory-stock-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">
+                        <i class="fas fa-warehouse"></i> Inventory Stock Management
+                    </h2>
+                    
+                    <!-- Upload Excel Section -->
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; margin-bottom: 20px; color: white;">
+                        <h3 style="margin-bottom: 15px; font-size: 20px;">
+                            <i class="fas fa-file-excel"></i> Upload Inventory Data
+                        </h3>
+                        <p style="margin-bottom: 15px; opacity: 0.9;">Upload Excel file with inventory details. Required columns: Model_Name, Device Serial_No</p>
+                        <form id="inventoryUploadForm" onsubmit="uploadInventoryExcel(event)" style="display: flex; gap: 10px; align-items: center;">
+                            <input type="file" name="inventoryFile" accept=".xlsx,.xls,.csv" required 
+                                   style="flex: 1; padding: 10px; border: 2px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.15); color: white;">
+                            <button type="submit" class="btn-primary" style="background: white; color: #667eea; padding: 10px 24px;">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Search and Filter -->
+                    <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                        <input type="text" id="inventorySearchInput" placeholder="Search by Serial No, Model, Customer..." 
+                               oninput="searchInventory()"
+                               style="flex: 1; min-width: 300px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                        <select id="inventoryStatusFilter" onchange="filterInventoryByStatus()"
+                                style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 150px;">
+                            <option value="">All Status</option>
+                            <option value="In Stock">In Stock</option>
+                            <option value="Dispatched">Dispatched</option>
+                            <option value="Quality Check">Quality Check</option>
+                            <option value="Defective">Defective</option>
+                            <option value="Returned">Returned</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Inventory Table -->
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>S.No</th>
+                                    <th>Serial No</th>
+                                    <th>Model</th>
+                                    <th>In Date</th>
+                                    <th>Status</th>
+                                    <th>Customer</th>
+                                    <th>Dispatch Date</th>
+                                    <th>Order ID</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTableBody">
+                                <tr><td colspan="9" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dispatch Page -->
+            <div class="page-content" id="dispatch-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">
+                        <i class="fas fa-shipping-fast"></i> Dispatch Management
+                    </h2>
+                    
+                    <!-- Barcode Scanner Section -->
+                    <div style="background: #f0f9ff; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                        <h3 style="margin-bottom: 15px; font-size: 18px; color: #1f2937;">
+                            <i class="fas fa-barcode"></i> Scan Device Serial Number
+                        </h3>
+                        <form onsubmit="scanDeviceForDispatch(event)" style="display: flex; gap: 10px;">
+                            <input type="text" id="dispatchScanInput" placeholder="Scan or enter device serial number..." 
+                                   style="flex: 1; padding: 12px; border: 2px solid #3b82f6; border-radius: 6px; font-size: 16px;"
+                                   autofocus>
+                            <button type="submit" class="btn-primary" style="padding: 12px 24px;">
+                                <i class="fas fa-search"></i> Find Device
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Device Info & Dispatch Form -->
+                    <div id="dispatchFormSection" style="display: none;">
+                        <div class="card" style="background: #f9fafb; margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #1f2937;">Device Information</h4>
+                            <div id="deviceInfoDisplay"></div>
+                        </div>
+                        
+                        <form id="dispatchForm" onsubmit="submitDispatch(event)">
+                            <input type="hidden" id="dispatchInventoryId" name="inventory_id">
+                            <input type="hidden" id="dispatchSerialNo" name="device_serial_no">
+                            
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                                <div class="form-group">
+                                    <label>Dispatch Date *</label>
+                                    <input type="date" name="dispatch_date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Customer Name *</label>
+                                    <input type="text" name="customer_name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Customer Code</label>
+                                    <input type="text" name="customer_code">
+                                </div>
+                                <div class="form-group">
+                                    <label>Customer Mobile *</label>
+                                    <input type="tel" name="customer_mobile" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Customer City</label>
+                                    <input type="text" name="customer_city">
+                                </div>
+                                <div class="form-group">
+                                    <label>Dispatch Reason</label>
+                                    <select name="dispatch_reason">
+                                        <option value="New Sale">New Sale</option>
+                                        <option value="Replacement">Replacement</option>
+                                        <option value="Repair">Repair</option>
+                                        <option value="Demo">Demo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Courier Name</label>
+                                    <input type="text" name="courier_name">
+                                </div>
+                                <div class="form-group">
+                                    <label>Tracking Number</label>
+                                    <input type="text" name="tracking_number">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Notes</label>
+                                <textarea name="notes" rows="3"></textarea>
+                            </div>
+                            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                                <button type="button" class="btn-secondary" onclick="cancelDispatch()">Cancel</button>
+                                <button type="submit" class="btn-primary">
+                                    <i class="fas fa-check"></i> Confirm Dispatch
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Recent Dispatches -->
+                    <div style="margin-top: 30px;">
+                        <h3 style="margin-bottom: 15px; color: #1f2937;">
+                            <i class="fas fa-history"></i> Recent Dispatches
+                        </h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Dispatch Date</th>
+                                        <th>Serial No</th>
+                                        <th>Model</th>
+                                        <th>Customer</th>
+                                        <th>City</th>
+                                        <th>Reason</th>
+                                        <th>Courier</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentDispatchesBody">
+                                    <tr><td colspan="7" class="loading">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quality Check Page -->
+            <div class="page-content" id="quality-check-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">
+                        <i class="fas fa-clipboard-check"></i> Quality Check
+                    </h2>
+                    
+                    <!-- Barcode Scanner Section -->
+                    <div style="background: #f0fdf4; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                        <h3 style="margin-bottom: 15px; font-size: 18px; color: #1f2937;">
+                            <i class="fas fa-barcode"></i> Scan Device for Quality Check
+                        </h3>
+                        <form onsubmit="scanDeviceForQC(event)" style="display: flex; gap: 10px;">
+                            <input type="text" id="qcScanInput" placeholder="Scan or enter device serial number..." 
+                                   style="flex: 1; padding: 12px; border: 2px solid #10b981; border-radius: 6px; font-size: 16px;"
+                                   autofocus>
+                            <button type="submit" class="btn-primary" style="background: #10b981;">
+                                <i class="fas fa-search"></i> Find Device
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- QC Form -->
+                    <div id="qcFormSection" style="display: none;">
+                        <div class="card" style="background: #f9fafb; margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #1f2937;">Device Information</h4>
+                            <div id="qcDeviceInfoDisplay"></div>
+                        </div>
+                        
+                        <form id="qcForm" onsubmit="submitQualityCheck(event)">
+                            <input type="hidden" id="qcInventoryId" name="inventory_id">
+                            <input type="hidden" id="qcSerialNo" name="device_serial_no">
+                            
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                                <div class="form-group">
+                                    <label>Check Date *</label>
+                                    <input type="date" name="check_date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Result *</label>
+                                    <select name="pass_fail" required>
+                                        <option value="">Select Result</option>
+                                        <option value="Pass">Pass</option>
+                                        <option value="Fail">Fail</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Test Results</label>
+                                <textarea name="test_results" rows="3" placeholder="Enter test results..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Notes</label>
+                                <textarea name="notes" rows="3" placeholder="Additional notes..."></textarea>
+                            </div>
+                            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                                <button type="button" class="btn-secondary" onclick="cancelQC()">Cancel</button>
+                                <button type="submit" class="btn-primary" style="background: #10b981;">
+                                    <i class="fas fa-check"></i> Submit Quality Check
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Recent QC Records -->
+                    <div style="margin-top: 30px;">
+                        <h3 style="margin-bottom: 15px; color: #1f2937;">
+                            <i class="fas fa-history"></i> Recent Quality Checks
+                        </h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Check Date</th>
+                                        <th>Serial No</th>
+                                        <th>Model</th>
+                                        <th>Result</th>
+                                        <th>Checked By</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentQCBody">
+                                    <tr><td colspan="6" class="loading">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inventory Reports Page -->
+            <div class="page-content" id="inventory-reports-page">
+                <div class="card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">
+                        <i class="fas fa-chart-bar"></i> Inventory Reports
+                    </h2>
+                    
+                    <!-- Summary Cards -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <div style="padding: 10px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-boxes"></i> Total Inventory
+                                </div>
+                                <div style="font-size: 32px; font-weight: 700;" id="reportTotalInventory">0</div>
+                            </div>
+                        </div>
+                        <div class="card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                            <div style="padding: 10px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-warehouse"></i> In Stock
+                                </div>
+                                <div style="font-size: 32px; font-weight: 700;" id="reportInStock">0</div>
+                            </div>
+                        </div>
+                        <div class="card" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white;">
+                            <div style="padding: 10px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-shipping-fast"></i> Dispatched
+                                </div>
+                                <div style="font-size: 32px; font-weight: 700;" id="reportDispatched">0</div>
+                            </div>
+                        </div>
+                        <div class="card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
+                            <div style="padding: 10px;">
+                                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                    <i class="fas fa-clipboard-check"></i> Quality Check
+                                </div>
+                                <div style="font-size: 32px; font-weight: 700;" id="reportQualityCheck">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Status Distribution Chart -->
+                    <div class="card" style="margin-bottom: 30px;">
+                        <div class="card-header">
+                            <h3 class="card-title">Inventory Status Distribution</h3>
+                        </div>
+                        <div style="height: 350px; padding: 20px;">
+                            <canvas id="inventoryStatusChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Recent Activity</h3>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Serial No</th>
+                                        <th>Action</th>
+                                        <th>Old Status</th>
+                                        <th>New Status</th>
+                                        <th>Changed By</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventoryActivityBody">
+                                    <tr><td colspan="6" class="loading">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
