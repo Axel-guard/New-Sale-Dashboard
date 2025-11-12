@@ -12,7 +12,36 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 
 ### ✅ Currently Completed Features
 
-1. **Enhanced Dashboard Overview**
+1. **Inventory Management System** (NEW - 2025-11-12)
+   - **Inventory Stock**: View and upload devices from Google Sheets Excel
+     - Excel/CSV upload with flexible column mapping (19 fields)
+     - Real-time search (serial number, model, customer)
+     - Status filtering (In Stock, Dispatched, Quality Check, Defective, Returned)
+     - Color-coded status badges
+     - 3-dot action menus (View, Edit, Delete)
+   - **Dispatch**: Barcode scanning workflow for device dispatch
+     - Autofocus input for physical barcode scanners
+     - Device lookup by serial number
+     - Complete dispatch form (customer, courier, tracking)
+     - Recent dispatches table with courier info
+   - **Quality Check**: QC workflow with barcode scanning
+     - Pass/Fail testing with detailed notes
+     - Automatic status updates (Pass → In Stock, Fail → Defective)
+     - Test results tracking
+     - Recent QC history table
+   - **Reports**: Statistics and visualizations
+     - 4 summary cards (Total, In Stock, Dispatched, QC)
+     - Chart.js doughnut chart with status distribution
+     - Complete activity history with audit trail
+     - Real-time data refresh
+   - **Database**: 4 tables with complete audit trail
+     - `inventory`: 19 Google Sheets columns + status tracking
+     - `dispatch_records`: Courier and tracking details
+     - `quality_check`: Pass/fail QC records
+     - `inventory_status_history`: Complete audit trail for all changes
+   - **API**: 9 RESTful endpoints for complete CRUD operations
+
+2. **Enhanced Dashboard Overview**
    - Employee-wise sales cards showing total revenue, number of sales, and balance amounts
    - **Bar chart** for employee sales comparison (current month)
    - **Pie chart** (smaller, with doughnut effect) for payment status distribution (Paid, Partial, Pending)
@@ -74,7 +103,7 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 7. **Dynamic Sidebar**
    - Automatically closes when clicking on any tab
    - Opens only when hamburger menu is clicked
-   - 8 navigation options:
+   - 12+ navigation options:
      - Dashboard (main overview)
      - Courier Calculation
      - Order Details by Order ID
@@ -82,7 +111,12 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
      - Current Month Sale
      - Sale Database
      - Balance Payment
-     - **Leads** (new)
+     - Leads
+     - **Inventory** (NEW - with 4 sub-sections):
+       - Inventory Stock
+       - Dispatch
+       - Quality Check
+       - Reports
 
 8. **CSV/Excel Upload Support** (NEW)
    - **Sales Data Import**: Upload CSV or Excel files containing sales records
@@ -99,6 +133,11 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
    - **Payment History Table**: Track all payments for each sale
    - **Leads Table**: Customer lead management
    - **Customers Table**: Customer information database
+   - **Inventory Tables** (NEW):
+     - **inventory**: Device tracking with 19 fields from Google Sheets
+     - **dispatch_records**: Dispatch history with courier details
+     - **quality_check**: QC results with pass/fail tracking
+     - **inventory_status_history**: Complete audit trail
 
 ## URLs
 
@@ -123,7 +162,18 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 ### Leads Management
 - `GET /api/leads` - Get all leads
 - `POST /api/leads` - Add new lead
-- `POST /api/leads/upload-csv` - **NEW**: Upload leads data from CSV/Excel file (supports .csv, .xlsx, .xls)
+- `POST /api/leads/upload-csv` - Upload leads data from CSV/Excel file (supports .csv, .xlsx, .xls)
+
+### Inventory Management (NEW - 2025-11-12)
+- `GET /api/inventory` - Get all inventory with search/filter support
+- `GET /api/inventory/:serialNo` - Get single device by serial number (barcode lookup)
+- `POST /api/inventory/upload` - Bulk upload from Excel/CSV (Google Sheets export)
+- `POST /api/inventory/dispatch` - Dispatch device to customer
+- `GET /api/inventory/dispatches` - Get recent dispatch records
+- `POST /api/inventory/quality-check` - Submit quality check results
+- `GET /api/inventory/quality-checks` - Get recent QC records
+- `GET /api/inventory/stats` - Get inventory statistics (status counts)
+- `GET /api/inventory/activity` - Get status change history (audit trail)
 
 ### Customer Management
 - `GET /api/customers` - Get all customers
@@ -189,6 +239,71 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 - status (TEXT) - New, Contacted, etc.
 - created_at (DATETIME)
 - updated_at (DATETIME)
+```
+
+**Inventory Tables Schema (NEW - 2025-11-12):**
+
+**inventory table:**
+```sql
+- id (INTEGER PRIMARY KEY)
+- in_date (DATE)
+- model_name (TEXT) - Device model
+- device_serial_no (TEXT UNIQUE) - Barcode field
+- dispatch_date (DATE)
+- cust_code (TEXT)
+- sale_date (DATE)
+- customer_name (TEXT)
+- cust_city (TEXT)
+- cust_mobile (TEXT)
+- dispatch_reason (TEXT)
+- warranty_provide (TEXT)
+- old_serial_no (TEXT) - If replacement
+- license_renew_time (DATE)
+- user_id (TEXT)
+- password (TEXT)
+- account_activation_date (DATE)
+- account_expiry_date (DATE)
+- order_id (TEXT)
+- status (TEXT) - In Stock, Dispatched, Quality Check, Defective, Returned
+- created_at, updated_at (DATETIME)
+```
+
+**dispatch_records table:**
+```sql
+- id (INTEGER PRIMARY KEY)
+- inventory_id (INTEGER FK)
+- device_serial_no (TEXT)
+- dispatch_date (DATE)
+- customer_name, customer_code, customer_mobile, customer_city
+- dispatch_reason
+- courier_name, tracking_number
+- dispatched_by (TEXT)
+- notes (TEXT)
+- created_at (DATETIME)
+```
+
+**quality_check table:**
+```sql
+- id (INTEGER PRIMARY KEY)
+- inventory_id (INTEGER FK)
+- device_serial_no (TEXT)
+- check_date (DATE)
+- checked_by (TEXT)
+- test_results (TEXT)
+- pass_fail (TEXT) - Pass or Fail
+- notes (TEXT)
+- created_at (DATETIME)
+```
+
+**inventory_status_history table (audit trail):**
+```sql
+- id (INTEGER PRIMARY KEY)
+- inventory_id (INTEGER FK)
+- device_serial_no (TEXT)
+- old_status, new_status (TEXT)
+- changed_by (TEXT)
+- change_reason (TEXT)
+- changed_at (DATETIME)
 ```
 
 ## User Guide
@@ -393,7 +508,61 @@ npm run test                # Test the service
 - Real-time total calculations
 - Color-coded payment status badges
 
-## Recent Updates (2025-10-30)
+## Recent Updates
+
+### 2025-11-12: Complete Inventory Management System ✨
+
+**New Feature: Comprehensive Inventory Tracking**
+
+Implemented a complete inventory management system with 4 major components:
+
+1. **Inventory Stock Management**
+   - Excel/CSV upload from Google Sheets (19 columns)
+   - Flexible column name matching (handles spaces, underscores, cases)
+   - Real-time search across serial numbers, models, customers
+   - Status filtering (5 states: In Stock, Dispatched, QC, Defective, Returned)
+   - Color-coded status badges for quick visual identification
+   - 3-dot action menus for each device
+
+2. **Dispatch Workflow**
+   - Barcode scanner integration with autofocus
+   - Device lookup by serial number
+   - Complete dispatch form with customer and courier details
+   - Tracking number support
+   - Automatic status updates to "Dispatched"
+   - Recent dispatches table with full history
+
+3. **Quality Check System**
+   - Barcode scanner for device identification
+   - Pass/Fail testing workflow
+   - Detailed test results and notes
+   - Automatic status updates:
+     - Pass → In Stock (or maintain current)
+     - Fail → Defective
+   - Recent QC history table
+
+4. **Reports & Analytics**
+   - 4 gradient summary cards (Total, In Stock, Dispatched, QC)
+   - Chart.js doughnut chart with status distribution
+   - Interactive tooltips showing counts and percentages
+   - Complete activity history table (last 100 changes)
+   - Audit trail for all status changes
+
+**Technical Implementation:**
+- Database: 4 new tables with 8 indexes
+- API: 9 RESTful endpoints
+- Frontend: ~500 lines of JavaScript
+- Libraries: SheetJS for Excel, Chart.js for visualizations
+- Patterns: Barcode scanning, audit trails, flexible data import
+
+**Testing:**
+- All API endpoints tested and functional
+- Route ordering bug fixed (:serialNo route moved to end)
+- Built successfully with 848.81 kB bundle
+- Ready for comprehensive user testing
+- See `INVENTORY_TESTING_GUIDE.md` for detailed testing procedures
+
+### 2025-10-30: CSV/Excel Upload Feature
 
 ### ✅ CSV/Excel Upload Feature - FIXED
 **Issue Fixed:** Database constraint violation error when uploading sales CSV
@@ -417,16 +586,28 @@ npm run test                # Test the service
 
 ## Features Not Yet Implemented
 
+### Sales Module
 1. **Courier Calculation** - Weight-based cost calculator
 2. **Lead Conversion** - Convert leads to customers/sales
 3. **Sale Editing** - Modify existing sale records
-4. **Export Functionality** - Export data to CSV/Excel
-5. **User Authentication** - Login system for employees
-6. **Date Range Filters** - Custom date range selection
-7. **Advanced Analytics** - Trend analysis and forecasting
-8. **Email Notifications** - Payment reminders and receipts
-9. **Product Management** - Add/edit product catalog
-10. **Customer Management** - Edit customer information
+4. **Export Functionality** - Export sales data to CSV/Excel
+5. **Date Range Filters** - Custom date range selection for sales
+
+### Inventory Module (Pending Enhancements)
+1. **Edit/Delete Device** - Modify or remove inventory items (UI exists, backend pending)
+2. **View Details Modal** - Full device information popup (UI exists, backend pending)
+3. **Export Inventory** - Export filtered inventory to Excel
+4. **Date Range Filters** - Filter by dispatch dates, in dates
+5. **Advanced Search** - Search by warranty, license dates, account expiry
+6. **Bulk Status Update** - Change status for multiple devices at once
+7. **Device History** - Complete timeline view for each device
+
+### General
+1. **User Authentication** - Login system for employees
+2. **Advanced Analytics** - Trend analysis and forecasting
+3. **Email Notifications** - Payment reminders and receipts
+4. **Product Management** - Add/edit product catalog
+5. **Customer Management** - Edit customer information
 
 ## Recommended Next Steps
 
