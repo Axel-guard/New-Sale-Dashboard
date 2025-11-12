@@ -5645,6 +5645,8 @@ Prices are subject to change without prior notice.</textarea>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+            console.log('✅ Loading AxelGuard v3.1 - Build 2025-11-12-FIX');
+            console.log('If you see SyntaxError, your browser has old cached code!');
             let currentPage = 'dashboard'; // Track current page
             let paymentChart = null;
             let employeeChart = null;
