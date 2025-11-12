@@ -280,6 +280,59 @@ app.get('/api/reports/employee-comparison', async (c) => {
   }
 });
 
+// Get employee monthly sales for current year
+app.get('/api/reports/employee-monthly-sales', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    
+    // Get all employees
+    const employees = await env.DB.prepare(`
+      SELECT DISTINCT employee_name FROM sales
+      WHERE strftime('%Y', sale_date) = ?
+      ORDER BY employee_name
+    `).bind(currentYear.toString()).all();
+    
+    // For each employee, get monthly totals (Jan to current month)
+    const employeeMonthlyData = {};
+    
+    for (const emp of employees.results) {
+      const monthlySales = await env.DB.prepare(`
+        SELECT 
+          CAST(strftime('%m', sale_date) AS INTEGER) as month,
+          SUM(total_amount) as total_sales
+        FROM sales
+        WHERE employee_name = ?
+          AND strftime('%Y', sale_date) = ?
+        GROUP BY strftime('%m', sale_date)
+        ORDER BY month
+      `).bind(emp.employee_name, currentYear.toString()).all();
+      
+      // Create array for all 12 months (0 for months with no sales)
+      const monthlyValues = Array(12).fill(0);
+      monthlySales.results.forEach(row => {
+        monthlyValues[row.month - 1] = row.total_sales || 0;
+      });
+      
+      employeeMonthlyData[emp.employee_name] = monthlyValues;
+    }
+    
+    return c.json({ 
+      success: true, 
+      data: {
+        employees: employees.results.map(e => e.employee_name),
+        monthlyData: employeeMonthlyData,
+        currentMonth: currentMonth
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch monthly employee sales' }, 500);
+  }
+});
+
 app.get('/api/reports/incentives', async (c) => {
   const { env } = c;
   
@@ -876,9 +929,28 @@ app.get('/api/leads', async (c) => {
     let params = [];
     
     if (search) {
-      query += ` WHERE customer_code LIKE ? OR customer_name LIKE ? OR mobile_number LIKE ?`;
-      const searchTerm = `%${search}%`;
-      params = [searchTerm, searchTerm, searchTerm];
+      // Smart search logic:
+      // 1-4 digits = customer code (exact match)
+      // 5+ digits = mobile number (partial match)
+      // Text = name or company (partial match)
+      
+      const isNumeric = /^\d+$/.test(search);
+      
+      if (isNumeric && search.length <= 4) {
+        // Customer code: exact match
+        query += ` WHERE customer_code = ?`;
+        params = [search];
+      } else if (isNumeric && search.length >= 5) {
+        // Mobile number: partial match
+        query += ` WHERE mobile_number LIKE ? OR alternate_mobile LIKE ?`;
+        const searchTerm = `%${search}%`;
+        params = [searchTerm, searchTerm];
+      } else {
+        // Name or company: partial match in name, company, email, location
+        query += ` WHERE customer_name LIKE ? OR company_name LIKE ? OR email LIKE ? OR location LIKE ?`;
+        const searchTerm = `%${search}%`;
+        params = [searchTerm, searchTerm, searchTerm, searchTerm];
+      }
     }
     
     query += ` ORDER BY CAST(customer_code AS INTEGER) ASC`;
@@ -2442,6 +2514,27 @@ app.get('/', (c) => {
             
             .table-container {
                 overflow-x: auto;
+                overflow-y: visible;
+                position: relative;
+            }
+            
+            /* Make horizontal scrollbar always visible and sticky at bottom of viewport */
+            .table-container::-webkit-scrollbar {
+                height: 12px;
+            }
+            
+            .table-container::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 6px;
+            }
+            
+            .table-container::-webkit-scrollbar-thumb {
+                background: #888;
+                border-radius: 6px;
+            }
+            
+            .table-container::-webkit-scrollbar-thumb:hover {
+                background: #555;
             }
             
             table {
@@ -3078,8 +3171,8 @@ app.get('/', (c) => {
                 <div class="card">
                     <h2 class="card-title" style="margin-bottom: 20px;">Search Order by ID</h2>
                     <div class="form-group">
-                        <label>Enter Order ID</label>
-                        <input type="text" id="searchOrderId" placeholder="e.g., ORD001">
+                        <label>Enter Order ID (7 digits, e.g., 2019899)</label>
+                        <input type="text" id="searchOrderId" placeholder="Enter 7-digit Order ID (e.g., 2019899)" onkeypress="if(event.key === 'Enter') searchOrder()">
                     </div>
                     <button class="btn-primary" onclick="searchOrder()">
                         <i class="fas fa-search"></i> Search
@@ -3228,6 +3321,17 @@ app.get('/', (c) => {
             <div class="page-content" id="balance-payment-page">
                 <div class="card">
                     <h2 class="card-title" style="margin-bottom: 20px;">Balance Payments</h2>
+                    
+                    <!-- Search Bar -->
+                    <div style="margin-bottom: 20px;">
+                        <input 
+                            type="text" 
+                            id="balancePaymentSearch" 
+                            placeholder="Search by Customer Name, Company, Order ID (7 digits), or Mobile Number..." 
+                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                            oninput="filterBalancePayments()"
+                        >
+                    </div>
                     
                     <!-- Tabs -->
                     <div class="tabs" style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
@@ -3466,6 +3570,16 @@ app.get('/', (c) => {
                                 <tr><td colspan="6" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+                
+                <!-- Employee Month-on-Month Sales Chart (Current Year) -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-chart-line"></i> Employee Monthly Sales Trend (Current Year)</h3>
+                    </div>
+                    <div style="height: 400px; padding: 20px;">
+                        <canvas id="employeeMonthlyChart"></canvas>
                     </div>
                 </div>
                 
@@ -4825,6 +4939,22 @@ Prices are subject to change without prior notice.</textarea>
                 });
             }
 
+            // Utility to preserve scroll position during reload
+            function preserveScrollPosition(callback) {
+                const scrollY = window.scrollY;
+                const scrollX = window.scrollX;
+                
+                // Execute callback (reload function)
+                const result = callback();
+                
+                // Restore scroll position after a short delay
+                setTimeout(() => {
+                    window.scrollTo(scrollX, scrollY);
+                }, 100);
+                
+                return result;
+            }
+            
             // Load Sales Table
             async function loadSalesTable() {
                 try {
@@ -5459,13 +5589,32 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.post('/api/sales/balance-payment', data);
                     
                     if (response.data.success) {
-                        alert('Payment updated successfully!');
                         document.getElementById('balancePaymentModal').classList.remove('show');
-                        loadBalancePayments();
-                        loadDashboard();
+                        
+                        // Save scroll position
+                        const scrollY = window.scrollY;
+                        const scrollX = window.scrollX;
+                        
+                        // Reload data
+                        await loadBalancePayments();
+                        await loadDashboard();
+                        
+                        // Restore scroll position
+                        setTimeout(() => {
+                            window.scrollTo(scrollX, scrollY);
+                        }, 100);
+                        
+                        alert('Payment updated successfully!');
+                    } else {
+                        alert('Error: ' + (response.data.error || 'Unknown error'));
                     }
                 } catch (error) {
-                    alert('Error updating payment: ' + (error.response?.data?.error || error.message));
+                    console.error('Balance payment error:', error);
+                    console.error('Error response:', error.response?.data);
+                    // Don't show error if payment actually succeeded
+                    if (error.response?.status !== 200) {
+                        alert('Error updating payment: ' + (error.response?.data?.error || error.message));
+                    }
                 }
             }
 
@@ -5668,6 +5817,49 @@ Prices are subject to change without prior notice.</textarea>
                 openBalancePaymentModal();
                 document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
             }
+            
+            // Filter Balance Payments
+            function filterBalancePayments() {
+                const searchTerm = document.getElementById('balancePaymentSearch').value.toLowerCase().trim();
+                const tbody = document.getElementById('balancePaymentTableBody');
+                const rows = tbody.getElementsByTagName('tr');
+                
+                // If no search term, show all rows
+                if (!searchTerm) {
+                    Array.from(rows).forEach(row => row.style.display = '');
+                    return;
+                }
+                
+                // Determine search type
+                const isNumeric = /^\d+$/.test(searchTerm);
+                const isOrderId = isNumeric && searchTerm.length === 7;
+                const isMobile = isNumeric && searchTerm.length >= 5;
+                
+                Array.from(rows).forEach(row => {
+                    const cells = row.getElementsByTagName('td');
+                    if (cells.length === 0) return; // Skip empty rows
+                    
+                    const orderId = cells[0].textContent.toLowerCase();
+                    const customerName = cells[2].textContent.toLowerCase();
+                    const companyName = cells[3].textContent.toLowerCase();
+                    const mobile = cells[5].textContent.toLowerCase();
+                    
+                    let matches = false;
+                    
+                    if (isOrderId) {
+                        // 7 digits = Order ID (exact match)
+                        matches = orderId === searchTerm;
+                    } else if (isMobile) {
+                        // 5+ digits = Mobile number (partial match)
+                        matches = mobile.includes(searchTerm);
+                    } else {
+                        // Text = Customer name or company (partial match)
+                        matches = customerName.includes(searchTerm) || companyName.includes(searchTerm);
+                    }
+                    
+                    row.style.display = matches ? '' : 'none';
+                });
+            }
 
             // Switch Balance Payment Tabs
             function switchBalancePaymentTab(tab) {
@@ -5793,77 +5985,204 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
+                // Show loading state
+                document.getElementById('orderResult').innerHTML = \`
+                    <div class="card" style="background: #f0f9ff; color: #0369a1;">
+                        <i class="fas fa-spinner fa-spin"></i> Searching for order \${orderId}...
+                    </div>
+                \`;
+                
                 try {
                     const response = await axios.get(\`/api/sales/order/\${orderId}\`);
+                    
+                    if (!response.data.success) {
+                        throw new Error(response.data.error || 'Order not found');
+                    }
+                    
                     const sale = response.data.data;
                     
-                    const products = sale.items.map(item => \`
-                        <tr>
-                            <td>\${item.product_name}</td>
-                            <td>\${item.quantity}</td>
-                            <td>₹\${item.unit_price.toLocaleString()}</td>
-                            <td>₹\${item.total_price.toLocaleString()}</td>
+                    // Handle empty or missing items
+                    const products = (sale.items && sale.items.length > 0) ? sale.items.map(item => \`
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                            <td style="padding: 12px; text-align: left;"><strong>\${item.product_name || 'N/A'}</strong></td>
+                            <td style="padding: 12px; text-align: center;">\${item.quantity || 0}</td>
+                            <td style="padding: 12px; text-align: right;">₹\${(item.unit_price || 0).toLocaleString()}</td>
+                            <td style="padding: 12px; text-align: right; font-weight: 600;">₹\${(item.total_price || 0).toLocaleString()}</td>
                         </tr>
-                    \`).join('');
+                    \`).join('') : '<tr><td colspan="4" style="text-align: center; padding: 30px; color: #6b7280;"><i class="fas fa-box-open"></i><br>No products found</td></tr>';
                     
-                    const payments = sale.payments.map(p => \`
-                        <tr>
-                            <td>\${new Date(p.payment_date).toLocaleDateString()}</td>
-                            <td>₹\${p.amount.toLocaleString()}</td>
-                            <td>\${p.payment_reference || 'N/A'}</td>
+                    // Handle empty or missing payments
+                    const payments = (sale.payments && sale.payments.length > 0) ? sale.payments.map(p => \`
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                            <td style="padding: 12px; text-align: left;">\${new Date(p.payment_date).toLocaleDateString()}</td>
+                            <td style="padding: 12px; text-align: right; font-weight: 600; color: #10b981;">₹\${(p.amount || 0).toLocaleString()}</td>
+                            <td style="padding: 12px; text-align: left;">\${p.payment_reference || 'N/A'}</td>
                         </tr>
-                    \`).join('');
+                    \`).join('') : '<tr><td colspan="3" style="text-align: center; padding: 30px; color: #6b7280;"><i class="fas fa-history"></i><br>No payment history</td></tr>';
                     
                     document.getElementById('orderResult').innerHTML = \`
-                        <div class="card" style="background: #f9fafb;">
-                            <h3 style="margin-bottom: 15px; color: #1f2937;">Order Details</h3>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                                <div><strong>Order ID:</strong> \${sale.order_id}</div>
-                                <div><strong>Date:</strong> \${new Date(sale.sale_date).toLocaleDateString()}</div>
-                                <div><strong>Customer:</strong> \${sale.customer_code}</div>
-                                <div><strong>Contact:</strong> \${sale.customer_contact || 'N/A'}</div>
-                                <div><strong>Employee:</strong> \${sale.employee_name}</div>
-                                <div><strong>Sale Type:</strong> \${sale.sale_type} GST</div>
-                                <div><strong>Subtotal:</strong> ₹\${sale.subtotal.toLocaleString()}</div>
-                                <div><strong>Courier:</strong> ₹\${sale.courier_cost.toLocaleString()}</div>
-                                <div><strong>GST:</strong> ₹\${sale.gst_amount.toLocaleString()}</div>
-                                <div><strong>Total:</strong> ₹\${sale.total_amount.toLocaleString()}</div>
-                                <div><strong>Received:</strong> ₹\${sale.amount_received.toLocaleString()}</div>
-                                <div><strong>Balance:</strong> ₹\${sale.balance_amount.toLocaleString()}</div>
-                                <div><strong>Account:</strong> \${sale.account_received || 'N/A'}</div>
-                                <div><strong>Remarks:</strong> \${sale.remarks || 'N/A'}</div>
+                        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 20px;">
+                            <h3 style="margin-bottom: 10px; font-size: 28px; font-weight: 700;">
+                                <i class="fas fa-receipt"></i> Order #\${sale.order_id || 'N/A'}
+                            </h3>
+                            <p style="opacity: 0.9; font-size: 14px;">Order placed on \${sale.sale_date ? new Date(sale.sale_date).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                        </div>
+                        
+                        <!-- Customer Information -->
+                        <div class="card" style="margin-bottom: 20px;">
+                            <div style="background: #f9fafb; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; margin-bottom: 15px;">
+                                <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600;">
+                                    <i class="fas fa-user-circle"></i> Customer Information
+                                </h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Customer Code</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.customer_code || 'N/A'}</div>
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Customer Name</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.customer_name || 'N/A'}</div>
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Company Name</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.company_name || 'N/A'}</div>
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Contact Number</div>
+                                        <div style="font-weight: 600; color: #1f2937;">
+                                            <i class="fas fa-phone"></i> \${sale.customer_contact || 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             
-                            <h4 style="margin: 15px 0 10px; color: #374151;">Products</h4>
-                            <table style="width: 100%; margin-bottom: 20px;">
-                                <thead>
-                                    <tr>
-                                        <th>Product</th>
-                                        <th>Quantity</th>
-                                        <th>Unit Price</th>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>\${products}</tbody>
-                            </table>
+                            <!-- Sale Information -->
+                            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                                <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600;">
+                                    <i class="fas fa-info-circle"></i> Sale Details
+                                </h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Employee</div>
+                                        <div style="font-weight: 600; color: #1f2937;">
+                                            <i class="fas fa-user-tie"></i> \${sale.employee_name || 'N/A'}
+                                        </div>
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Sale Type</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.sale_type || 'N/A'} GST</div>
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Account</div>
+                                        <div style="font-weight: 600; color: #1f2937;">
+                                            <i class="fas fa-wallet"></i> \${sale.account_received || 'N/A'}
+                                        </div>
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 6px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 3px;">Remarks</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.remarks || 'N/A'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Products Table -->
+                        <div class="card" style="margin-bottom: 20px;">
+                            <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600;">
+                                <i class="fas fa-box"></i> Products
+                            </h4>
+                            <div class="table-container">
+                                <table style="width: 100%;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="text-align: left; padding: 12px;">Product</th>
+                                            <th style="text-align: center; padding: 12px;">Quantity</th>
+                                            <th style="text-align: right; padding: 12px;">Unit Price</th>
+                                            <th style="text-align: right; padding: 12px;">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>\${products}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Summary -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                            <div class="card" style="background: #f0fdf4; border-left: 4px solid #10b981;">
+                                <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 16px; font-weight: 600;">
+                                    <i class="fas fa-calculator"></i> Amount Breakdown
+                                </h4>
+                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <span style="color: #6b7280;">Subtotal:</span>
+                                        <span style="font-weight: 600;">₹\${(sale.subtotal || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <span style="color: #6b7280;">Courier Charges:</span>
+                                        <span style="font-weight: 600;">₹\${(sale.courier_cost || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <span style="color: #6b7280;">GST (18%):</span>
+                                        <span style="font-weight: 600;">₹\${(sale.gst_amount || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 12px 0; background: #10b981; color: white; margin: 0 -20px; padding-left: 20px; padding-right: 20px; border-radius: 6px;">
+                                        <span style="font-size: 16px; font-weight: 600;">Total Amount:</span>
+                                        <span style="font-size: 20px; font-weight: 700;">₹\${(sale.total_amount || 0).toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
                             
-                            <h4 style="margin: 15px 0 10px; color: #374151;">Payment History</h4>
-                            <table style="width: 100%;">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Amount</th>
-                                        <th>Reference</th>
-                                    </tr>
-                                </thead>
-                                <tbody>\${payments}</tbody>
-                            </table>
+                            <div class="card" style="background: \${(sale.balance_amount || 0) > 0 ? '#fef2f2' : '#f0fdf4'}; border-left: 4px solid \${(sale.balance_amount || 0) > 0 ? '#ef4444' : '#10b981'};">
+                                <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 16px; font-weight: 600;">
+                                    <i class="fas fa-money-bill-wave"></i> Payment Status
+                                </h4>
+                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <span style="color: #6b7280;">Amount Received:</span>
+                                        <span style="font-weight: 600; color: #10b981;">₹\${(sale.amount_received || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <span style="color: #6b7280;">Balance Due:</span>
+                                        <span style="font-weight: 600; color: \${(sale.balance_amount || 0) > 0 ? '#ef4444' : '#10b981'};">
+                                            ₹\${(sale.balance_amount || 0).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div style="padding: 12px; background: \${(sale.balance_amount || 0) > 0 ? '#ef4444' : '#10b981'}; color: white; text-align: center; border-radius: 6px; margin-top: 8px;">
+                                        <span style="font-size: 16px; font-weight: 600;">
+                                            \${(sale.balance_amount || 0) > 0 ? '<i class="fas fa-exclamation-circle"></i> PAYMENT PENDING' : '<i class="fas fa-check-circle"></i> FULLY PAID'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment History -->
+                        <div class="card">
+                            <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600;">
+                                <i class="fas fa-history"></i> Payment History
+                            </h4>
+                            <div class="table-container">
+                                <table style="width: 100%;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="text-align: left; padding: 12px;">Date</th>
+                                            <th style="text-align: right; padding: 12px;">Amount</th>
+                                            <th style="text-align: left; padding: 12px;">Reference</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>\${payments}</tbody>
+                                </table>
+                            </div>
                         </div>
                     \`;
                 } catch (error) {
+                    console.error('Order search error:', error);
                     document.getElementById('orderResult').innerHTML = \`
-                        <div class="card" style="background: #fee2e2; color: #991b1b;">
-                            <strong>Error:</strong> Order not found
+                        <div class="card" style="background: #fee2e2; color: #991b1b; padding: 20px;">
+                            <h4 style="margin-bottom: 10px;"><i class="fas fa-exclamation-circle"></i> Order Not Found</h4>
+                            <p>Could not find order with ID: <strong>\${orderId}</strong></p>
+                            <p style="margin-top: 10px; font-size: 14px;">Please ensure you entered a valid 7-digit order ID.</p>
+                            <p style="margin-top: 5px; font-size: 14px; color: #7f1d1d;">Error: \${error.message || 'Unknown error'}</p>
                         </div>
                     \`;
                 }
@@ -6223,8 +6542,8 @@ Prices are subject to change without prior notice.</textarea>
                             '<div><strong>GST:</strong> ' + (customer.gst_number || 'N/A') + '</div>' +
                         '</div>';
                     
-                    // Fetch sales for this customer
-                    const salesResponse = await axios.get('/api/sales/current-month?page=1&limit=1000');
+                    // Fetch ALL sales for this customer (not just current month)
+                    const salesResponse = await axios.get('/api/sales?page=1&limit=1000');
                     const allSales = salesResponse.data.data;
                     
                     // Filter sales by customer code or mobile
@@ -6411,8 +6730,8 @@ Prices are subject to change without prior notice.</textarea>
                             '<div><strong>GST:</strong> ' + (customer.gst_number || 'N/A') + '</div>' +
                         '</div>';
                     
-                    // Fetch sales for this customer
-                    const salesResponse = await axios.get('/api/sales/current-month?page=1&limit=1000');
+                    // Fetch ALL sales for this customer (not just current month)
+                    const salesResponse = await axios.get('/api/sales?page=1&limit=1000');
                     const allSales = salesResponse.data.data;
                     
                     // Filter sales by customer code or mobile
@@ -8166,6 +8485,9 @@ Prices are subject to change without prior notice.</textarea>
                     renderEmployeeReport(employees);
                     renderMonthComparisonChart(summary.currentMonth, summary.previousMonth);
                     
+                    // Load employee monthly sales chart
+                    renderEmployeeMonthlyChart();
+                    
                     // Load incentives
                     const incentiveResponse = await axios.get('/api/reports/incentives');
                     const incentives = incentiveResponse.data.data;
@@ -8279,6 +8601,105 @@ Prices are subject to change without prior notice.</textarea>
                         }
                     }
                 });
+            }
+            
+            let employeeMonthlyChart = null;
+            
+            async function renderEmployeeMonthlyChart() {
+                try {
+                    const response = await axios.get('/api/reports/employee-monthly-sales');
+                    const data = response.data.data;
+                    
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
+                    // Generate colors for each employee
+                    const colors = [
+                        { bg: 'rgba(102, 126, 234, 0.7)', border: 'rgba(102, 126, 234, 1)' },
+                        { bg: 'rgba(245, 87, 108, 0.7)', border: 'rgba(245, 87, 108, 1)' },
+                        { bg: 'rgba(16, 185, 129, 0.7)', border: 'rgba(16, 185, 129, 1)' },
+                        { bg: 'rgba(251, 191, 36, 0.7)', border: 'rgba(251, 191, 36, 1)' },
+                        { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' },
+                        { bg: 'rgba(236, 72, 153, 0.7)', border: 'rgba(236, 72, 153, 1)' },
+                        { bg: 'rgba(14, 165, 233, 0.7)', border: 'rgba(14, 165, 233, 1)' }
+                    ];
+                    
+                    // Create datasets for each employee
+                    const datasets = data.employees.map((empName, index) => ({
+                        label: empName,
+                        data: data.monthlyData[empName],
+                        backgroundColor: colors[index % colors.length].bg,
+                        borderColor: colors[index % colors.length].border,
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: false
+                    }));
+                    
+                    const ctx = document.getElementById('employeeMonthlyChart').getContext('2d');
+                    
+                    if (employeeMonthlyChart) {
+                        employeeMonthlyChart.destroy();
+                    }
+                    
+                    employeeMonthlyChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: monthNames,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        padding: 15,
+                                        font: {
+                                            size: 12,
+                                            weight: '600'
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.dataset.label + ': ₹' + context.parsed.y.toLocaleString();
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '₹' + value.toLocaleString();
+                                        }
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.05)'
+                                    }
+                                },
+                                x: {
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            },
+                            interaction: {
+                                mode: 'nearest',
+                                axis: 'x',
+                                intersect: false
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error loading employee monthly chart:', error);
+                }
             }
             
             function renderIncentiveTable(incentives) {
