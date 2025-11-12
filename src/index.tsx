@@ -2314,6 +2314,207 @@ app.post('/api/inventory/upload', async (c) => {
   }
 });
 
+// Upload QC data and match with inventory
+app.post('/api/inventory/upload-qc', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { items } = body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return c.json({ success: false, error: 'No QC items provided' }, 400);
+    }
+    
+    let matched = 0;
+    let notFound = 0;
+    let qcInserted = 0;
+    const notFoundDevices = [];
+    
+    for (const item of items) {
+      try {
+        const serialNo = item.device_serial_no || item['Device Serial Number'];
+        if (!serialNo) {
+          notFound++;
+          continue;
+        }
+        
+        // Find device in inventory
+        const device = await env.DB.prepare(`
+          SELECT id FROM inventory WHERE device_serial_no = ?
+        `).bind(serialNo).first();
+        
+        if (device) {
+          matched++;
+          
+          // Determine pass/fail from QC Status
+          const qcStatus = item.qc_status || item['QC Status'] || '';
+          const passFail = qcStatus.toLowerCase().includes('pass') ? 'Pass' : 
+                          qcStatus.toLowerCase().includes('fail') ? 'Fail' : null;
+          
+          // Insert QC record
+          await env.DB.prepare(`
+            INSERT INTO quality_check (
+              inventory_id, device_serial_no, check_date, checked_by,
+              test_results, pass_fail, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            device.id,
+            serialNo,
+            item.dispatch_date || item['Dispatch Date'] || new Date().toISOString().split('T')[0],
+            'Excel Upload',
+            qcStatus,
+            passFail,
+            `Dispatch Reason: ${item.dispatch_reason || item['Dispatch Reason'] || 'N/A'}, Order: ${item.order_id || item['Order Id'] || 'N/A'}`
+          ).run();
+          qcInserted++;
+          
+          // Update inventory status if fail
+          if (passFail === 'Fail') {
+            await env.DB.prepare(`
+              UPDATE inventory SET status = 'Defective', updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).bind(device.id).run();
+            
+            // Add to history
+            await env.DB.prepare(`
+              INSERT INTO inventory_status_history (
+                inventory_id, device_serial_no, old_status, new_status,
+                changed_by, change_reason
+              ) VALUES (?, ?, ?, ?, ?, ?)
+            `).bind(
+              device.id, serialNo, 'Unknown', 'Defective',
+              'QC Excel Upload', 'QC Failed'
+            ).run();
+          }
+        } else {
+          notFound++;
+          notFoundDevices.push(serialNo);
+        }
+      } catch (err) {
+        notFound++;
+        console.error('Error processing QC item:', err);
+      }
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: `Processed ${items.length} QC items: ${matched} matched, ${qcInserted} QC records inserted, ${notFound} not found`,
+      stats: { matched, qcInserted, notFound },
+      notFoundDevices: notFoundDevices.slice(0, 10) // Return first 10 not found
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to upload QC data' }, 500);
+  }
+});
+
+// Upload Dispatch data and match with inventory
+app.post('/api/inventory/upload-dispatch', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { items } = body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return c.json({ success: false, error: 'No dispatch items provided' }, 400);
+    }
+    
+    let matched = 0;
+    let notFound = 0;
+    let dispatchInserted = 0;
+    const notFoundDevices = [];
+    
+    for (const item of items) {
+      try {
+        const serialNo = item.device_serial_no || item['Device Serial Number'];
+        if (!serialNo) {
+          notFound++;
+          continue;
+        }
+        
+        // Find device in inventory
+        const device = await env.DB.prepare(`
+          SELECT id, status FROM inventory WHERE device_serial_no = ?
+        `).bind(serialNo).first();
+        
+        if (device) {
+          matched++;
+          
+          // Insert dispatch record
+          await env.DB.prepare(`
+            INSERT INTO dispatch_records (
+              inventory_id, device_serial_no, dispatch_date, customer_name,
+              customer_code, customer_mobile, customer_city, dispatch_reason,
+              courier_name, tracking_number, dispatched_by, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            device.id,
+            serialNo,
+            item.dispatch_date || item['Dispatch Date'] || new Date().toISOString().split('T')[0],
+            item.customer_name || item['Customer Name'] || null,
+            item.cust_code || item['Cust Code'] || null,
+            null, // customer_mobile not in your sheet
+            null, // customer_city not in your sheet
+            item.dispatch_reason || item['Dispatch Reason'] || null,
+            item.courier_company || item['Courier Company'] || null,
+            item.tracking_id || item['Tracking ID'] || null,
+            'Excel Upload',
+            `Order: ${item.order_id || item['Order Id'] || 'N/A'}, Company: ${item.company_name || item['Company Name'] || 'N/A'}`
+          ).run();
+          dispatchInserted++;
+          
+          // Update inventory status to Dispatched
+          await env.DB.prepare(`
+            UPDATE inventory 
+            SET status = 'Dispatched', 
+                dispatch_date = ?,
+                customer_name = ?,
+                cust_code = ?,
+                dispatch_reason = ?,
+                order_id = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).bind(
+            item.dispatch_date || item['Dispatch Date'] || null,
+            item.customer_name || item['Customer Name'] || null,
+            item.cust_code || item['Cust Code'] || null,
+            item.dispatch_reason || item['Dispatch Reason'] || null,
+            item.order_id || item['Order Id'] || null,
+            device.id
+          ).run();
+          
+          // Add to history
+          await env.DB.prepare(`
+            INSERT INTO inventory_status_history (
+              inventory_id, device_serial_no, old_status, new_status,
+              changed_by, change_reason
+            ) VALUES (?, ?, ?, ?, ?, ?)
+          `).bind(
+            device.id, serialNo, device.status, 'Dispatched',
+            'Dispatch Excel Upload', `Dispatched to ${item.customer_name || 'customer'}`
+          ).run();
+        } else {
+          notFound++;
+          notFoundDevices.push(serialNo);
+        }
+      } catch (err) {
+        notFound++;
+        console.error('Error processing dispatch item:', err);
+      }
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: `Processed ${items.length} dispatch items: ${matched} matched, ${dispatchInserted} dispatch records inserted, ${notFound} not found`,
+      stats: { matched, dispatchInserted, notFound },
+      notFoundDevices: notFoundDevices.slice(0, 10) // Return first 10 not found
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to upload dispatch data' }, 500);
+  }
+});
+
 // Dispatch device
 app.post('/api/inventory/dispatch', async (c) => {
   const { env } = c;
@@ -3923,19 +4124,72 @@ app.get('/', (c) => {
                         <i class="fas fa-warehouse"></i> Inventory Stock Management
                     </h2>
                     
-                    <!-- Upload Excel Section -->
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; margin-bottom: 20px; color: white;">
-                        <h3 style="margin-bottom: 15px; font-size: 20px;">
-                            <i class="fas fa-file-excel"></i> Upload Inventory Data
-                        </h3>
-                        <p style="margin-bottom: 15px; opacity: 0.9;">Upload Excel file with inventory details. Required columns: Model_Name, Device Serial_No</p>
-                        <form id="inventoryUploadForm" onsubmit="uploadInventoryExcel(event)" style="display: flex; gap: 10px; align-items: center;">
-                            <input type="file" name="inventoryFile" accept=".xlsx,.xls,.csv" required 
-                                   style="flex: 1; padding: 10px; border: 2px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.15); color: white;">
-                            <button type="submit" class="btn-primary" style="background: white; color: #667eea; padding: 10px 24px;">
-                                <i class="fas fa-upload"></i> Upload
-                            </button>
-                        </form>
+                    <!-- Upload Excel Sections -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
+                        
+                        <!-- 1. Inventory Data Upload -->
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white;">
+                            <h3 style="margin-bottom: 10px; font-size: 18px;">
+                                <i class="fas fa-warehouse"></i> Inventory Data
+                            </h3>
+                            <p style="margin-bottom: 15px; opacity: 0.9; font-size: 13px;">Upload device inventory with 19 columns</p>
+                            <form id="inventoryUploadForm" onsubmit="uploadInventoryExcel(event)">
+                                <input type="file" name="inventoryFile" accept=".xlsx,.xls,.csv" required 
+                                       style="width: 100%; padding: 8px; border: 2px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.15); color: white; margin-bottom: 10px; font-size: 12px;">
+                                <button type="submit" class="btn-primary" style="width: 100%; background: white; color: #667eea; padding: 8px 16px; font-size: 13px;">
+                                    <i class="fas fa-upload"></i> Upload Inventory
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- 2. QC Data Upload -->
+                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white;">
+                            <h3 style="margin-bottom: 10px; font-size: 18px;">
+                                <i class="fas fa-clipboard-check"></i> QC Data
+                            </h3>
+                            <p style="margin-bottom: 15px; opacity: 0.9; font-size: 13px;">Upload quality check results and match devices</p>
+                            <form id="qcUploadForm" onsubmit="uploadQCExcel(event)">
+                                <input type="file" name="qcFile" accept=".xlsx,.xls,.csv" required 
+                                       style="width: 100%; padding: 8px; border: 2px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.15); color: white; margin-bottom: 10px; font-size: 12px;">
+                                <button type="submit" class="btn-primary" style="width: 100%; background: white; color: #10b981; padding: 8px 16px; font-size: 13px;">
+                                    <i class="fas fa-upload"></i> Upload QC Data
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- 3. Dispatch Data Upload -->
+                        <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 20px; border-radius: 12px; color: white;">
+                            <h3 style="margin-bottom: 10px; font-size: 18px;">
+                                <i class="fas fa-shipping-fast"></i> Dispatch Data
+                            </h3>
+                            <p style="margin-bottom: 15px; opacity: 0.9; font-size: 13px;">Upload dispatch records and match devices</p>
+                            <form id="dispatchUploadForm" onsubmit="uploadDispatchExcel(event)">
+                                <input type="file" name="dispatchFile" accept=".xlsx,.xls,.csv" required 
+                                       style="width: 100%; padding: 8px; border: 2px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.15); color: white; margin-bottom: 10px; font-size: 12px;">
+                                <button type="submit" class="btn-primary" style="width: 100%; background: white; color: #3b82f6; padding: 8px 16px; font-size: 13px;">
+                                    <i class="fas fa-upload"></i> Upload Dispatch Data
+                                </button>
+                            </form>
+                        </div>
+                        
+                    </div>
+                    
+                    <!-- Expected Columns Info -->
+                    <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 12px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                            <div>
+                                <strong style="color: #667eea;">Inventory Columns:</strong>
+                                <div style="color: #6b7280; margin-top: 5px;">Device Serial Number, Model Name, In Date, Customer Name, Order Id, etc.</div>
+                            </div>
+                            <div>
+                                <strong style="color: #10b981;">QC Columns:</strong>
+                                <div style="color: #6b7280; margin-top: 5px;">Device Serial Number, Device Name, QC Status, Dispatch Reason, Order Id</div>
+                            </div>
+                            <div>
+                                <strong style="color: #3b82f6;">Dispatch Columns:</strong>
+                                <div style="color: #6b7280; margin-top: 5px;">Device Serial Number, Customer Name, Dispatch Date, Courier Company, Tracking ID</div>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Search and Filter -->
@@ -10188,6 +10442,193 @@ Prices are subject to change without prior notice.</textarea>
                 });
             }
 
+            // Upload QC Excel
+            async function uploadQCExcel(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const fileInput = form.querySelector('input[type="file"]');
+                const file = fileInput.files[0];
+                
+                if (!file) {
+                    alert('Please select a file');
+                    return;
+                }
+                
+                try {
+                    // Show loading
+                    const originalText = form.querySelector('button[type="submit"]').innerHTML;
+                    form.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                    form.querySelector('button[type="submit"]').disabled = true;
+                    
+                    // Read Excel file with QC column mapping
+                    const data = await readQCExcelFile(file);
+                    
+                    if (data.length === 0) {
+                        alert('No QC data found in Excel file');
+                        form.querySelector('button[type="submit"]').innerHTML = originalText;
+                        form.querySelector('button[type="submit"]').disabled = false;
+                        return;
+                    }
+                    
+                    // Upload to server
+                    const response = await axios.post('/api/inventory/upload-qc', { items: data });
+                    
+                    if (response.data.success) {
+                        let message = \`Successfully uploaded QC data!\n\${response.data.message}\`;
+                        if (response.data.notFoundDevices && response.data.notFoundDevices.length > 0) {
+                            message += \`\n\nDevices not found in inventory (first 10):\n\${response.data.notFoundDevices.join(', ')}\`;
+                        }
+                        alert(message);
+                        loadInventory(); // Reload inventory table
+                        loadRecentQC(); // Reload QC table if on that page
+                        form.reset();
+                    } else {
+                        alert('Upload failed: ' + response.data.error);
+                    }
+                    
+                    // Restore button
+                    form.querySelector('button[type="submit"]').innerHTML = originalText;
+                    form.querySelector('button[type="submit"]').disabled = false;
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    alert('Error uploading QC file: ' + (error.response?.data?.error || error.message));
+                    form.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-upload"></i> Upload QC Data';
+                    form.querySelector('button[type="submit"]').disabled = false;
+                }
+            }
+
+            // Read QC Excel File
+            function readQCExcelFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                            
+                            // Map QC columns
+                            // Expected: Device Serial Number, Device Name, QC Status, Dispatch Reason, Order Id, Cust Code, Customer Name, Company Name, Dispatch Date, Courier Company, Dispatch Method, Tracking ID
+                            const mappedData = jsonData.map(row => ({
+                                device_serial_no: row['Device Serial Number'] || row['Device Serial_Number'] || row['Serial No'] || '',
+                                device_name: row['Device Name'] || row['Model Name'] || null,
+                                qc_status: row['QC Status'] || row['QC_Status'] || null,
+                                dispatch_reason: row['Dispatch Reason'] || row['Dispatch_Reason'] || null,
+                                order_id: row['Order Id'] || row['Order_Id'] || null,
+                                cust_code: row['Cust Code'] || row['Cust_Code'] || null,
+                                customer_name: row['Customer Name'] || row['Customer_Name'] || null,
+                                company_name: row['Company Name'] || row['Company_Name'] || null,
+                                dispatch_date: row['Dispatch Date'] || row['Dispatch_Date'] || null,
+                                courier_company: row['Courier Company'] || row['Courier_Company'] || null,
+                                dispatch_method: row['Dispatch Method'] || row['Dispatch_Method'] || null,
+                                tracking_id: row['Tracking ID'] || row['Tracking_ID'] || null
+                            })).filter(item => item.device_serial_no); // Only include items with serial number
+                            
+                            resolve(mappedData);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            // Upload Dispatch Excel
+            async function uploadDispatchExcel(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const fileInput = form.querySelector('input[type="file"]');
+                const file = fileInput.files[0];
+                
+                if (!file) {
+                    alert('Please select a file');
+                    return;
+                }
+                
+                try {
+                    // Show loading
+                    const originalText = form.querySelector('button[type="submit"]').innerHTML;
+                    form.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                    form.querySelector('button[type="submit"]').disabled = true;
+                    
+                    // Read Excel file with Dispatch column mapping
+                    const data = await readDispatchExcelFile(file);
+                    
+                    if (data.length === 0) {
+                        alert('No dispatch data found in Excel file');
+                        form.querySelector('button[type="submit"]').innerHTML = originalText;
+                        form.querySelector('button[type="submit"]').disabled = false;
+                        return;
+                    }
+                    
+                    // Upload to server
+                    const response = await axios.post('/api/inventory/upload-dispatch', { items: data });
+                    
+                    if (response.data.success) {
+                        let message = \`Successfully uploaded dispatch data!\n\${response.data.message}\`;
+                        if (response.data.notFoundDevices && response.data.notFoundDevices.length > 0) {
+                            message += \`\n\nDevices not found in inventory (first 10):\n\${response.data.notFoundDevices.join(', ')}\`;
+                        }
+                        alert(message);
+                        loadInventory(); // Reload inventory table
+                        loadRecentDispatches(); // Reload dispatches table if on that page
+                        form.reset();
+                    } else {
+                        alert('Upload failed: ' + response.data.error);
+                    }
+                    
+                    // Restore button
+                    form.querySelector('button[type="submit"]').innerHTML = originalText;
+                    form.querySelector('button[type="submit"]').disabled = false;
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    alert('Error uploading dispatch file: ' + (error.response?.data?.error || error.message));
+                    form.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-upload"></i> Upload Dispatch Data';
+                    form.querySelector('button[type="submit"]').disabled = false;
+                }
+            }
+
+            // Read Dispatch Excel File
+            function readDispatchExcelFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                            
+                            // Map Dispatch columns
+                            // Expected: Device Serial Number, Device Name, QC Status, Dispatch Reason, Order Id, Cust Code, Customer Name, Company Name, Dispatch Date, Courier Company, Dispatch Method, Tracking ID
+                            const mappedData = jsonData.map(row => ({
+                                device_serial_no: row['Device Serial Number'] || row['Device Serial_Number'] || row['Serial No'] || '',
+                                device_name: row['Device Name'] || row['Model Name'] || null,
+                                dispatch_reason: row['Dispatch Reason'] || row['Dispatch_Reason'] || null,
+                                order_id: row['Order Id'] || row['Order_Id'] || null,
+                                cust_code: row['Cust Code'] || row['Cust_Code'] || null,
+                                customer_name: row['Customer Name'] || row['Customer_Name'] || null,
+                                company_name: row['Company Name'] || row['Company_Name'] || null,
+                                dispatch_date: row['Dispatch Date'] || row['Dispatch_Date'] || null,
+                                courier_company: row['Courier Company'] || row['Courier_Company'] || null,
+                                dispatch_method: row['Dispatch Method'] || row['Dispatch_Method'] || null,
+                                tracking_id: row['Tracking ID'] || row['Tracking_ID'] || null
+                            })).filter(item => item.device_serial_no); // Only include items with serial number
+                            
+                            resolve(mappedData);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
             // View Inventory Details
             async function viewInventoryDetails(serialNo) {
                 try {
@@ -10220,6 +10661,44 @@ Prices are subject to change without prior notice.</textarea>
                     console.log('Device Details:', item);
                 } catch (error) {
                     alert('Error loading details: ' + error.message);
+                }
+            }
+
+            // Update Inventory Status
+            async function updateInventoryStatus(inventoryId) {
+                try {
+                    const newStatus = prompt('Enter new status:\n1. In Stock\n2. Dispatched\n3. Quality Check\n4. Defective\n5. Returned');
+                    
+                    const statusMap = {
+                        '1': 'In Stock',
+                        '2': 'Dispatched',
+                        '3': 'Quality Check',
+                        '4': 'Defective',
+                        '5': 'Returned'
+                    };
+                    
+                    const status = statusMap[newStatus] || newStatus;
+                    
+                    if (!status || !['In Stock', 'Dispatched', 'Quality Check', 'Defective', 'Returned'].includes(status)) {
+                        alert('Invalid status selection');
+                        return;
+                    }
+                    
+                    const reason = prompt('Enter reason for status change:');
+                    if (!reason) {
+                        alert('Reason is required');
+                        return;
+                    }
+                    
+                    // Note: This requires a new API endpoint to update status
+                    // For now, just alert that feature is coming
+                    alert('Status update feature - API endpoint pending. Selected: ' + status);
+                    console.log('Update status:', { inventoryId, status, reason });
+                    
+                    // TODO: Implement API endpoint for status update
+                    // Will need PUT /api/inventory/:id/status endpoint
+                } catch (error) {
+                    alert('Error updating status: ' + error.message);
                 }
             }
 
