@@ -2855,6 +2855,9 @@ app.get('/', (c) => {
                 color: #6b7280;
                 transition: all 0.2s;
                 border-radius: 4px;
+                pointer-events: auto;
+                position: relative;
+                z-index: 10;
             }
             
             .action-dots-btn:hover {
@@ -2871,10 +2874,11 @@ app.get('/', (c) => {
                 min-width: 160px;
                 box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
                 border-radius: 8px;
-                z-index: 1000;
+                z-index: 9999;
                 border: 1px solid #e5e7eb;
                 overflow: hidden;
                 margin-top: 4px;
+                pointer-events: auto;
             }
             
             .action-dropdown.show {
@@ -3069,7 +3073,7 @@ app.get('/', (c) => {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2 style="font-size: 24px; font-weight: 600; color: #1f2937;">Dashboard Overview</h2>
                     <div style="position: relative;">
-                        <button class="btn-primary" onclick="toggleActionMenu()">
+                        <button class="btn-primary" onclick="toggleAddMenu()">
                             <i class="fas fa-plus"></i> Add New <i class="fas fa-chevron-down" style="margin-left: 5px; font-size: 12px;"></i>
                         </button>
                         <div class="action-menu" id="actionMenu">
@@ -4802,8 +4806,13 @@ Prices are subject to change without prior notice.</textarea>
             }
 
             // Action Menu Functions
-            function toggleActionMenu(event, menuId) {
-                event.stopPropagation();
+            window.toggleActionMenu = function(event, menuId) {
+                if (event) {
+                    event.stopPropagation();
+                    event.preventDefault();
+                }
+                
+                console.log('Toggle menu:', menuId); // Debug log
                 
                 // Close all other menus
                 document.querySelectorAll('.action-dropdown').forEach(menu => {
@@ -4814,23 +4823,27 @@ Prices are subject to change without prior notice.</textarea>
                 
                 // Toggle current menu
                 const menu = document.getElementById('action-' + menuId);
+                console.log('Menu element:', menu); // Debug log
                 if (menu) {
                     menu.classList.toggle('show');
+                    console.log('Menu classes:', menu.className); // Debug log
                 }
             }
             
-            function closeAllActionMenus() {
+            window.closeAllActionMenus = function() {
                 document.querySelectorAll('.action-dropdown').forEach(menu => {
                     menu.classList.remove('show');
                 });
             }
             
             // Close dropdowns when clicking outside
-            document.addEventListener('click', function(event) {
-                if (!event.target.closest('.action-menu-container')) {
-                    closeAllActionMenus();
-                }
-            });
+            setTimeout(function() {
+                document.addEventListener('click', function(event) {
+                    if (!event.target.closest('.action-menu-container')) {
+                        window.closeAllActionMenus();
+                    }
+                });
+            }, 100);
 
             // Show Page
             function showPage(pageName) {
@@ -4868,8 +4881,8 @@ Prices are subject to change without prior notice.</textarea>
                 loadPageData(pageName);
             }
 
-            // Toggle Action Menu
-            function toggleActionMenu() {
+            // Toggle Header Add Menu
+            function toggleAddMenu() {
                 const menu = document.getElementById('actionMenu');
                 menu.classList.toggle('show');
             }
