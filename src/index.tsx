@@ -2199,25 +2199,6 @@ app.get('/api/inventory', async (c) => {
 });
 
 // Get single inventory item by serial number
-app.get('/api/inventory/:serialNo', async (c) => {
-  const { env } = c;
-  const serialNo = c.req.param('serialNo');
-  
-  try {
-    const item = await env.DB.prepare(`
-      SELECT * FROM inventory WHERE device_serial_no = ?
-    `).bind(serialNo).first();
-    
-    if (!item) {
-      return c.json({ success: false, error: 'Device not found' }, 404);
-    }
-    
-    return c.json({ success: true, data: item });
-  } catch (error) {
-    return c.json({ success: false, error: 'Failed to fetch device' }, 500);
-  }
-});
-
 // Upload inventory from Excel
 app.post('/api/inventory/upload', async (c) => {
   const { env } = c;
@@ -2525,6 +2506,26 @@ app.get('/api/inventory/activity', async (c) => {
     return c.json({ success: true, data: activity.results });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to fetch activity' }, 500);
+  }
+});
+
+// Get single device by serial number (MUST be after specific routes)
+app.get('/api/inventory/:serialNo', async (c) => {
+  const { env } = c;
+  const serialNo = c.req.param('serialNo');
+  
+  try {
+    const item = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no = ?
+    `).bind(serialNo).first();
+    
+    if (!item) {
+      return c.json({ success: false, error: 'Device not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: item });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch device' }, 500);
   }
 });
 
@@ -5662,6 +5663,18 @@ Prices are subject to change without prior notice.</textarea>
                         break;
                     case 'reports':
                         loadReports();
+                        break;
+                    case 'inventory-stock':
+                        loadInventory();
+                        break;
+                    case 'dispatch':
+                        loadRecentDispatches();
+                        break;
+                    case 'quality-check':
+                        loadRecentQC();
+                        break;
+                    case 'inventory-reports':
+                        loadInventoryReports();
                         break;
                 }
             }
@@ -9987,6 +10000,577 @@ Prices are subject to change without prior notice.</textarea>
                     }
                 } catch (error) {
                     alert('Error: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // ==================== INVENTORY MANAGEMENT FUNCTIONS ====================
+            
+            let inventoryChart = null;
+            let allInventoryData = [];
+
+            // Load Inventory Stock
+            async function loadInventory() {
+                try {
+                    const response = await axios.get('/api/inventory');
+                    allInventoryData = response.data.data;
+                    renderInventoryTable(allInventoryData);
+                } catch (error) {
+                    console.error('Error loading inventory:', error);
+                    document.getElementById('inventoryTableBody').innerHTML = 
+                        '<tr><td colspan="9" style="text-align: center; color: #dc2626;">Error loading inventory</td></tr>';
+                }
+            }
+
+            // Render Inventory Table
+            function renderInventoryTable(inventory) {
+                const tbody = document.getElementById('inventoryTableBody');
+                
+                if (!inventory || inventory.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #6b7280;">No inventory items found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = inventory.map((item, index) => {
+                    const statusColors = {
+                        'In Stock': 'badge-success',
+                        'Dispatched': 'badge-primary',
+                        'Quality Check': 'badge-warning',
+                        'Defective': 'badge-error',
+                        'Returned': 'badge-secondary'
+                    };
+                    
+                    return \`
+                        <tr>
+                            <td>\${index + 1}</td>
+                            <td><strong>\${item.device_serial_no}</strong></td>
+                            <td>\${item.model_name}</td>
+                            <td>\${item.in_date ? new Date(item.in_date).toLocaleDateString() : '-'}</td>
+                            <td><span class="badge \${statusColors[item.status] || 'badge-secondary'}">\${item.status}</span></td>
+                            <td>\${item.customer_name || '-'}</td>
+                            <td>\${item.dispatch_date ? new Date(item.dispatch_date).toLocaleDateString() : '-'}</td>
+                            <td>\${item.order_id || '-'}</td>
+                            <td>
+                                <div class="action-menu-container">
+                                    <button class="action-dots-btn" onclick="toggleActionMenu(event, 'inventory-\${item.id}')">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div class="action-dropdown" id="action-inventory-\${item.id}">
+                                        <button class="action-dropdown-item" onclick="viewInventoryDetails('\${item.device_serial_no}'); closeAllActionMenus();">
+                                            <i class="fas fa-eye"></i> View Details
+                                        </button>
+                                        <button class="action-dropdown-item" onclick="updateInventoryStatus(\${item.id}); closeAllActionMenus();">
+                                            <i class="fas fa-edit"></i> Update Status
+                                        </button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    \`;
+                }).join('');
+            }
+
+            // Search Inventory
+            function searchInventory() {
+                const searchTerm = document.getElementById('inventorySearchInput').value.toLowerCase().trim();
+                const statusFilter = document.getElementById('inventoryStatusFilter').value;
+                
+                let filtered = allInventoryData;
+                
+                if (searchTerm) {
+                    filtered = filtered.filter(item =>
+                        item.device_serial_no.toLowerCase().includes(searchTerm) ||
+                        item.model_name.toLowerCase().includes(searchTerm) ||
+                        (item.customer_name && item.customer_name.toLowerCase().includes(searchTerm))
+                    );
+                }
+                
+                if (statusFilter) {
+                    filtered = filtered.filter(item => item.status === statusFilter);
+                }
+                
+                renderInventoryTable(filtered);
+            }
+
+            // Filter Inventory by Status
+            function filterInventoryByStatus() {
+                searchInventory(); // Use the same search function
+            }
+
+            // Upload Inventory Excel
+            async function uploadInventoryExcel(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const fileInput = form.querySelector('input[type="file"]');
+                const file = fileInput.files[0];
+                
+                if (!file) {
+                    alert('Please select a file');
+                    return;
+                }
+                
+                try {
+                    // Show loading
+                    const originalText = form.querySelector('button[type="submit"]').innerHTML;
+                    form.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                    form.querySelector('button[type="submit"]').disabled = true;
+                    
+                    // Read Excel file
+                    const data = await readExcelFile(file);
+                    
+                    if (data.length === 0) {
+                        alert('No data found in Excel file');
+                        return;
+                    }
+                    
+                    // Upload to server
+                    const response = await axios.post('/api/inventory/upload', { items: data });
+                    
+                    if (response.data.success) {
+                        alert(\`Successfully uploaded!\n\${response.data.message}\`);
+                        loadInventory(); // Reload table
+                        form.reset();
+                    } else {
+                        alert('Upload failed: ' + response.data.error);
+                    }
+                    
+                    // Restore button
+                    form.querySelector('button[type="submit"]').innerHTML = originalText;
+                    form.querySelector('button[type="submit"]').disabled = false;
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    alert('Error uploading file: ' + (error.response?.data?.error || error.message));
+                    form.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-upload"></i> Upload';
+                    form.querySelector('button[type="submit"]').disabled = false;
+                }
+            }
+
+            // Read Excel File
+            function readExcelFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                            
+                            // Map columns to database fields
+                            const mappedData = jsonData.map(row => ({
+                                model_name: row['Model_Name'] || row['Model Name'] || '',
+                                device_serial_no: row['Device Serial_No'] || row['Device Serial No'] || row['Serial No'] || '',
+                                in_date: row['In_Date'] || row['In Date'] || null,
+                                dispatch_date: row['Dispatch Date'] || row['Dispatch_Date'] || null,
+                                cust_code: row['Cust Code'] || row['Cust_Code'] || null,
+                                sale_date: row['Sale Date'] || row['Sale_Date'] || null,
+                                customer_name: row['Customer Name'] || row['Customer_Name'] || null,
+                                cust_city: row['Cust City'] || row['Cust_City'] || null,
+                                cust_mobile: row['Cust Mobile'] || row['Cust_Mobile'] || null,
+                                dispatch_reason: row['Dispatch Reason'] || row['Dispatch_Reason'] || null,
+                                warranty_provide: row['Warranty Provide'] || row['Warranty_Provide'] || null,
+                                old_serial_no: row['If Replace Old S. No.'] || row['Old Serial No'] || null,
+                                license_renew_time: row['License Renew Time'] || row['License_Renew_Time'] || null,
+                                user_id: row['User id'] || row['User_id'] || null,
+                                password: row['Password'] || null,
+                                account_activation_date: row['Account Activation date'] || row['Account_Activation_date'] || null,
+                                account_expiry_date: row['Account Expiry Date'] || row['Account_Expiry_Date'] || null,
+                                order_id: row['Order Id'] || row['Order_Id'] || null
+                            })).filter(item => item.device_serial_no && item.model_name); // Only include items with required fields
+                            
+                            resolve(mappedData);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            // View Inventory Details
+            async function viewInventoryDetails(serialNo) {
+                try {
+                    const response = await axios.get(\`/api/inventory/\${serialNo}\`);
+                    const item = response.data.data;
+                    
+                    const detailsHtml = \`
+                        <div style="background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 20px auto;">
+                            <h3 style="margin-bottom: 15px; color: #1f2937;">Device Details</h3>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                                <div><strong>Serial No:</strong> \${item.device_serial_no}</div>
+                                <div><strong>Model:</strong> \${item.model_name}</div>
+                                <div><strong>Status:</strong> \${item.status}</div>
+                                <div><strong>In Date:</strong> \${item.in_date || '-'}</div>
+                                <div><strong>Customer:</strong> \${item.customer_name || '-'}</div>
+                                <div><strong>Customer Code:</strong> \${item.cust_code || '-'}</div>
+                                <div><strong>Mobile:</strong> \${item.cust_mobile || '-'}</div>
+                                <div><strong>City:</strong> \${item.cust_city || '-'}</div>
+                                <div><strong>Dispatch Date:</strong> \${item.dispatch_date || '-'}</div>
+                                <div><strong>Order ID:</strong> \${item.order_id || '-'}</div>
+                                <div><strong>Warranty:</strong> \${item.warranty_provide || '-'}</div>
+                                <div><strong>User ID:</strong> \${item.user_id || '-'}</div>
+                            </div>
+                            <button onclick="this.parentElement.remove()" class="btn-secondary" style="margin-top: 15px;">Close</button>
+                        </div>
+                    \`;
+                    
+                    // Show in a modal or alert
+                    alert('View details feature - Check console for full details');
+                    console.log('Device Details:', item);
+                } catch (error) {
+                    alert('Error loading details: ' + error.message);
+                }
+            }
+
+            // ==================== DISPATCH FUNCTIONS ====================
+
+            // Scan Device for Dispatch
+            async function scanDeviceForDispatch(event) {
+                event.preventDefault();
+                
+                const serialNo = document.getElementById('dispatchScanInput').value.trim();
+                if (!serialNo) {
+                    alert('Please enter a serial number');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get(\`/api/inventory/\${serialNo}\`);
+                    const device = response.data.data;
+                    
+                    if (device.status === 'Dispatched') {
+                        if (!confirm('This device is already dispatched. Dispatch again?')) {
+                            return;
+                        }
+                    }
+                    
+                    // Show device info
+                    document.getElementById('deviceInfoDisplay').innerHTML = \`
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                            <div><strong>Serial No:</strong> \${device.device_serial_no}</div>
+                            <div><strong>Model:</strong> \${device.model_name}</div>
+                            <div><strong>Current Status:</strong> <span class="badge badge-\${device.status === 'In Stock' ? 'success' : 'warning'}">\${device.status}</span></div>
+                            <div><strong>In Date:</strong> \${device.in_date ? new Date(device.in_date).toLocaleDateString() : '-'}</div>
+                        </div>
+                    \`;
+                    
+                    // Populate hidden fields
+                    document.getElementById('dispatchInventoryId').value = device.id;
+                    document.getElementById('dispatchSerialNo').value = device.device_serial_no;
+                    
+                    // Set today's date
+                    const today = new Date().toISOString().split('T')[0];
+                    document.querySelector('#dispatchForm input[name="dispatch_date"]').value = today;
+                    
+                    // Show form
+                    document.getElementById('dispatchFormSection').style.display = 'block';
+                    
+                    // Clear scan input
+                    document.getElementById('dispatchScanInput').value = '';
+                } catch (error) {
+                    alert('Device not found: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // Submit Dispatch
+            async function submitDispatch(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                const data = {
+                    inventory_id: formData.get('inventory_id'),
+                    device_serial_no: formData.get('device_serial_no'),
+                    dispatch_date: formData.get('dispatch_date'),
+                    customer_name: formData.get('customer_name'),
+                    customer_code: formData.get('customer_code'),
+                    customer_mobile: formData.get('customer_mobile'),
+                    customer_city: formData.get('customer_city'),
+                    dispatch_reason: formData.get('dispatch_reason'),
+                    courier_name: formData.get('courier_name'),
+                    tracking_number: formData.get('tracking_number'),
+                    notes: formData.get('notes')
+                };
+                
+                try {
+                    const response = await axios.post('/api/inventory/dispatch', data);
+                    
+                    if (response.data.success) {
+                        alert('Device dispatched successfully!');
+                        cancelDispatch();
+                        loadRecentDispatches();
+                    }
+                } catch (error) {
+                    alert('Error dispatching device: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // Cancel Dispatch
+            function cancelDispatch() {
+                document.getElementById('dispatchFormSection').style.display = 'none';
+                document.getElementById('dispatchForm').reset();
+                document.getElementById('dispatchScanInput').value = '';
+                document.getElementById('dispatchScanInput').focus();
+            }
+
+            // Load Recent Dispatches
+            async function loadRecentDispatches() {
+                try {
+                    const response = await axios.get('/api/inventory/dispatches');
+                    const dispatches = response.data.data;
+                    
+                    const tbody = document.getElementById('recentDispatchesBody');
+                    
+                    if (!dispatches || dispatches.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #6b7280;">No dispatch records found</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = dispatches.map(d => \`
+                        <tr>
+                            <td>\${new Date(d.dispatch_date).toLocaleDateString()}</td>
+                            <td><strong>\${d.device_serial_no}</strong></td>
+                            <td>\${d.model_name || '-'}</td>
+                            <td>\${d.customer_name}</td>
+                            <td>\${d.customer_city || '-'}</td>
+                            <td>\${d.dispatch_reason || '-'}</td>
+                            <td>\${d.courier_name || '-'}</td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading dispatches:', error);
+                }
+            }
+
+            // ==================== QUALITY CHECK FUNCTIONS ====================
+
+            // Scan Device for QC
+            async function scanDeviceForQC(event) {
+                event.preventDefault();
+                
+                const serialNo = document.getElementById('qcScanInput').value.trim();
+                if (!serialNo) {
+                    alert('Please enter a serial number');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get(\`/api/inventory/\${serialNo}\`);
+                    const device = response.data.data;
+                    
+                    // Show device info
+                    document.getElementById('qcDeviceInfoDisplay').innerHTML = \`
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                            <div><strong>Serial No:</strong> \${device.device_serial_no}</div>
+                            <div><strong>Model:</strong> \${device.model_name}</div>
+                            <div><strong>Current Status:</strong> <span class="badge">\${device.status}</span></div>
+                            <div><strong>In Date:</strong> \${device.in_date ? new Date(device.in_date).toLocaleDateString() : '-'}</div>
+                        </div>
+                    \`;
+                    
+                    // Populate hidden fields
+                    document.getElementById('qcInventoryId').value = device.id;
+                    document.getElementById('qcSerialNo').value = device.device_serial_no;
+                    
+                    // Set today's date
+                    const today = new Date().toISOString().split('T')[0];
+                    document.querySelector('#qcForm input[name="check_date"]').value = today;
+                    
+                    // Show form
+                    document.getElementById('qcFormSection').style.display = 'block';
+                    
+                    // Clear scan input
+                    document.getElementById('qcScanInput').value = '';
+                } catch (error) {
+                    alert('Device not found: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // Submit Quality Check
+            async function submitQualityCheck(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                const data = {
+                    inventory_id: formData.get('inventory_id'),
+                    device_serial_no: formData.get('device_serial_no'),
+                    check_date: formData.get('check_date'),
+                    pass_fail: formData.get('pass_fail'),
+                    test_results: formData.get('test_results'),
+                    notes: formData.get('notes')
+                };
+                
+                try {
+                    const response = await axios.post('/api/inventory/quality-check', data);
+                    
+                    if (response.data.success) {
+                        alert('Quality check submitted successfully!');
+                        cancelQC();
+                        loadRecentQC();
+                    }
+                } catch (error) {
+                    alert('Error submitting QC: ' + (error.response?.data?.error || error.message));
+                }
+            }
+
+            // Cancel QC
+            function cancelQC() {
+                document.getElementById('qcFormSection').style.display = 'none';
+                document.getElementById('qcForm').reset();
+                document.getElementById('qcScanInput').value = '';
+                document.getElementById('qcScanInput').focus();
+            }
+
+            // Load Recent QC Records
+            async function loadRecentQC() {
+                try {
+                    const response = await axios.get('/api/inventory/quality-checks');
+                    const checks = response.data.data;
+                    
+                    const tbody = document.getElementById('recentQCBody');
+                    
+                    if (!checks || checks.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No QC records found</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = checks.map(qc => \`
+                        <tr>
+                            <td>\${new Date(qc.check_date).toLocaleDateString()}</td>
+                            <td><strong>\${qc.device_serial_no}</strong></td>
+                            <td>\${qc.model_name || '-'}</td>
+                            <td><span class="badge badge-\${qc.pass_fail === 'Pass' ? 'success' : 'error'}">\${qc.pass_fail}</span></td>
+                            <td>\${qc.checked_by}</td>
+                            <td>\${qc.notes || '-'}</td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading QC records:', error);
+                }
+            }
+
+            // ==================== INVENTORY REPORTS FUNCTIONS ====================
+
+            // Load Inventory Reports
+            async function loadInventoryReports() {
+                await loadInventoryStats();
+                await loadInventoryActivity();
+            }
+
+            // Load Inventory Stats
+            async function loadInventoryStats() {
+                try {
+                    const response = await axios.get('/api/inventory/stats');
+                    const stats = response.data.data;
+                    
+                    // Update summary cards
+                    document.getElementById('reportTotalInventory').textContent = stats.total || 0;
+                    document.getElementById('reportInStock').textContent = stats.in_stock || 0;
+                    document.getElementById('reportDispatched').textContent = stats.dispatched || 0;
+                    document.getElementById('reportQualityCheck').textContent = stats.quality_check || 0;
+                    
+                    // Render chart
+                    renderInventoryStatusChart(stats);
+                } catch (error) {
+                    console.error('Error loading inventory stats:', error);
+                }
+            }
+
+            // Render Inventory Status Chart
+            function renderInventoryStatusChart(stats) {
+                const ctx = document.getElementById('inventoryStatusChart').getContext('2d');
+                
+                if (inventoryChart) {
+                    inventoryChart.destroy();
+                }
+                
+                inventoryChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['In Stock', 'Dispatched', 'Quality Check', 'Defective', 'Returned'],
+                        datasets: [{
+                            data: [
+                                stats.in_stock || 0,
+                                stats.dispatched || 0,
+                                stats.quality_check || 0,
+                                stats.defective || 0,
+                                stats.returned || 0
+                            ],
+                            backgroundColor: [
+                                'rgba(16, 185, 129, 0.8)',
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(251, 191, 36, 0.8)',
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(107, 114, 128, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(16, 185, 129, 1)',
+                                'rgba(59, 130, 246, 1)',
+                                'rgba(251, 191, 36, 1)',
+                                'rgba(239, 68, 68, 1)',
+                                'rgba(107, 114, 128, 1)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    padding: 15,
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        return \`\${label}: \${value} (\${percentage}%)\`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Load Inventory Activity
+            async function loadInventoryActivity() {
+                try {
+                    const response = await axios.get('/api/inventory/activity');
+                    const activity = response.data.data;
+                    
+                    const tbody = document.getElementById('inventoryActivityBody');
+                    
+                    if (!activity || activity.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No activity records found</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = activity.map(a => \`
+                        <tr>
+                            <td>\${new Date(a.changed_at).toLocaleDateString()}</td>
+                            <td><strong>\${a.device_serial_no}</strong></td>
+                            <td>Status Change</td>
+                            <td><span class="badge">\${a.old_status}</span></td>
+                            <td><span class="badge">\${a.new_status}</span></td>
+                            <td>\${a.changed_by}</td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading activity:', error);
                 }
             }
         </script>
