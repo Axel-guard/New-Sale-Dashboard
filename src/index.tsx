@@ -647,7 +647,19 @@ app.get('/api/sales', async (c) => {
       LIMIT 1000
     `).all();
     
-    return c.json({ success: true, data: sales.results });
+    // Get items for each sale
+    const salesWithItems = await Promise.all(sales.results.map(async (sale: any) => {
+      const items = await env.DB.prepare(`
+        SELECT * FROM sale_items WHERE order_id = ?
+      `).bind(sale.order_id).all();
+      
+      return {
+        ...sale,
+        items: items.results
+      };
+    }));
+    
+    return c.json({ success: true, data: salesWithItems });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to fetch sales' }, 500);
   }
@@ -2827,6 +2839,79 @@ app.get('/', (c) => {
                     font-size: 13px;
                 }
             }
+            
+            /* 3-Dot Dropdown Menu */
+            .action-menu-container {
+                position: relative;
+                display: inline-block;
+            }
+            
+            .action-dots-btn {
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 8px 12px;
+                font-size: 18px;
+                color: #6b7280;
+                transition: all 0.2s;
+                border-radius: 4px;
+            }
+            
+            .action-dots-btn:hover {
+                background: #f3f4f6;
+                color: #1f2937;
+            }
+            
+            .action-dropdown {
+                display: none;
+                position: absolute;
+                right: 0;
+                top: 100%;
+                background: white;
+                min-width: 160px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                border-radius: 8px;
+                z-index: 1000;
+                border: 1px solid #e5e7eb;
+                overflow: hidden;
+                margin-top: 4px;
+            }
+            
+            .action-dropdown.show {
+                display: block;
+            }
+            
+            .action-dropdown-item {
+                padding: 10px 16px;
+                cursor: pointer;
+                transition: background 0.2s;
+                color: #1f2937;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                border: none;
+                background: none;
+                width: 100%;
+                text-align: left;
+            }
+            
+            .action-dropdown-item:hover {
+                background: #f3f4f6;
+            }
+            
+            .action-dropdown-item i {
+                width: 16px;
+                text-align: center;
+            }
+            
+            .action-dropdown-item.delete {
+                color: #dc2626;
+            }
+            
+            .action-dropdown-item.delete:hover {
+                background: #fee2e2;
+            }
         </style>
     </head>
     <body>
@@ -4716,6 +4801,37 @@ Prices are subject to change without prior notice.</textarea>
                 event.stopPropagation();
             }
 
+            // Action Menu Functions
+            function toggleActionMenu(event, menuId) {
+                event.stopPropagation();
+                
+                // Close all other menus
+                document.querySelectorAll('.action-dropdown').forEach(menu => {
+                    if (menu.id !== 'action-' + menuId) {
+                        menu.classList.remove('show');
+                    }
+                });
+                
+                // Toggle current menu
+                const menu = document.getElementById('action-' + menuId);
+                if (menu) {
+                    menu.classList.toggle('show');
+                }
+            }
+            
+            function closeAllActionMenus() {
+                document.querySelectorAll('.action-dropdown').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+            }
+            
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!event.target.closest('.action-menu-container')) {
+                    closeAllActionMenus();
+                }
+            });
+
             // Show Page
             function showPage(pageName) {
                 // Update current page
@@ -4995,8 +5111,23 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${sale.balance_amount > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>'}</td>
                             <td><small>\${payments} payment(s)</small></td>
                             <td>
-                                \${sale.balance_amount > 0 ? '<button class="btn-update" onclick="openUpdateBalanceModal(\\'' + sale.order_id + '\\')" title="Update Balance Payment"><i class="fas fa-money-bill-wave"></i></button>' : '-'}
-                                \${currentUser && currentUser.role === 'admin' ? '<button class="btn-danger" style="margin-left: 5px; padding: 5px 8px;" onclick="deleteSale(\\'' + sale.order_id + '\\')" title="Delete Sale"><i class="fas fa-trash"></i></button>' : ''}
+                                <div class="action-menu-container">
+                                    <button class="action-dots-btn" onclick="toggleActionMenu(event, 'current-sale-\${sale.order_id}')">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div class="action-dropdown" id="action-current-sale-\${sale.order_id}">
+                                        \${sale.balance_amount > 0 ? \`
+                                            <button class="action-dropdown-item" onclick="openUpdateBalanceModal('\${sale.order_id}'); closeAllActionMenus();">
+                                                <i class="fas fa-money-bill-wave"></i> Update Payment
+                                            </button>
+                                        \` : ''}
+                                        \${currentUser && currentUser.role === 'admin' ? \`
+                                            <button class="action-dropdown-item delete" onclick="deleteSale('\${sale.order_id}'); closeAllActionMenus();">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        \` : ''}
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     \`;
@@ -5723,8 +5854,22 @@ Prices are subject to change without prior notice.</textarea>
                             <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
                             <td>₹\${sale.total_amount.toLocaleString()}</td>
                             <td>₹\${sale.balance_amount.toLocaleString()}</td>
-                            <td>
-                                \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="event.stopPropagation(); editSale('\${sale.order_id}')"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="event.stopPropagation(); deleteSale('\${sale.order_id}')"><i class="fas fa-trash"></i></button>\` : '-'}
+                            <td onclick="event.stopPropagation()">
+                                \${isAdmin ? \`
+                                    <div class="action-menu-container">
+                                        <button class="action-dots-btn" onclick="toggleActionMenu(event, 'sale-\${sale.order_id}')">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <div class="action-dropdown" id="action-sale-\${sale.order_id}">
+                                            <button class="action-dropdown-item" onclick="editSale('\${sale.order_id}'); closeAllActionMenus();">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
+                                            <button class="action-dropdown-item delete" onclick="deleteSale('\${sale.order_id}'); closeAllActionMenus();">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                \` : '-'}
                             </td>
                         </tr>
                         \`;
@@ -5957,7 +6102,21 @@ Prices are subject to change without prior notice.</textarea>
                             <td><span class="badge badge-success">\${lead.status}</span></td>
                             <td>\${new Date(lead.created_at).toLocaleDateString()}</td>
                             <td>
-                                \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editLead(\${lead.id})"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="deleteLead(\${lead.id})"><i class="fas fa-trash"></i></button>\` : '-'}
+                                \${isAdmin ? \`
+                                    <div class="action-menu-container">
+                                        <button class="action-dots-btn" onclick="toggleActionMenu(event, 'lead-\${lead.id}')">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <div class="action-dropdown" id="action-lead-\${lead.id}">
+                                            <button class="action-dropdown-item" onclick="editLead(\${lead.id}); closeAllActionMenus();">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
+                                            <button class="action-dropdown-item delete" onclick="deleteLead(\${lead.id}); closeAllActionMenus();">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                \` : '-'}
                             </td>
                         </tr>
                     \`).join('');
