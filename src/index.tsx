@@ -10475,9 +10475,9 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.post('/api/inventory/upload-qc', { items: data });
                     
                     if (response.data.success) {
-                        let message = \`Successfully uploaded QC data!\n\${response.data.message}\`;
+                        let message = 'Successfully uploaded QC data!\n' + response.data.message;
                         if (response.data.notFoundDevices && response.data.notFoundDevices.length > 0) {
-                            message += \`\n\nDevices not found in inventory (first 10):\n\${response.data.notFoundDevices.join(', ')}\`;
+                            message += '\n\nDevices not found in inventory (first 10):\n' + response.data.notFoundDevices.join(', ');
                         }
                         alert(message);
                         loadInventory(); // Reload inventory table
@@ -10569,9 +10569,9 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.post('/api/inventory/upload-dispatch', { items: data });
                     
                     if (response.data.success) {
-                        let message = \`Successfully uploaded dispatch data!\n\${response.data.message}\`;
+                        let message = 'Successfully uploaded dispatch data!\n' + response.data.message;
                         if (response.data.notFoundDevices && response.data.notFoundDevices.length > 0) {
-                            message += \`\n\nDevices not found in inventory (first 10):\n\${response.data.notFoundDevices.join(', ')}\`;
+                            message += '\n\nDevices not found in inventory (first 10):\n' + response.data.notFoundDevices.join(', ');
                         }
                         alert(message);
                         loadInventory(); // Reload inventory table
