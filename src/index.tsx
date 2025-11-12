@@ -9492,9 +9492,12 @@ Prices are subject to change without prior notice.</textarea>
             
             function handleLogin(event) {
                 event.preventDefault();
+                alert('Login button clicked! Username will be checked...');
                 const username = document.getElementById('loginUsername').value;
                 const password = document.getElementById('loginPassword').value;
                 const errorDiv = document.getElementById('loginError');
+                
+                console.log('Attempting login with:', username);
                 
                 axios.post('/api/auth/login', { username, password })
                     .then(response => {
