@@ -5777,8 +5777,8 @@ app.get('/', (c) => {
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>In Account Received *</label>
-                            <select name="account_received" id="editAccountReceived" required>
+                            <label id="editAccountLabel">In Account Received</label>
+                            <select name="account_received" id="editAccountReceived">
                                 <option value="">Select Account</option>
                                 <option value="IDFC(4828)">IDFC (4828)</option>
                                 <option value="IDFC(7455)">IDFC (7455)</option>
@@ -8029,9 +8029,13 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('editSaleType').value = sale.sale_type;
                     document.getElementById('editCourierCost').value = sale.courier_cost || 0;
                     document.getElementById('editAmountReceived').value = sale.amount_received || 0;
-                    document.getElementById('editAccountReceived').value = sale.account_received;
+                    document.getElementById('editAccountReceived').value = sale.account_received || '';
                     document.getElementById('editPaymentReference').value = sale.payment_reference || '';
                     document.getElementById('editRemarks').value = sale.remarks || '';
+                    
+                    // Set up dynamic validation for account received based on amount
+                    toggleEditAccountRequired();
+                    document.getElementById('editAmountReceived').addEventListener('input', toggleEditAccountRequired);
                     
                     // Load products
                     const itemsResponse = await axios.get('/api/sales/' + orderId + '/items');
@@ -8116,6 +8120,20 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('editSaleModal').classList.add('show');
                 } catch (error) {
                     alert('Error loading sale data: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            function toggleEditAccountRequired() {
+                const amountReceived = parseFloat(document.getElementById('editAmountReceived').value) || 0;
+                const accountSelect = document.getElementById('editAccountReceived');
+                const accountLabel = document.getElementById('editAccountLabel');
+                
+                if (amountReceived > 0) {
+                    accountSelect.required = true;
+                    accountLabel.textContent = 'In Account Received *';
+                } else {
+                    accountSelect.required = false;
+                    accountLabel.textContent = 'In Account Received';
                 }
             }
             
