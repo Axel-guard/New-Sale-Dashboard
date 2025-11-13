@@ -717,9 +717,9 @@ app.post('/api/sales', async (c) => {
       if (item.product_name && item.quantity > 0 && item.unit_price > 0) {
         const total_price = item.quantity * item.unit_price;
         await env.DB.prepare(`
-          INSERT INTO sale_items (sale_id, product_name, quantity, unit_price, total_price)
-          VALUES (?, ?, ?, ?, ?)
-        `).bind(sale_id, item.product_name, item.quantity, item.unit_price, total_price).run();
+          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(sale_id, order_id, item.product_name, item.quantity, item.unit_price, total_price).run();
       }
     }
     
@@ -1378,6 +1378,15 @@ app.post('/api/sales/upload-csv', async (c) => {
           continue;
         }
         
+        // Get the sale_id for this order
+        const sale = await env.DB.prepare('SELECT id FROM sales WHERE order_id = ?').bind(order_id).first();
+        const sale_id = sale ? sale.id : null;
+        
+        if (!sale_id) {
+          errors.push(`Row ${i + 2}: Failed to get sale_id for order ${order_id}`);
+          continue;
+        }
+        
         // Parse products (up to 10 products starting from column 17)
         // P1: columns 17-20 (Code, Name, Qty, Rate)
         // P2: columns 22-25, P3: columns 27-30, etc.
@@ -1399,16 +1408,19 @@ app.post('/api/sales/upload-csv', async (c) => {
             const product_name = values[nameIdx];
             const quantity = parseFloat(values[qtyIdx]) || 0;
             const unit_price = parseFloat(values[rateIdx]) || 0;
+            const total_price = quantity * unit_price;
             
             if (quantity > 0 && unit_price > 0) {
               await env.DB.prepare(`
-                INSERT INTO sale_items (order_id, product_name, quantity, unit_price)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
+                VALUES (?, ?, ?, ?, ?, ?)
               `).bind(
+                sale_id,
                 order_id, 
                 product_name, 
                 quantity, 
-                unit_price
+                unit_price,
+                total_price
               ).run();
             }
           }
