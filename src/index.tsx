@@ -717,9 +717,9 @@ app.post('/api/sales', async (c) => {
       if (item.product_name && item.quantity > 0 && item.unit_price > 0) {
         const total_price = item.quantity * item.unit_price;
         await env.DB.prepare(`
-          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(sale_id, order_id, item.product_name, item.quantity, item.unit_price, total_price).run();
+          INSERT INTO sale_items (sale_id, product_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?)
+        `).bind(sale_id, item.product_name, item.quantity, item.unit_price, total_price).run();
       }
     }
     
@@ -7461,59 +7461,117 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             async function submitNewSale(event) {
+                console.log('submitNewSale called');
                 event.preventDefault();
                 
                 const form = event.target;
                 const formData = new FormData(form);
                 
-                // Build items array
-                const items = [];
-                document.querySelectorAll('.product-row').forEach((row) => {
-                    const productSelect = row.querySelector('select[name*="product_name"]');
-                    const productName = productSelect.options[productSelect.selectedIndex].text;
-                    const qty = parseFloat(row.querySelector('input[name*="quantity"]').value) || 0;
-                    const price = parseFloat(row.querySelector('input[name*="unit_price"]').value) || 0;
-                    
-                    if (productSelect.value && qty > 0 && price > 0) {
-                        items.push({
-                            product_name: productName,
-                            quantity: qty,
-                            unit_price: price
-                        });
-                    }
-                });
-                
-                // Allow sale without products (items can be empty)
-                
-                const data = {
-                    customer_code: formData.get('customer_code'),
-                    customer_name: formData.get('customer_name'),
-                    company_name: formData.get('company_name'),
-                    customer_contact: formData.get('mobile_number'),
-                    sale_date: formData.get('sale_date'),
-                    employee_name: formData.get('employee_name'),
-                    sale_type: formData.get('sale_type'),
-                    courier_cost: parseFloat(formData.get('courier_cost')) || 0,
-                    amount_received: parseFloat(formData.get('amount_received')) || 0,
-                    account_received: formData.get('account_received'),
-                    payment_reference: formData.get('payment_reference'),
-                    remarks: formData.get('remarks'),
-                    items: items
-                };
+                // Disable submit button to prevent double submission
+                const submitBtn = form.querySelector('button[type="submit"]');
+                const originalBtnText = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
                 
                 try {
+                    // Build items array
+                    const items = [];
+                    document.querySelectorAll('.product-row').forEach((row) => {
+                        const productSelect = row.querySelector('select[name*="product_name"]');
+                        if (!productSelect || !productSelect.value) return;
+                        
+                        const productName = productSelect.options[productSelect.selectedIndex].text;
+                        const qtyInput = row.querySelector('input[name*="quantity"]');
+                        const priceInput = row.querySelector('input[name*="unit_price"]');
+                        
+                        const qty = parseFloat(qtyInput?.value) || 0;
+                        const price = parseFloat(priceInput?.value) || 0;
+                        
+                        if (productSelect.value && qty > 0 && price > 0) {
+                            items.push({
+                                product_name: productName,
+                                quantity: qty,
+                                unit_price: price
+                            });
+                        }
+                    });
+                    
+                    console.log('Items collected:', items);
+                    
+                    // Validate required fields
+                    const customerName = formData.get('customer_name');
+                    const saleDate = formData.get('sale_date');
+                    const employeeName = formData.get('employee_name');
+                    const saleType = formData.get('sale_type');
+                    
+                    if (!customerName) {
+                        alert('⚠️ Customer name is required');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                        return;
+                    }
+                    
+                    if (!saleDate) {
+                        alert('⚠️ Sale date is required');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                        return;
+                    }
+                    
+                    if (!employeeName) {
+                        alert('⚠️ Employee name is required');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                        return;
+                    }
+                    
+                    if (!saleType) {
+                        alert('⚠️ Sale type is required (With GST / Without GST)');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                        return;
+                    }
+                    
+                    const data = {
+                        customer_code: formData.get('customer_code'),
+                        customer_name: customerName,
+                        company_name: formData.get('company_name'),
+                        customer_contact: formData.get('mobile_number'),
+                        sale_date: saleDate,
+                        employee_name: employeeName,
+                        sale_type: saleType,
+                        courier_cost: parseFloat(formData.get('courier_cost')) || 0,
+                        amount_received: parseFloat(formData.get('amount_received')) || 0,
+                        account_received: formData.get('account_received'),
+                        payment_reference: formData.get('payment_reference'),
+                        remarks: formData.get('remarks'),
+                        items: items
+                    };
+                    
+                    console.log('Submitting sale data:', data);
+                    
                     const response = await axios.post('/api/sales', data);
+                    console.log('Sale response:', response.data);
                     
                     if (response.data.success) {
-                        alert(\`Sale added successfully! Order ID: \${response.data.data.order_id}\`);
+                        alert(\`✅ Sale added successfully!\\n\\nOrder ID: \${response.data.data.order_id}\\nTotal Amount: ₹\${response.data.data.total_amount.toLocaleString()}\`);
                         closeNewSaleModal();
                         loadDashboard();
+                        // Reload current month sales if on that page
+                        if (currentPage === 'current-month') {
+                            loadCurrentMonthSales();
+                        }
                     } else {
-                        alert('Error: ' + (response.data.error || 'Failed to add sale'));
+                        alert('❌ Error: ' + (response.data.error || 'Failed to add sale'));
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
                     }
                 } catch (error) {
                     console.error('Error adding sale:', error);
-                    alert('Error adding sale: ' + (error.response?.data?.error || error.message));
+                    console.error('Error details:', error.response?.data);
+                    alert('❌ Error adding sale:\\n\\n' + (error.response?.data?.error || error.message || 'Unknown error'));
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
                 }
             }
 
@@ -10215,9 +10273,140 @@ Prices are subject to change without prior notice.</textarea>
                 loadInventory();
             }
             
-            // View device details
-            function viewDevice(serialNo) {
-                alert('Device details for: ' + serialNo + '\\n\\nFull device details modal can be added here.');
+            // View device details - Complete device journey
+            async function viewDevice(serialNo) {
+                try {
+                    // Fetch device details from inventory
+                    const invResponse = await axios.get(\`/api/inventory/search?serial=\${serialNo}\`);
+                    
+                    if (!invResponse.data.success || invResponse.data.data.length === 0) {
+                        alert('❌ Device not found: ' + serialNo);
+                        return;
+                    }
+                    
+                    const device = invResponse.data.data[0];
+                    
+                    // Fetch dispatch history
+                    let dispatchHTML = '<div style="color: #9ca3af; font-size: 14px;">No dispatch records</div>';
+                    try {
+                        const dispatchResponse = await axios.get('/api/inventory/dispatches');
+                        if (dispatchResponse.data.success) {
+                            const dispatches = dispatchResponse.data.data.filter(d => 
+                                d.device_serial_no && d.device_serial_no.includes(serialNo)
+                            );
+                            
+                            if (dispatches.length > 0) {
+                                dispatchHTML = dispatches.map(d => \`
+                                    <div style="padding: 10px; background: #f3f4f6; border-radius: 6px; margin-bottom: 8px;">
+                                        <div><strong>Date:</strong> \${d.dispatch_date || 'N/A'}</div>
+                                        <div><strong>Order ID:</strong> \${d.order_id || 'N/A'}</div>
+                                        <div><strong>Customer:</strong> \${d.customer_name || 'N/A'}</div>
+                                        <div><strong>Courier:</strong> \${d.courier_name || 'N/A'}</div>
+                                        <div><strong>Tracking:</strong> \${d.tracking_number || 'N/A'}</div>
+                                    </div>
+                                \`).join('');
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error fetching dispatch:', e);
+                    }
+                    
+                    // Fetch QC history
+                    let qcHTML = '<div style="color: #9ca3af; font-size: 14px;">No QC records</div>';
+                    try {
+                        const qcResponse = await axios.get('/api/inventory/quality-checks');
+                        if (qcResponse.data.success) {
+                            const qcRecords = qcResponse.data.data.filter(qc => 
+                                qc.device_serial_no && qc.device_serial_no.includes(serialNo)
+                            );
+                            
+                            if (qcRecords.length > 0) {
+                                qcHTML = qcRecords.map(qc => \`
+                                    <div style="padding: 10px; background: \${qc.pass_fail === 'Pass' ? '#d1fae5' : '#fee2e2'}; border-radius: 6px; margin-bottom: 8px;">
+                                        <div><strong>Date:</strong> \${qc.check_date || 'N/A'}</div>
+                                        <div><strong>Status:</strong> <span style="font-weight: 700; color: \${qc.pass_fail === 'Pass' ? '#065f46' : '#991b1b'};">\${qc.pass_fail}</span></div>
+                                        <div><strong>Checked By:</strong> \${qc.checked_by || 'N/A'}</div>
+                                        <div><strong>Notes:</strong> \${qc.notes || 'N/A'}</div>
+                                    </div>
+                                \`).join('');
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error fetching QC:', e);
+                    }
+                    
+                    // Create modal HTML
+                    const modalHTML = \`
+                        <div class="modal show" id="deviceJourneyModal" style="display: flex !important;">
+                            <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                    <h2 style="font-size: 24px; font-weight: 700; color: #1f2937;">
+                                        <i class="fas fa-route" style="color: #8b5cf6;"></i> Device Journey
+                                    </h2>
+                                    <button onclick="closeDeviceJourneyModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Device Info -->
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
+                                    <h3 style="color: white; margin-bottom: 15px;"><i class="fas fa-microchip"></i> Device Information</h3>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                        <div><strong>Serial Number:</strong><br/>\${device.device_serial_no}</div>
+                                        <div><strong>Model:</strong><br/>\${device.model_name || 'N/A'}</div>
+                                        <div><strong>Status:</strong><br/>\${device.status || 'N/A'}</div>
+                                        <div><strong>In Date:</strong><br/>\${device.in_date || 'N/A'}</div>
+                                        <div><strong>Customer:</strong><br/>\${device.customer_name || 'N/A'}</div>
+                                        <div><strong>Order ID:</strong><br/>\${device.order_id || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                    <!-- QC History -->
+                                    <div>
+                                        <h3 style="margin-bottom: 15px; color: #1f2937;">
+                                            <i class="fas fa-clipboard-check" style="color: #10b981;"></i> QC History
+                                        </h3>
+                                        <div style="max-height: 400px; overflow-y: auto;">
+                                            \${qcHTML}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Dispatch History -->
+                                    <div>
+                                        <h3 style="margin-bottom: 15px; color: #1f2937;">
+                                            <i class="fas fa-shipping-fast" style="color: #3b82f6;"></i> Dispatch History
+                                        </h3>
+                                        <div style="max-height: 400px; overflow-y: auto;">
+                                            \${dispatchHTML}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    \`;
+                    
+                    // Remove existing modal if any
+                    const existingModal = document.getElementById('deviceJourneyModal');
+                    if (existingModal) {
+                        existingModal.remove();
+                    }
+                    
+                    // Add modal to body
+                    document.body.insertAdjacentHTML('beforeend', modalHTML);
+                    
+                } catch (error) {
+                    console.error('Error viewing device:', error);
+                    alert('Error loading device details: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Close device journey modal
+            function closeDeviceJourneyModal() {
+                const modal = document.getElementById('deviceJourneyModal');
+                if (modal) {
+                    modal.remove();
+                }
             }
             
             // Upload inventory Excel
@@ -11920,7 +12109,7 @@ Prices are subject to change without prior notice.</textarea>
                 const serialNo = document.getElementById('newQCScanInput').value.trim();
                 
                 if (!serialNo) {
-                    alert('Please enter a device serial number');
+                    alert('⚠️ Please enter a device serial number');
                     return;
                 }
                 
@@ -11928,30 +12117,44 @@ Prices are subject to change without prior notice.</textarea>
                     // Get device from inventory
                     const response = await axios.get(\`/api/inventory/search?serial=\${serialNo}\`);
                     
-                    if (!response.data.success || response.data.data.length === 0) {
-                        alert('❌ Device not found in inventory: ' + serialNo);
+                    if (!response.data.success) {
+                        alert('❌ Error: ' + (response.data.error || 'Failed to search inventory'));
+                        return;
+                    }
+                    
+                    if (response.data.data.length === 0) {
+                        alert(\`❌ Device not found in inventory\\n\\nSerial Number: \${serialNo}\\n\\nPlease verify the serial number and try again.\\n\\nNote: Serial number search is partial match enabled.\`);
                         return;
                     }
                     
                     const device = response.data.data[0];
                     currentQCDevice = device;
                     
-                    // Display device info
+                    // Display device info with success message
                     document.getElementById('newQCDeviceDetails').innerHTML = \`
+                        <div style="background: #d1fae5; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 2px solid #10b981;">
+                            <div style="color: #065f46; font-weight: 600; margin-bottom: 5px;">
+                                ✅ Device Found Successfully
+                            </div>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px;">
                             <div><strong>Serial No:</strong> \${device.device_serial_no}</div>
                             <div><strong>Model:</strong> \${device.model_name || 'N/A'}</div>
                             <div><strong>Status:</strong> \${device.status || 'N/A'}</div>
-                            <div><strong>Location:</strong> \${device.location || 'N/A'}</div>
+                            <div><strong>In Date:</strong> \${device.in_date || 'N/A'}</div>
                         </div>
                     \`;
                     
                     document.getElementById('newQCDeviceInfo').style.display = 'block';
                     document.getElementById('newQCProductSelection').style.display = 'block';
                     
+                    // Auto-focus to category selector
+                    document.getElementById('newQCCategory').focus();
+                    
                 } catch (error) {
                     console.error('Error loading device:', error);
-                    alert('Error loading device: ' + (error.response?.data?.error || error.message));
+                    const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+                    alert(\`❌ Error loading device\\n\\nSerial: \${serialNo}\\nError: \${errorMsg}\\n\\nPlease check the serial number and try again.\`);
                 }
             }
             
