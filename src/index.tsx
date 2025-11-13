@@ -6981,16 +6981,15 @@ Prices are subject to change without prior notice.</textarea>
                         <label>Category</label>
                         <select class="product-category" onchange="updateProductOptions(\${productCount})">
                             <option value="">Select Category</option>
-                            <option value="A-MDVR">MDVR</option>
-                            <option value="B-Monitors & Monitor Kit">Monitors & Monitor Kit</option>
-                            <option value="C-Cameras">Cameras</option>
-                            <option value="D-Dashcam">Dashcam</option>
-                            <option value="E-GPS">GPS</option>
-                            <option value="F-Storage">Storage</option>
-                            <option value="G-RFID Tags">RFID Tags</option>
-                            <option value="H-RFID Reader">RFID Reader</option>
-                            <option value="I-MDVR Accessories">MDVR Accessories</option>
-                            <option value="J-Other Products">Other Products</option>
+                            <option value="MDVR">MDVR</option>
+                            <option value="Monitor & Monitor Kit">Monitor & Monitor Kit</option>
+                            <option value="Cameras">Cameras</option>
+                            <option value="Dashcam">Dashcam</option>
+                            <option value="Storage">Storage</option>
+                            <option value="RFID Tags">RFID Tags</option>
+                            <option value="RFID Reader">RFID Reader</option>
+                            <option value="MDVR Accessories">MDVR Accessories</option>
+                            <option value="Other product and Accessories">Other product and Accessories</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin: 0;">
