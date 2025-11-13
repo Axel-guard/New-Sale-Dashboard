@@ -10808,17 +10808,23 @@ Prices are subject to change without prior notice.</textarea>
             
             // Toggle category models visibility
             function toggleCategoryModels(category) {
-                const categoryClass = category.replace(/\s+/g, '-');
+                // Create safe class name by removing all special characters
+                const categoryClass = category.replace(/[^a-zA-Z0-9]/g, '-');
                 const modelRows = document.querySelectorAll('.model-' + categoryClass);
                 const icon = document.getElementById('icon-' + categoryClass);
+                
+                if (modelRows.length === 0) {
+                    console.log('No model rows found for category:', category, 'class:', categoryClass);
+                    return;
+                }
                 
                 modelRows.forEach(row => {
                     if (row.style.display === 'none' || row.style.display === '') {
                         row.style.display = 'table-row';
-                        icon.style.transform = 'rotate(90deg)';
+                        if (icon) icon.style.transform = 'rotate(90deg)';
                     } else {
                         row.style.display = 'none';
-                        icon.style.transform = 'rotate(0deg)';
+                        if (icon) icon.style.transform = 'rotate(0deg)';
                     }
                 });
             }
@@ -10912,13 +10918,17 @@ Prices are subject to change without prior notice.</textarea>
                             let sno = 1;
                             
                             categoryData.forEach(category => {
+                                // Create safe class name by removing all special characters
+                                const safeCategoryClass = category.category.replace(/[^a-zA-Z0-9]/g, '-');
+                                const escapedCategory = category.category.replace(/'/g, "\\'");
+                                
                                 // Category row (clickable to expand/collapse)
                                 html += \`
-                                    <tr onclick="toggleCategoryModels('\${category.category}')" 
+                                    <tr onclick="toggleCategoryModels('\${escapedCategory}')" 
                                         style="cursor: pointer; background: #f3f4f6; font-weight: 700; font-size: 14px;"
                                         class="category-row">
                                         <td style="padding: 15px 12px;">
-                                            <i class="fas fa-chevron-right" id="icon-\${category.category.replace(/\s+/g, '-')}" 
+                                            <i class="fas fa-chevron-right" id="icon-\${safeCategoryClass}" 
                                                style="margin-right: 8px; transition: transform 0.3s;"></i>
                                             <span style="color: #1f2937;">\${sno++}</span>
                                         </td>
@@ -10937,7 +10947,7 @@ Prices are subject to change without prior notice.</textarea>
                                 // Model rows (hidden by default)
                                 category.models.forEach((model, modelIndex) => {
                                     html += \`
-                                        <tr class="model-row model-\${category.category.replace(/\s+/g, '-')}" 
+                                        <tr class="model-row model-\${safeCategoryClass}" 
                                             style="display: none; background: #fefefe; border-left: 4px solid #667eea;">
                                             <td style="padding: 10px 12px 10px 40px; color: #9ca3af; font-size: 12px;"></td>
                                             <td style="padding: 10px 12px; font-size: 13px; color: #6b7280;">
