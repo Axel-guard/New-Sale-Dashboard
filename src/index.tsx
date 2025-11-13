@@ -8042,12 +8042,41 @@ Prices are subject to change without prior notice.</textarea>
                     
                     editProductCount = 0;
                     items.forEach((item, index) => {
+                        // Find which category this product belongs to
+                        let productCategory = '';
+                        let productCode = '';
+                        for (const [category, products] of Object.entries(productCatalog)) {
+                            const found = products.find(p => p.name === item.product_name);
+                            if (found) {
+                                productCategory = category;
+                                productCode = found.code;
+                                break;
+                            }
+                        }
+                        
                         const row = document.createElement('div');
                         row.className = 'product-row';
-                        row.dataset.id = editProductCount;
+                        row.id = 'edit-product-' + editProductCount;
                         row.innerHTML = '<div class="form-group" style="margin: 0;">' +
+                                '<label>Category</label>' +
+                                '<select class="product-category" onchange="updateEditProductOptions(' + editProductCount + ')">' +
+                                    '<option value="">Select Category</option>' +
+                                    '<option value="MDVR"' + (productCategory === 'MDVR' ? ' selected' : '') + '>MDVR</option>' +
+                                    '<option value="Monitor & Monitor Kit"' + (productCategory === 'Monitor & Monitor Kit' ? ' selected' : '') + '>Monitor & Monitor Kit</option>' +
+                                    '<option value="Cameras"' + (productCategory === 'Cameras' ? ' selected' : '') + '>Cameras</option>' +
+                                    '<option value="Dashcam"' + (productCategory === 'Dashcam' ? ' selected' : '') + '>Dashcam</option>' +
+                                    '<option value="Storage"' + (productCategory === 'Storage' ? ' selected' : '') + '>Storage</option>' +
+                                    '<option value="RFID Tags"' + (productCategory === 'RFID Tags' ? ' selected' : '') + '>RFID Tags</option>' +
+                                    '<option value="RFID Reader"' + (productCategory === 'RFID Reader' ? ' selected' : '') + '>RFID Reader</option>' +
+                                    '<option value="MDVR Accessories"' + (productCategory === 'MDVR Accessories' ? ' selected' : '') + '>MDVR Accessories</option>' +
+                                    '<option value="Other product and Accessories"' + (productCategory === 'Other product and Accessories' ? ' selected' : '') + '>Other product and Accessories</option>' +
+                                '</select>' +
+                            '</div>' +
+                            '<div class="form-group" style="margin: 0;">' +
                                 '<label>Product Name</label>' +
-                                '<input type="text" name="items[' + editProductCount + '][product_name]" value="' + item.product_name + '" required>' +
+                                '<select class="product-name" name="items[' + editProductCount + '][product_name]" onchange="calculateEditSaleTotal()">' +
+                                    '<option value="">Select Product</option>' +
+                                '</select>' +
                             '</div>' +
                             '<div class="form-group" style="margin: 0;">' +
                                 '<label>Quantity</label>' +
@@ -8059,12 +8088,27 @@ Prices are subject to change without prior notice.</textarea>
                             '</div>' +
                             '<div class="form-group" style="margin: 0;">' +
                                 '<label>Total</label>' +
-                                '<input type="number" class="product-total" readonly style="background: #f3f4f6;" value="' + (item.quantity * item.unit_price) + '">' +
+                                '<input type="number" class="product-total" readonly style="background: #f3f4f6;" value="' + (item.quantity * item.unit_price).toFixed(2) + '">' +
                             '</div>' +
                             '<button type="button" class="btn-remove" onclick="removeEditProductRow(' + editProductCount + ')">' +
                                 '<i class="fas fa-times"></i>' +
                             '</button>';
                         productRows.appendChild(row);
+                        
+                        // Populate products for this category and select the current product
+                        if (productCategory && productCatalog[productCategory]) {
+                            const productSelect = row.querySelector('.product-name');
+                            productCatalog[productCategory].forEach(product => {
+                                const option = document.createElement('option');
+                                option.value = product.name;
+                                option.textContent = product.name;
+                                if (product.name === item.product_name) {
+                                    option.selected = true;
+                                }
+                                productSelect.appendChild(option);
+                            });
+                        }
+                        
                         editProductCount++;
                     });
                     
@@ -8141,6 +8185,80 @@ Prices are subject to change without prior notice.</textarea>
                     }
                 } catch (error) {
                     alert('Error updating sale: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            function updateEditProductOptions(rowId) {
+                const row = document.getElementById('edit-product-' + rowId);
+                const categorySelect = row.querySelector('.product-category');
+                const productSelect = row.querySelector('.product-name');
+                const category = categorySelect.value;
+                
+                // Clear product selection
+                productSelect.innerHTML = '<option value="">Select Product</option>';
+                
+                if (category && productCatalog[category]) {
+                    productCatalog[category].forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.name;
+                        option.textContent = product.name;
+                        productSelect.appendChild(option);
+                    });
+                }
+                
+                calculateEditSaleTotal();
+            }
+            
+            function addEditProductRow() {
+                const container = document.getElementById('editProductRows');
+                const row = document.createElement('div');
+                row.className = 'product-row';
+                row.id = 'edit-product-' + editProductCount;
+                row.innerHTML = '<div class="form-group" style="margin: 0;">' +
+                        '<label>Category</label>' +
+                        '<select class="product-category" onchange="updateEditProductOptions(' + editProductCount + ')">' +
+                            '<option value="">Select Category</option>' +
+                            '<option value="MDVR">MDVR</option>' +
+                            '<option value="Monitor & Monitor Kit">Monitor & Monitor Kit</option>' +
+                            '<option value="Cameras">Cameras</option>' +
+                            '<option value="Dashcam">Dashcam</option>' +
+                            '<option value="Storage">Storage</option>' +
+                            '<option value="RFID Tags">RFID Tags</option>' +
+                            '<option value="RFID Reader">RFID Reader</option>' +
+                            '<option value="MDVR Accessories">MDVR Accessories</option>' +
+                            '<option value="Other product and Accessories">Other product and Accessories</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="form-group" style="margin: 0;">' +
+                        '<label>Product Name</label>' +
+                        '<select class="product-name" name="items[' + editProductCount + '][product_name]" onchange="calculateEditSaleTotal()">' +
+                            '<option value="">Select Category First</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="form-group" style="margin: 0;">' +
+                        '<label>Quantity</label>' +
+                        '<input type="number" name="items[' + editProductCount + '][quantity]" min="0" value="0" onchange="calculateEditSaleTotal()">' +
+                    '</div>' +
+                    '<div class="form-group" style="margin: 0;">' +
+                        '<label>Unit Price</label>' +
+                        '<input type="number" name="items[' + editProductCount + '][unit_price]" min="0" step="0.01" value="0" onchange="calculateEditSaleTotal()">' +
+                    '</div>' +
+                    '<div class="form-group" style="margin: 0;">' +
+                        '<label>Total</label>' +
+                        '<input type="number" class="product-total" readonly style="background: #f3f4f6;" value="0">' +
+                    '</div>' +
+                    '<button type="button" class="btn-remove" onclick="removeEditProductRow(' + editProductCount + ')">' +
+                        '<i class="fas fa-times"></i>' +
+                    '</button>';
+                container.appendChild(row);
+                editProductCount++;
+            }
+            
+            function removeEditProductRow(id) {
+                const row = document.getElementById('edit-product-' + id);
+                if (row) {
+                    row.remove();
+                    calculateEditSaleTotal();
                 }
             }
             
