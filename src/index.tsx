@@ -753,6 +753,11 @@ app.post('/api/sales/balance-payment', async (c) => {
     const body = await c.req.json();
     const { order_id, payment_date, amount, account_received, payment_reference } = body;
     
+    // Validate input
+    if (!order_id || !payment_date || !amount || amount <= 0) {
+      return c.json({ success: false, error: 'Missing required fields or invalid amount' }, 400);
+    }
+    
     // Get sale
     const sale = await env.DB.prepare(`
       SELECT * FROM sales WHERE order_id = ?
@@ -762,9 +767,14 @@ app.post('/api/sales/balance-payment', async (c) => {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
     
+    // Check if payment amount is valid
+    if (amount > sale.balance_amount) {
+      return c.json({ success: false, error: 'Payment amount exceeds balance amount' }, 400);
+    }
+    
     // Update sale
-    const new_amount_received = sale.amount_received + amount;
-    const new_balance = sale.total_amount - new_amount_received;
+    const new_amount_received = parseFloat(sale.amount_received) + parseFloat(amount);
+    const new_balance = parseFloat(sale.total_amount) - new_amount_received;
     
     await env.DB.prepare(`
       UPDATE sales 
@@ -776,11 +786,19 @@ app.post('/api/sales/balance-payment', async (c) => {
     await env.DB.prepare(`
       INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(sale.id, order_id, payment_date, amount, account_received || 'Not Specified', payment_reference).run();
+    `).bind(sale.id, order_id, payment_date, amount, account_received || 'Not Specified', payment_reference || '').run();
     
-    return c.json({ success: true, message: 'Payment updated successfully' });
+    return c.json({ 
+      success: true, 
+      message: 'Payment updated successfully',
+      data: {
+        new_amount_received,
+        new_balance
+      }
+    });
   } catch (error) {
-    return c.json({ success: false, error: 'Failed to update payment' }, 500);
+    console.error('Balance payment error:', error);
+    return c.json({ success: false, error: 'Failed to update payment: ' + error.message }, 500);
   }
 });
 
@@ -2321,12 +2339,37 @@ app.get('/api/inventory/dispatches/grouped', async (c) => {
       });
       
       grouped[orderId].total_items++;
-      
-      // Update dispatch status (if any item has tracking, consider it completed)
-      if (dispatch.tracking_number && dispatch.tracking_number !== '-') {
-        grouped[orderId].dispatch_status = 'Completed';
-      }
     });
+    
+    // Calculate dispatch status by comparing with order items
+    for (const orderId in grouped) {
+      if (orderId === 'No Order ID') {
+        grouped[orderId].dispatch_status = 'Pending';
+        continue;
+      }
+      
+      try {
+        // Get order items to check if all dispatched
+        const orderResult = await env.DB.prepare(`
+          SELECT total_items FROM orders WHERE order_id = ?
+        `).bind(orderId).first();
+        
+        if (orderResult && orderResult.total_items) {
+          // Compare dispatched items with order total
+          if (grouped[orderId].total_items >= orderResult.total_items) {
+            grouped[orderId].dispatch_status = 'Completed';
+          } else {
+            grouped[orderId].dispatch_status = 'Pending';
+          }
+        } else {
+          // If no order found, mark as Completed (standalone dispatch)
+          grouped[orderId].dispatch_status = 'Completed';
+        }
+      } catch (error) {
+        console.error('Error checking order status:', error);
+        grouped[orderId].dispatch_status = 'Pending';
+      }
+    }
     
     // Convert to array and sort
     let ordersArray = Object.values(grouped);
@@ -2722,6 +2765,77 @@ app.get('/api/inventory/activity', async (c) => {
     return c.json({ success: true, data: activity.results || [] });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to fetch activity' }, 500);
+  }
+});
+
+// Get model-wise inventory report
+app.get('/api/inventory/model-wise', async (c) => {
+  const { env } = c;
+  
+  try {
+    const modelWise = await env.DB.prepare(`
+      SELECT 
+        model_name,
+        SUM(CASE WHEN status = 'In Stock' THEN 1 ELSE 0 END) as in_stock,
+        SUM(CASE WHEN status = 'Dispatched' THEN 1 ELSE 0 END) as dispatched,
+        SUM(CASE WHEN status = 'Quality Check' THEN 1 ELSE 0 END) as quality_check,
+        SUM(CASE WHEN status = 'Defective' THEN 1 ELSE 0 END) as defective,
+        COUNT(*) as total
+      FROM inventory
+      GROUP BY model_name
+      ORDER BY total DESC, model_name ASC
+    `).all();
+    
+    return c.json({ success: true, data: modelWise.results || [] });
+  } catch (error) {
+    console.error('Model-wise report error:', error);
+    return c.json({ success: false, error: 'Failed to fetch model-wise report' }, 500);
+  }
+});
+
+// Get dispatch summary report
+app.get('/api/dispatch/summary', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Get all orders with dispatch counts
+    const orders = await env.DB.prepare(`
+      SELECT 
+        o.order_id,
+        o.customer_name,
+        o.company_name,
+        o.order_date,
+        o.total_items,
+        o.dispatch_status,
+        COUNT(DISTINCT d.id) as dispatched_items,
+        MAX(d.dispatch_date) as last_dispatch_date
+      FROM orders o
+      LEFT JOIN dispatch_records d ON o.order_id = d.order_id
+      GROUP BY o.order_id
+      ORDER BY o.order_date DESC
+    `).all();
+    
+    const ordersList = orders.results || [];
+    
+    // Calculate statistics
+    const totalOrders = ordersList.length;
+    const totalDispatched = ordersList.reduce((sum, o) => sum + (o.dispatched_items || 0), 0);
+    const completedOrders = ordersList.filter(o => o.dispatch_status === 'Completed').length;
+    const pendingOrders = ordersList.filter(o => o.dispatch_status === 'Pending').length;
+    
+    return c.json({ 
+      success: true, 
+      data: {
+        totalOrders,
+        totalDispatched,
+        completedOrders,
+        pendingOrders,
+        orders: ordersList
+      }
+    });
+  } catch (error) {
+    console.error('Dispatch summary error:', error);
+    return c.json({ success: false, error: 'Failed to fetch dispatch summary' }, 500);
   }
 });
 
@@ -4779,9 +4893,83 @@ app.get('/', (c) => {
                         <canvas id="inventoryChart" style="max-height: 300px;"></canvas>
                     </div>
                     
+                    <!-- Model-Wise Inventory Report -->
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #1f2937;">
+                            <i class="fas fa-box"></i> Model-Wise Inventory Report
+                        </h3>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th style="background: #1f2937;">S.No</th>
+                                        <th style="background: #1f2937;">Model Name</th>
+                                        <th style="background: #10b981;">In Stock</th>
+                                        <th style="background: #3b82f6;">Dispatched</th>
+                                        <th style="background: #f59e0b;">Quality Check</th>
+                                        <th style="background: #ef4444;">Defective</th>
+                                        <th style="background: #1f2937;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modelWiseTableBody">
+                                    <tr><td colspan="7" class="loading">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Dispatch Summary Report -->
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #1f2937;">
+                            <i class="fas fa-shipping-fast"></i> Dispatch Summary Report
+                        </h3>
+                        
+                        <!-- Dispatch Stats Cards -->
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); padding: 15px; border-radius: 10px; color: white;">
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Total Orders</div>
+                                <div style="font-size: 28px; font-weight: bold;" id="statTotalOrders">0</div>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 15px; border-radius: 10px; color: white;">
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Devices Dispatched</div>
+                                <div style="font-size: 28px; font-weight: bold;" id="statTotalDispatched">0</div>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 15px; border-radius: 10px; color: white;">
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Completed Orders</div>
+                                <div style="font-size: 28px; font-weight: bold;" id="statCompletedOrders">0</div>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 15px; border-radius: 10px; color: white;">
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Pending Orders</div>
+                                <div style="font-size: 28px; font-weight: bold;" id="statPendingOrders">0</div>
+                            </div>
+                        </div>
+                        
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>Customer Name</th>
+                                        <th>Order Date</th>
+                                        <th>Total Items</th>
+                                        <th>Dispatched</th>
+                                        <th>Remaining</th>
+                                        <th>Status</th>
+                                        <th>Last Dispatch</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dispatchSummaryTableBody">
+                                    <tr><td colspan="8" class="loading">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
                     <!-- Activity History -->
                     <div>
-                        <h3 style="margin-bottom: 15px;">Recent Activity</h3>
+                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #1f2937;">
+                            <i class="fas fa-history"></i> Recent Activity
+                        </h3>
                         <div style="overflow-x: auto;">
                             <table class="data-table">
                                 <thead>
@@ -6163,12 +6351,16 @@ Prices are subject to change without prior notice.</textarea>
                             </p>
                         </div>
 
-                        <!-- Search Bar -->
-                        <div style="margin-bottom: 15px;">
+                        <!-- Search Bar and Month Filter -->
+                        <div style="margin-bottom: 15px; display: flex; gap: 10px;">
                             <input type="text" id="trackingReportSearch" 
                                 placeholder="Search by Order ID, Courier, Tracking ID..." 
                                 oninput="filterTrackingReport()"
-                                style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                style="flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                            <select id="trackingMonthFilter" onchange="filterTrackingReport()"
+                                style="width: 200px; padding: 10px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px; font-weight: 600; color: #7c3aed;">
+                                <option value="">All Months</option>
+                            </select>
                         </div>
 
                         <!-- Report Table -->
@@ -6177,6 +6369,7 @@ Prices are subject to change without prior notice.</textarea>
                                 <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10;">
                                     <tr>
                                         <th style="min-width: 100px;">Order ID</th>
+                                        <th style="min-width: 100px;">Weight (Kg)</th>
                                         <th style="min-width: 120px;">Actual Price (₹)</th>
                                         <th style="min-width: 120px;">Courier Partner</th>
                                         <th style="min-width: 100px;">Courier Mode</th>
@@ -6186,7 +6379,7 @@ Prices are subject to change without prior notice.</textarea>
                                     </tr>
                                 </thead>
                                 <tbody id="trackingReportTableBody">
-                                    <tr><td colspan="7" style="text-align: center; padding: 20px; color: #9ca3af;">No tracking records found</td></tr>
+                                    <tr><td colspan="8" style="text-align: center; padding: 20px; color: #9ca3af;">No tracking records found</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -6221,38 +6414,51 @@ Prices are subject to change without prior notice.</textarea>
             
             // Product Catalog with Categories
             const productCatalog = {
-                'A-MDVR': [
+                'MDVR': [
                     { name: '4ch 1080p SD Card MDVR (MR9504EC)', code: 'AXG01', weight: 1 },
                     { name: '4ch 1080p HDD MDVR (MR9704C)', code: 'AXG02', weight: 2 },
                     { name: '4ch 1080p SD, 4G, GPS MDVR (MR9504E)', code: 'AXG03', weight: 1 },
                     { name: '4ch 1080p SD, 4G, GPS MDVR (MR9504E-A3)', code: 'AXG73', weight: 1 },
                     { name: '4ch 1080p HDD, 4G, GPS MDVR (MR9704E)', code: 'AXG04', weight: 2 },
-                    { name: '4ch 1080p SD, 4G, wifi, GPS MDVR (MA9504ED)', code: 'AXG58', weight: 1 },
                     { name: 'TVS 4ch 1080p SD, 4G, GPS MDVR', code: 'TVS43', weight: 1 },
                     { name: '5ch MDVR SD 4g + GPS + LAN + RS232 + RS485', code: 'AXG46', weight: 1 },
                     { name: '5ch MDVR HDD 4g + GPS + LAN + RS232 + RS485', code: 'AXG47', weight: 2.2 },
-                    { name: '8ch HDD 4g+GPS MDVR (MR9708C)', code: 'AXG74', weight: 3 },
+                    { name: '4ch 1080p SD, 4G, wifi, GPS MDVR (MA9504ED)', code: 'AXG58', weight: 1 },
                     { name: 'AI MDVR with (DSM + ADAS) (SD+ 4g + GPS)', code: 'AXG38', weight: 2 },
                     { name: 'AI MDVR with (DSM + ADAS) (SD+HDD+ 4g + GPS)', code: 'AXG72', weight: 3 }
                 ],
-                'B-Monitors & Monitor Kit': [
-                    { name: '7" AV Monitor', code: 'AXGAA', weight: 1 },
+                'Monitor & Monitor Kit': [
+                    { name: '7 " AV Monitor', code: 'AXGAA', weight: 1 },
                     { name: '7" VGA Monitor', code: 'AXGAB', weight: 1 },
                     { name: '7" HDMI Monitor', code: 'AXGB1', weight: 1 },
-                    { name: '7inch Heavy Duty VGA Monitor', code: 'AXGAC', weight: 1 },
-                    { name: '4inch AV monitor', code: 'AXGAD', weight: 0.6 },
-                    { name: '4k Recording monitor kit', code: 'AXGAE', weight: 3 },
+                    { name: '7 inch Heavy Duty VGA Monitor', code: 'AXGAC', weight: 1 },
+                    { name: '4k Recording monitor kit 2ch', code: 'AXGAH', weight: 2 },
+                    { name: '4 inch AV monitor', code: 'AXGAD', weight: 0.6 },
                     { name: '720 2ch Recording Monitor Kit', code: 'AXGAF', weight: 3 },
-                    { name: '4k Recording monitor kit 4ch', code: 'AXGAG', weight: 2 },
-                    { name: '4k Recording monitor kit 2ch', code: 'AXGAH', weight: 2 }
+                    { name: '4k Recording monitor kit 4ch', code: 'AXGAG', weight: 2 }
                 ],
-                'C-Cameras': [
+                'Dashcam': [
+                    { name: '4 Inch 2 Ch Dashcam', code: 'AXGCA', weight: 0.4 },
+                    { name: '10 inch 2 Ch Full Touch Dashcam', code: 'AXGCB', weight: 0.75 },
+                    { name: '10 inch 2 Ch 4g, GPS, Android Dashcam', code: 'AXGCD', weight: 0.75 },
+                    { name: '4k Dashcam 12 inch', code: 'AXGCE', weight: 0.75 },
+                    { name: '2k 12 inch Dashcam', code: 'AXGCF', weight: 0.75 },
+                    { name: '2ch 4g Dashcam MT95L', code: 'AXGCG', weight: 1 },
+                    { name: '3ch AI Dashcam ADAS + DSM (MT95C)', code: 'AXGCJ', weight: 1 },
+                    { name: 'wifi Dash Cam', code: 'AXGCK', weight: 0.3 },
+                    { name: '4 inch 3 camera Dash Cam', code: 'AXGCL', weight: 0.4 },
+                    { name: '4 inch Android Dashcam', code: 'AXGCM', weight: 0.5 },
+                    { name: '3ch 4g Dashcam with Rear Camera (MT95L-A3)', code: 'AXGCH', weight: 1 },
+                    { name: '3ch AI Dashcam ADAS + DSM (MT95C)', code: 'AXGCJ', weight: 1 }
+                ],
+                'Cameras': [
                     { name: '2 MP IR indoor Dome Camera', code: 'AXGBA', weight: 0.4 },
                     { name: '2 MP IR Outdoor Bullet Camera', code: 'AXGBB', weight: 0.4 },
                     { name: '2 MP Heavy Duty Bullet Camera', code: 'AXGBC', weight: 0.5 },
                     { name: '2 MP Heavy Duty Dome Camera', code: 'AXGBD', weight: 0.5 },
                     { name: 'PTZ Camera', code: 'AXGBE', weight: 1 },
                     { name: '4k Monitor Camera', code: 'AXGBF', weight: 0.3 },
+                    { name: '2 MP IP Camera', code: 'AXGBQ', weight: 0.3 },
                     { name: 'Replacement Bullet Camera 2mp', code: 'AXGBG', weight: 0.3 },
                     { name: 'Replacement Dome Camera 2 mp', code: 'AXGBH', weight: 0.3 },
                     { name: 'Replacement Dome Audio Camera', code: 'AXGBI', weight: 0.3 },
@@ -6261,72 +6467,43 @@ Prices are subject to change without prior notice.</textarea>
                     { name: 'DFMS Camera', code: 'AXGBL', weight: 0.3 },
                     { name: 'ADAS Camera', code: 'AXGBM', weight: 0.3 },
                     { name: 'BSD Camera', code: 'AXGBN', weight: 0.3 },
-                    { name: 'MDVR IP Camera 2mp', code: 'AXGBO', weight: 0.3 },
-                    { name: '2mp IP Dome Audio Camera', code: 'AXGBP', weight: 0.3 },
-                    { name: '2 MP IP Camera', code: 'AXGBQ', weight: 0.3 },
-                    { name: '2mp Heavy Duty Dome Camera (Waterproof)', code: 'AXGBR', weight: 0.3 }
+                    { name: '2mp IP Dome Audio Camera', code: 'AXGBP', weight: 0.3 }
                 ],
-                'D-Dashcam': [
-                    { name: '4 Inch 2 Ch Dashcam', code: 'AXGCA', weight: 0.4 },
-                    { name: '10 inch 2 Ch Full Touch Dashcam', code: 'AXGCB', weight: 0.75 },
-                    { name: '10 inch 2 Ch 4g, GPS, Android Dashcam', code: 'AXGCD', weight: 0.75 },
-                    { name: '4k Dashcam 12 inch', code: 'AXGCE', weight: 0.75 },
-                    { name: '2k 12 inch Dashcam', code: 'AXGCF', weight: 0.75 },
-                    { name: '2ch 4g Dashcam MT95L', code: 'AXGCG', weight: 1 },
-                    { name: '3ch 4g Dahscam with Rear Camera (MT95L-A3)', code: 'AXGCH', weight: 1 },
-                    { name: '3ch AI Dashcam ADAS + DSM (MT95L-A3)', code: 'AXGCI', weight: 1 },
-                    { name: '3ch AI Dashcam ADAS + DSM (MT95C)', code: 'AXGCJ', weight: 1 },
-                    { name: '2CH AI Dashcam ADAS+ DSM (C6 Lite)', code: 'AXGCN', weight: 1.25 },
-                    { name: 'Wifi Dash Cam', code: 'AXGCK', weight: 0.3 },
-                    { name: '4 inch 3 camera Dash Cam', code: 'AXGCL', weight: 0.4 },
-                    { name: '4inch Android Dashcam', code: 'AXGCM', weight: 0.5 }
-                ],
-                'E-GPS': [
-                    { name: 'RealTrack GPS', code: 'AXGDA', weight: 0.2 },
-                    { name: 'GPS Renewal', code: 'AXGDB', weight: 0 }
-                ],
-                'F-Storage': [
+                'Storage': [
                     { name: 'Surveillance Grade 64GB SD Card', code: 'AXGEA', weight: 0.05 },
                     { name: 'Surveillance Grade 128GB SD Card', code: 'AXGEB', weight: 0.05 },
                     { name: 'Surveillance Grade 256GB SD Card', code: 'AXGEC', weight: 0.05 },
                     { name: 'Surveillance Grade 512GB SD Card', code: 'AXGED', weight: 0.05 },
                     { name: 'HDD 1 TB', code: 'AXGEE', weight: 0.2 }
                 ],
-                'G-RFID Tags': [
+                'RFID Tags': [
                     { name: '2.4G RFID Animal Ear Tag', code: 'AXGFA', weight: 0.01 },
-                    { name: '2.4G Active Tag (Card Type) HX607', code: 'AXGFB', weight: 0.02 },
-                    { name: 'MR 6700A UHF Passive Electronic tag', code: 'AXGFC', weight: 0.02 },
-                    { name: 'UHF Windshield Tag MR6740A', code: 'AXGFD', weight: 0.02 }
+                    { name: '2.4G Active Tag (Card Type) HX607', code: 'AXGFB', weight: 0.02 }
                 ],
-                'H-RFID Reader': [
+                'RFID Reader': [
                     { name: '2.4 GHZ RFID Active Reader (Bus)', code: 'AXGGA', weight: 2 },
                     { name: '2.4 GHZ RFID Active Reader (Campus)', code: 'AXGGB', weight: 2.5 },
-                    { name: '2.4G IOT Smart RFID Reader (ZR7901P)', code: 'AXGGC', weight: 2 },
-                    { name: '2.4 G-Hz Omni-directional RFID Reader (MR3102E)', code: 'AXGGD', weight: 2 },
-                    { name: 'RFID UHF Long Range Integrated Reader (MR6211E)', code: 'AXGGE', weight: 2 }
+                    { name: '2.4G IOT Smart RFID Reader (ZR7901P)', code: 'AXGGC', weight: 2 }
                 ],
-                'I-MDVR Accessories': [
-                    { name: 'MDVR Loud Audio Speaker', code: 'AXGHA', weight: 0.5 },
+                'MDVR Accessories': [
+                    { name: 'MDVR Security Box', code: 'AXGHS', weight: 0.8 },
                     { name: '2 way Communication Device', code: 'AXGHB', weight: 0.2 },
                     { name: 'MDVR Maintenance Tool', code: 'AXGHC', weight: 0.1 },
                     { name: 'MDVR Remote', code: 'AXGHD', weight: 0.1 },
                     { name: 'MDVR Panic Button', code: 'AXGHE', weight: 0.1 },
                     { name: 'MDVR Server', code: 'AXGHF', weight: 2 },
                     { name: 'RS 232 Adaptor', code: 'AXGHG', weight: 0.1 },
-                    { name: '5mt Cable', code: 'AXGHH', weight: 0.3 },
-                    { name: '15mt Cable', code: 'AXGHI', weight: 0.8 },
-                    { name: '10mt Cable', code: 'AXGHJ', weight: 0.6 },
-                    { name: 'VGA Cable', code: 'AXGHK', weight: 0.2 },
-                    { name: 'Alcohol Tester', code: 'AXGHL', weight: 1 },
-                    { name: 'Ultra Sonic Fuel Sensor', code: 'AXGHM', weight: 0.5 },
-                    { name: 'Rod Type Fuel Sensor', code: 'AXGHQ', weight: 0.5 },
                     { name: '1mt Cable', code: 'AXGHN', weight: 0.2 },
                     { name: '3mt Cable', code: 'AXGHO', weight: 0.3 },
-                    { name: 'Panic Button', code: 'AXGHP', weight: 0.1 },
-                    { name: 'Male Connector', code: 'AXGHR', weight: 0.05 }
+                    { name: '5mt Cable', code: 'AXGHH', weight: 0.3 },
+                    { name: '10mt Cable', code: 'AXGHJ', weight: 0.6 },
+                    { name: '15mt Cable', code: 'AXGHI', weight: 0.8 },
+                    { name: 'Alcohol Tester', code: 'AXGHL', weight: 1 },
+                    { name: 'VGA Cable', code: 'AXGHK', weight: 0.2 },
+                    { name: 'Ultra Sonic Fuel Sensor', code: 'AXGHM', weight: 0.5 },
+                    { name: 'Rod Type Fuel Sensor', code: 'AXGHQ', weight: 0.5 }
                 ],
-                'J-Other Products': [
-                    { name: 'Courier', code: 'AXGIA', weight: 0 },
+                'Other product and Accessories': [
                     { name: 'Leaser Printer', code: 'AXGIB', weight: 5 },
                     { name: 'D link Wire Bundle', code: 'AXGIC', weight: 1 },
                     { name: 'Wireless Receiver Transmitter', code: 'AXGID', weight: 0.5 },
@@ -6984,7 +7161,10 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             function closeSaleDetailsModal() {
-                document.getElementById('saleDetailsModal').classList.remove('show');
+                const modal = document.getElementById('saleDetailsModal');
+                modal.classList.remove('show');
+                // Reset z-index to default
+                modal.style.zIndex = '10000';
             }
             
             // Open Update Balance Modal with pre-filled Order ID
@@ -10140,7 +10320,6 @@ Prices are subject to change without prior notice.</textarea>
                                                     <th>Date</th>
                                                     <th>Serial Number</th>
                                                     <th>Model Name</th>
-                                                    <th>Notes</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -10150,7 +10329,6 @@ Prices are subject to change without prior notice.</textarea>
                                                         <td>\${item.dispatch_date || 'N/A'}</td>
                                                         <td><strong>\${item.device_serial_no}</strong></td>
                                                         <td>\${item.model_name || 'N/A'}</td>
-                                                        <td>\${item.notes || '-'}</td>
                                                     </tr>
                                                 \`).join('')}
                                             </tbody>
@@ -10320,7 +10498,6 @@ Prices are subject to change without prior notice.</textarea>
                                                     <th>Date</th>
                                                     <th>Serial Number</th>
                                                     <th>Model Name</th>
-                                                    <th>Notes</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -10330,7 +10507,6 @@ Prices are subject to change without prior notice.</textarea>
                                                         <td>\${item.dispatch_date || 'N/A'}</td>
                                                         <td><strong>\${item.device_serial_no}</strong></td>
                                                         <td>\${item.model_name || 'N/A'}</td>
-                                                        <td>\${item.notes || '-'}</td>
                                                     </tr>
                                                 \`).join('')}
                                             </tbody>
@@ -10541,19 +10717,25 @@ Prices are subject to change without prior notice.</textarea>
                             inventoryChart.destroy();
                         }
                         
+                        // Match colors with stat cards: In Stock (green), Dispatched (blue), Quality Check (orange), Defective (red)
+                        const colorMap = {
+                            'In Stock': '#10b981',
+                            'Dispatched': '#3b82f6',
+                            'Quality Check': '#f59e0b',
+                            'Defective': '#ef4444'
+                        };
+                        
+                        const chartColors = stats.byStatus.map(s => colorMap[s.status] || '#6b7280');
+                        
                         inventoryChart = new Chart(ctx, {
                             type: 'doughnut',
                             data: {
                                 labels: stats.byStatus.map(s => s.status),
                                 datasets: [{
                                     data: stats.byStatus.map(s => s.count),
-                                    backgroundColor: [
-                                        '#10b981',
-                                        '#3b82f6',
-                                        '#f59e0b',
-                                        '#ef4444',
-                                        '#6b7280'
-                                    ]
+                                    backgroundColor: chartColors,
+                                    borderWidth: 3,
+                                    borderColor: 'white'
                                 }]
                             },
                             options: {
@@ -10561,11 +10743,93 @@ Prices are subject to change without prior notice.</textarea>
                                 maintainAspectRatio: false,
                                 plugins: {
                                     legend: {
-                                        position: 'bottom'
+                                        position: 'bottom',
+                                        labels: {
+                                            padding: 15,
+                                            font: {
+                                                size: 13,
+                                                weight: '600'
+                                            }
+                                        }
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const label = context.label || '';
+                                                const value = context.parsed || 0;
+                                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                                const percentage = ((value / total) * 100).toFixed(1);
+                                                return label + ': ' + value + ' (' + percentage + '%)';
+                                            }
+                                        }
                                     }
                                 }
                             }
                         });
+                    }
+                    
+                    // Load model-wise report
+                    const modelResponse = await axios.get('/api/inventory/model-wise');
+                    if (modelResponse.data.success) {
+                        const tbody = document.getElementById('modelWiseTableBody');
+                        const modelData = modelResponse.data.data;
+                        
+                        if (modelData.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #9ca3af;">No inventory data available</td></tr>';
+                        } else {
+                            tbody.innerHTML = modelData.map((model, index) => \`
+                                <tr>
+                                    <td style="font-weight: 600;">\${index + 1}</td>
+                                    <td style="font-weight: 600; color: #1f2937;">\${model.model_name}</td>
+                                    <td style="background: #d1fae5; font-weight: 700; color: #065f46;">\${model.in_stock || 0}</td>
+                                    <td style="background: #dbeafe; font-weight: 700; color: #1e40af;">\${model.dispatched || 0}</td>
+                                    <td style="background: #fef3c7; font-weight: 700; color: #92400e;">\${model.quality_check || 0}</td>
+                                    <td style="background: #fee2e2; font-weight: 700; color: #991b1b;">\${model.defective || 0}</td>
+                                    <td style="font-weight: 700; font-size: 15px; color: #1f2937;">\${model.total}</td>
+                                </tr>
+                            \`).join('');
+                        }
+                    }
+                    
+                    // Load dispatch summary
+                    const dispatchResponse = await axios.get('/api/dispatch/summary');
+                    if (dispatchResponse.data.success) {
+                        const dispatchData = dispatchResponse.data.data;
+                        const tbody = document.getElementById('dispatchSummaryTableBody');
+                        
+                        // Update dispatch stats cards
+                        document.getElementById('statTotalOrders').textContent = dispatchData.totalOrders || 0;
+                        document.getElementById('statTotalDispatched').textContent = dispatchData.totalDispatched || 0;
+                        document.getElementById('statCompletedOrders').textContent = dispatchData.completedOrders || 0;
+                        document.getElementById('statPendingOrders').textContent = dispatchData.pendingOrders || 0;
+                        
+                        const orders = dispatchData.orders || [];
+                        if (orders.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #9ca3af;">No dispatch records found</td></tr>';
+                        } else {
+                            tbody.innerHTML = orders.map(order => {
+                                const remaining = order.total_items - order.dispatched_items;
+                                const statusColor = order.dispatch_status === 'Completed' ? '#10b981' : '#f59e0b';
+                                const statusBg = order.dispatch_status === 'Completed' ? '#d1fae5' : '#fef3c7';
+                                
+                                return \`
+                                    <tr>
+                                        <td style="font-weight: 600; color: #667eea;">\${order.order_id}</td>
+                                        <td>\${order.customer_name || 'N/A'}</td>
+                                        <td>\${new Date(order.order_date).toLocaleDateString('en-IN')}</td>
+                                        <td style="font-weight: 700; font-size: 15px;">\${order.total_items}</td>
+                                        <td style="font-weight: 700; color: #3b82f6;">\${order.dispatched_items}</td>
+                                        <td style="font-weight: 700; color: \${remaining === 0 ? '#10b981' : '#ef4444'};">\${remaining}</td>
+                                        <td>
+                                            <span style="background: \${statusBg}; color: \${statusColor}; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px;">
+                                                \${order.dispatch_status}
+                                            </span>
+                                        </td>
+                                        <td style="color: #6b7280;">\${order.last_dispatch_date ? new Date(order.last_dispatch_date).toLocaleDateString('en-IN') : '-'}</td>
+                                    </tr>
+                                \`;
+                            }).join('');
+                        }
                     }
                     
                     // Load activity
@@ -10723,10 +10987,12 @@ Prices are subject to change without prior notice.</textarea>
                 const products = selectedOrder.items;
                 
                 document.getElementById('orderProductsList').innerHTML = products.map(item => {
-                    const serialNumbers = item.serial_numbers ? JSON.parse(item.serial_numbers) : [];
+                    // Match scanned devices by product name (model_name)
                     const scannedForThisProduct = scannedDevices.filter(d => 
-                        serialNumbers.includes(d.serial_no)
+                        d.model_name === item.product_name || 
+                        d.product_name === item.product_name
                     ).length;
+                    const remainingToScan = item.quantity - scannedForThisProduct;
                     
                     return \`
                         <div style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -10738,10 +11004,14 @@ Prices are subject to change without prior notice.</textarea>
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
-                                    <div style="font-size: 24px; font-weight: 700; color: \${scannedForThisProduct >= item.quantity ? '#10b981' : '#f59e0b'};">
-                                        \${scannedForThisProduct} / \${item.quantity}
+                                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                                        <div style="font-size: 24px; font-weight: 700; color: \${remainingToScan === 0 ? '#10b981' : '#f59e0b'};">
+                                            \${scannedForThisProduct} / \${item.quantity}
+                                        </div>
+                                        <div style="font-size: 14px; font-weight: 600; color: \${remainingToScan === 0 ? '#10b981' : '#dc2626'}; background: \${remainingToScan === 0 ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
+                                            \${remainingToScan} Remaining
+                                        </div>
                                     </div>
-                                    <div style="font-size: 12px; color: #6b7280;">scanned</div>
                                 </div>
                             </div>
                         </div>
@@ -10818,10 +11088,30 @@ Prices are subject to change without prior notice.</textarea>
                         statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> Device validated successfully! QC Status: Pass';
                     }
                     
+                    // Check if this device matches any product in the order
+                    const matchingProduct = selectedOrder.items.find(item => 
+                        item.product_name === deviceData.device.model_name
+                    );
+                    
+                    if (!matchingProduct) {
+                        statusDiv.style.background = '#fef3c7';
+                        statusDiv.style.color = '#92400e';
+                        statusDiv.innerHTML = \`
+                            <div style="font-weight: 700; margin-bottom: 5px;">
+                                <i class="fas fa-exclamation-triangle"></i> Warning: Product Not in Order
+                            </div>
+                            <div style="font-size: 13px;">
+                                This device (\${deviceData.device.model_name}) is not in the current order.
+                                Device added but may need verification.
+                            </div>
+                        \`;
+                    }
+                    
                     // Add to scanned devices
                     scannedDevices.push({
                         serial_no: serialNo,
                         model_name: deviceData.device.model_name,
+                        product_name: deviceData.device.model_name,
                         qc_status: deviceData.qcStatus,
                         qc_passed: deviceData.qcPassed
                     });
@@ -10960,6 +11250,445 @@ Prices are subject to change without prior notice.</textarea>
             
             // ===================================================================
             // END OF ORDER-BASED DISPATCH WORKFLOW FUNCTIONS
+            // ===================================================================
+            
+            // ===================================================================
+            // TRACKING DETAILS FUNCTIONS
+            // ===================================================================
+            
+            let allTrackingRecords = [];
+            
+            // Open Tracking Details Modal
+            async function openTrackingDetailsModal() {
+                document.getElementById('trackingDetailsModal').classList.add('show');
+                document.getElementById('trackingOrderId').value = '';
+                document.getElementById('trackingCourierPartner').value = '';
+                document.getElementById('trackingCourierMode').value = '';
+                document.getElementById('trackingTrackingId').value = '';
+                document.getElementById('trackingFormStatus').style.display = 'none';
+                document.getElementById('trackingOrderId').focus();
+                
+                // Load tracking records
+                await loadTrackingRecords();
+            }
+            
+            // Close Tracking Details Modal
+            function closeTrackingDetailsModal() {
+                document.getElementById('trackingDetailsModal').classList.remove('show');
+            }
+            
+            // Submit Tracking Details
+            async function submitTrackingDetails(event) {
+                event.preventDefault();
+                
+                const orderId = document.getElementById('trackingOrderId').value.trim();
+                const courierPartner = document.getElementById('trackingCourierPartner').value.trim();
+                const courierMode = document.getElementById('trackingCourierMode').value;
+                const trackingId = document.getElementById('trackingTrackingId').value.trim();
+                
+                if (!orderId || !courierPartner || !courierMode || !trackingId) {
+                    showTrackingStatus('Please fill all required fields', 'error');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.post('/api/tracking-details', {
+                        order_id: orderId,
+                        courier_partner: courierPartner,
+                        courier_mode: courierMode,
+                        tracking_id: trackingId
+                    });
+                    
+                    if (response.data.success) {
+                        showTrackingStatus('✅ Tracking details added successfully!', 'success');
+                        
+                        // Clear form
+                        document.getElementById('trackingOrderId').value = '';
+                        document.getElementById('trackingCourierPartner').value = '';
+                        document.getElementById('trackingCourierMode').value = '';
+                        document.getElementById('trackingTrackingId').value = '';
+                        
+                        // Reload tracking records
+                        await loadTrackingRecords();
+                        
+                        // Focus back to Order ID field
+                        document.getElementById('trackingOrderId').focus();
+                    } else {
+                        showTrackingStatus('❌ ' + response.data.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error submitting tracking:', error);
+                    showTrackingStatus('❌ Error: ' + (error.response?.data?.error || error.message), 'error');
+                }
+            }
+            
+            // Load Tracking Records
+            async function loadTrackingRecords() {
+                try {
+                    const response = await axios.get('/api/tracking-details');
+                    
+                    if (response.data.success) {
+                        allTrackingRecords = response.data.data || [];
+                        populateMonthDropdown(allTrackingRecords);
+                        displayTrackingRecords(allTrackingRecords);
+                        updateTrackingStats(allTrackingRecords);
+                    }
+                } catch (error) {
+                    console.error('Error loading tracking records:', error);
+                }
+            }
+            
+            // Populate Month Dropdown
+            function populateMonthDropdown(records) {
+                const monthSelect = document.getElementById('trackingMonthFilter');
+                const months = new Set();
+                
+                // Extract unique year-months from records
+                records.forEach(record => {
+                    if (record.created_at) {
+                        const date = new Date(record.created_at);
+                        const yearMonth = \`\${date.getFullYear()}-\${String(date.getMonth() + 1).padStart(2, '0')}\`;
+                        months.add(yearMonth);
+                    }
+                });
+                
+                // Convert to array and sort in descending order (newest first)
+                const sortedMonths = Array.from(months).sort().reverse();
+                
+                // Clear existing options except "All Months"
+                monthSelect.innerHTML = '<option value="">All Months</option>';
+                
+                // Add month options
+                sortedMonths.forEach(yearMonth => {
+                    const [year, month] = yearMonth.split('-');
+                    const date = new Date(year, month - 1, 1);
+                    const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                    
+                    const option = document.createElement('option');
+                    option.value = yearMonth;
+                    option.textContent = monthName;
+                    monthSelect.appendChild(option);
+                });
+            }
+            
+            // Display Tracking Records
+            async function displayTrackingRecords(records) {
+                const tbody = document.getElementById('trackingReportTableBody');
+                
+                if (records.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #9ca3af;">No tracking records found</td></tr>';
+                    return;
+                }
+                
+                // Fetch weights for all records
+                const recordsWithWeights = await Promise.all(records.map(async (record) => {
+                    let totalWeight = 0;
+                    
+                    try {
+                        // Fetch sale items for this order
+                        const response = await axios.get(\`/api/sales/\${record.order_id}/items\`);
+                        if (response.data.success && response.data.data) {
+                            const items = response.data.data;
+                            
+                            // Calculate total weight from product catalog
+                            totalWeight = items.reduce((sum, item) => {
+                                let itemWeight = 0;
+                                
+                                // Search for product in catalog
+                                for (const category in productCatalog) {
+                                    const product = productCatalog[category].find(p => 
+                                        p.name === item.product_name
+                                    );
+                                    if (product) {
+                                        itemWeight = product.weight * item.quantity;
+                                        break;
+                                    }
+                                }
+                                
+                                return sum + itemWeight;
+                            }, 0);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching weight for order:', record.order_id, error);
+                    }
+                    
+                    return { ...record, totalWeight };
+                }));
+                
+                tbody.innerHTML = recordsWithWeights.map(record => {
+                    const actualPrice = record.courier_cost || record.total_amount || 0;
+                    const dateAdded = new Date(record.created_at).toLocaleDateString('en-IN');
+                    const weight = record.totalWeight ? record.totalWeight.toFixed(2) : '0.00';
+                    
+                    return \`
+                        <tr>
+                            <td>
+                                <a href="javascript:void(0)" 
+                                   onclick="viewTrackingSaleDetails('\${record.order_id}')" 
+                                   style="font-weight: 600; color: #667eea; text-decoration: underline; cursor: pointer;"
+                                   title="Click to view sale details">
+                                    \${record.order_id}
+                                </a>
+                            </td>
+                            <td style="font-weight: 600; color: #1f2937;">\${weight} Kg</td>
+                            <td style="font-weight: 700; color: #059669;">₹\${actualPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td>\${record.courier_partner}</td>
+                            <td>
+                                <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                                    \${record.courier_mode}
+                                </span>
+                            </td>
+                            <td style="font-family: monospace; font-size: 12px; color: #6b7280;">\${record.tracking_id}</td>
+                            <td style="color: #6b7280; font-size: 12px;">\${dateAdded}</td>
+                            <td style="text-align: center;">
+                                <button onclick="deleteTrackingRecord(\${record.id})" 
+                                    class="btn-danger" 
+                                    style="padding: 4px 8px; font-size: 12px;"
+                                    title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    \`;
+                }).join('');
+            }
+            
+            // Filter Tracking Report
+            function filterTrackingReport() {
+                const searchTerm = document.getElementById('trackingReportSearch').value.toLowerCase();
+                const selectedMonth = document.getElementById('trackingMonthFilter').value;
+                
+                const filtered = allTrackingRecords.filter(record => {
+                    // Text search filter
+                    const matchesSearch = !searchTerm || (
+                        record.order_id.toLowerCase().includes(searchTerm) ||
+                        record.courier_partner.toLowerCase().includes(searchTerm) ||
+                        record.courier_mode.toLowerCase().includes(searchTerm) ||
+                        record.tracking_id.toLowerCase().includes(searchTerm)
+                    );
+                    
+                    // Month filter
+                    let matchesMonth = true;
+                    if (selectedMonth) {
+                        const recordDate = new Date(record.created_at);
+                        const recordYearMonth = \`\${recordDate.getFullYear()}-\${String(recordDate.getMonth() + 1).padStart(2, '0')}\`;
+                        matchesMonth = recordYearMonth === selectedMonth;
+                    }
+                    
+                    return matchesSearch && matchesMonth;
+                });
+                
+                displayTrackingRecords(filtered);
+                updateTrackingStats(filtered);
+            }
+            
+            // Update Tracking Stats
+            function updateTrackingStats(records) {
+                const totalCount = records.length;
+                const totalCost = records.reduce((sum, record) => {
+                    return sum + (parseFloat(record.courier_cost) || parseFloat(record.total_amount) || 0);
+                }, 0);
+                const avgCost = totalCount > 0 ? totalCost / totalCount : 0;
+                
+                document.getElementById('trackingTotalCount').textContent = totalCount;
+                document.getElementById('trackingTotalCost').textContent = '₹' + totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                document.getElementById('trackingAvgCost').textContent = '₹' + avgCost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            
+            // Delete Tracking Record
+            async function deleteTrackingRecord(id) {
+                if (!confirm('Are you sure you want to delete this tracking record?')) {
+                    return;
+                }
+                
+                try {
+                    const response = await axios.delete(\`/api/tracking-details/\${id}\`);
+                    
+                    if (response.data.success) {
+                        showTrackingStatus('✅ Tracking record deleted successfully', 'success');
+                        await loadTrackingRecords();
+                    } else {
+                        showTrackingStatus('❌ Failed to delete: ' + response.data.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting tracking:', error);
+                    showTrackingStatus('❌ Error: ' + (error.response?.data?.error || error.message), 'error');
+                }
+            }
+            
+            // Show Tracking Status Message
+            function showTrackingStatus(message, type) {
+                const statusDiv = document.getElementById('trackingFormStatus');
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = message;
+                
+                if (type === 'success') {
+                    statusDiv.style.background = '#d1fae5';
+                    statusDiv.style.color = '#065f46';
+                    statusDiv.style.border = '2px solid #10b981';
+                } else {
+                    statusDiv.style.background = '#fee2e2';
+                    statusDiv.style.color = '#991b1b';
+                    statusDiv.style.border = '2px solid #ef4444';
+                }
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+            
+            // View Sale Details from Tracking (without edit button)
+            async function viewTrackingSaleDetails(orderId) {
+                try {
+                    const modal = document.getElementById('saleDetailsModal');
+                    const content = document.getElementById('saleDetailsContent');
+                    
+                    // Set higher z-index to appear above tracking modal
+                    modal.style.zIndex = '10001';
+                    modal.classList.add('show');
+                    content.innerHTML = '<div class="loading">Loading...</div>';
+                    
+                    const response = await axios.get(\`/api/sales/order/\${orderId}\`);
+                    const sale = response.data.data;
+                    
+                    const productsTable = sale.items && sale.items.length > 0
+                        ? sale.items.map(item => \`
+                            <tr>
+                                <td>\${item.product_name}</td>
+                                <td>\${item.product_code || '-'}</td>
+                                <td>\${item.quantity}</td>
+                                <td>₹\${item.unit_price.toLocaleString()}</td>
+                                <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
+                            </tr>
+                        \`).join('')
+                        : '<tr><td colspan="5" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
+                    
+                    const paymentsTable = sale.payments && sale.payments.length > 0
+                        ? sale.payments.map(payment => \`
+                            <tr>
+                                <td>\${new Date(payment.payment_date).toLocaleDateString()}</td>
+                                <td>₹\${payment.amount.toLocaleString()}</td>
+                                <td>\${payment.payment_reference || '-'}</td>
+                                <td>\${payment.account_received || '-'}</td>
+                            </tr>
+                        \`).join('')
+                        : '<tr><td colspan="4" style="text-align: center; color: #9ca3af; padding: 20px;">No payments recorded</td></tr>';
+                    
+                    content.innerHTML = \`
+                        <div style="margin-bottom: 20px;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Order ID</label>
+                                    <div style="font-size: 16px; font-weight: 600;">\${sale.order_id}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Date</label>
+                                    <div>\${new Date(sale.sale_date).toLocaleDateString()}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Customer Name</label>
+                                    <div>\${sale.customer_name || sale.customer_code}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Company Name</label>
+                                    <div>\${sale.company_name || '-'}</div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Employee</label>
+                                    <div>\${sale.employee_name}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Contact</label>
+                                    <div>\${sale.customer_contact || '-'}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Sale Type</label>
+                                    <div><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Products</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Product Name</th>
+                                        <th>Product Code</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    \${productsTable}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Payment Summary</h3>
+                        <div class="form-row" style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Subtotal</label>
+                                <div style="font-size: 16px;">₹\${sale.subtotal.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Courier Cost</label>
+                                <div style="font-size: 16px;">₹\${sale.courier_cost.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">GST (18%)</label>
+                                <div style="font-size: 16px;">₹\${sale.gst_amount.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Total Amount</label>
+                                <div style="font-size: 18px; font-weight: 600; color: #667eea;">₹\${sale.total_amount.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row" style="background: \${sale.balance_amount > 0 ? '#fef3c7' : '#d1fae5'}; padding: 15px; border-radius: 8px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Amount Received</label>
+                                <div style="font-size: 16px; color: #10b981; font-weight: 600;">₹\${sale.amount_received.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #6b7280;">Balance Amount</label>
+                                <div style="font-size: 18px; font-weight: 700; color: \${sale.balance_amount > 0 ? '#dc2626' : '#10b981'};">
+                                    \${sale.balance_amount > 0 ? '₹' + sale.balance_amount.toLocaleString() : 'PAID'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1f2937;">Payment History (\${sale.payments ? sale.payments.length : 0} payment(s))</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Amount</th>
+                                        <th>Reference</th>
+                                        <th>Account</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    \${paymentsTable || '<tr><td colspan="4" style="text-align: center; color: #9ca3af;">No payments recorded</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        \${sale.remarks ? '<div style="margin-top: 15px;"><label style="font-weight: 600; color: #6b7280;">Remarks:</label><div style="padding: 10px; background: #f9fafb; border-radius: 6px; margin-top: 5px;">' + sale.remarks + '</div></div>' : ''}
+                    \`;
+                } catch (error) {
+                    console.error('Error loading sale details:', error);
+                    alert('Error loading sale details');
+                }
+            }
+            
+            // ===================================================================
+            // END OF TRACKING DETAILS FUNCTIONS
             // ===================================================================
             
             // ===================================================================
