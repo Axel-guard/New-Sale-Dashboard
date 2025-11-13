@@ -739,12 +739,25 @@ If you cannot login:
 2025-11-13
 
 ### Latest Changes (2025-11-13)
-1. ✅ **Fixed critical database schema error** in sale_items INSERT
-   - **Issue**: API was trying to insert `order_id` into `sale_items` table, but table schema doesn't have this column
-   - **Root Cause**: Database mismatch - `sale_items` table only has `sale_id`, not `order_id`
-   - **Solution**: Removed `order_id` from INSERT statement in `/api/sales` endpoint
-   - **Impact**: All sale form submissions now work correctly without D1_ERROR
-2. ✅ **Verified product catalog** - Product "4ch 1080p HDD MDVR (MR9704C)" exists in database
+
+**CRITICAL FIX - Requires Production Deployment** ⚠️
+
+1. ✅ **Fixed database schema mismatch** in sale_items table
+   - **Issue**: Production database error "table sale_items has no column named sale_id: SQLITE_ERROR"
+   - **Root Cause**: The `sale_items` table was missing the `order_id` column, but code was trying to insert into it
+   - **Solution**: 
+     - Created migration `0017_add_order_id_to_sale_items.sql` to add `order_id` column
+     - Updated ALL INSERT statements to include both `sale_id` and `order_id`
+     - Fixed CSV upload to fetch `sale_id` and calculate `total_price`
+   - **Impact**: Sales can now be saved with products correctly
+   - **Status**: ⚠️ **NEEDS PRODUCTION DEPLOYMENT** - See `PRODUCTION_DEPLOYMENT_FIX.md`
+
+2. ✅ **Fixed endpoints**:
+   - `POST /api/sales` - New sale creation (line 720)
+   - `PUT /api/sales/:orderId` - Sale update (line 1193)  
+   - `POST /api/sales/upload-csv` - CSV upload (line 1405)
+
+3. ✅ **Verified product catalog** - Product "4ch 1080p HDD MDVR (MR9704C)" exists in database
 
 ### Previous Changes (2025-11-12)
 1. ✅ **Fixed 3-dot button functionality** in inventory table
