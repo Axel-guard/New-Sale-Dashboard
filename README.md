@@ -736,9 +736,17 @@ If you cannot login:
 
 ## Last Updated
 
-2025-11-12
+2025-11-13
 
-### Latest Changes (2025-11-12)
+### Latest Changes (2025-11-13)
+1. ✅ **Fixed critical database schema error** in sale_items INSERT
+   - **Issue**: API was trying to insert `order_id` into `sale_items` table, but table schema doesn't have this column
+   - **Root Cause**: Database mismatch - `sale_items` table only has `sale_id`, not `order_id`
+   - **Solution**: Removed `order_id` from INSERT statement in `/api/sales` endpoint
+   - **Impact**: All sale form submissions now work correctly without D1_ERROR
+2. ✅ **Verified product catalog** - Product "4ch 1080p HDD MDVR (MR9704C)" exists in database
+
+### Previous Changes (2025-11-12)
 1. ✅ **Fixed 3-dot button functionality** in inventory table
 2. ✅ **Added QC data Excel upload** with device matching by serial number
 3. ✅ **Added Dispatch data Excel upload** with device matching by serial number
