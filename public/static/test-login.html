@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AxelGuard Login Test Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .status-box {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .status-success {
+            background: #d1fae5;
+            border: 2px solid #10b981;
+            color: #065f46;
+        }
+        .status-error {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+        }
+        .status-info {
+            background: #dbeafe;
+            border: 2px solid #3b82f6;
+            color: #1e40af;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 500;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .logs {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+            line-height: 1.6;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        .log-error { color: #ef4444; }
+        .log-success { color: #10b981; }
+        .log-info { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 AxelGuard Login Test</h1>
+        <p class="subtitle">Diagnostic tool to test login functionality</p>
+
+        <div id="axiosCheck" class="status-box status-info">
+            ⏳ Checking axios library...
+        </div>
+
+        <div class="form-group">
+            <label>Select Test User:</label>
+            <select id="userSelect" onchange="updateCredentials()">
+                <option value="admin:admin123">admin / admin123 (Admin)</option>
+                <option value="manager:manager123">manager / manager123 (Admin)</option>
+                <option value="test1:test123">test1 / test123 (Employee)</option>
+                <option value="demo:demo123">demo / demo123 (Employee)</option>
+                <option value="akash:employee123">akash / employee123 (Employee)</option>
+                <option value="custom">Custom credentials...</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Username:</label>
+            <input type="text" id="username" value="admin" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="password" value="admin123" autocomplete="off">
+        </div>
+
+        <button onclick="testLogin()" id="loginBtn">
+            🚀 Test Login
+        </button>
+
+        <div id="logs" class="logs"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        const logContainer = document.getElementById('logs');
+        const axiosCheckDiv = document.getElementById('axiosCheck');
+        
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry log-' + type;
+            entry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Check axios on load
+        window.addEventListener('load', function() {
+            if (typeof axios === 'undefined') {
+                axiosCheckDiv.className = 'status-box status-error';
+                axiosCheckDiv.innerHTML = '❌ <strong>ERROR:</strong> Axios library failed to load! Check your internet connection.';
+                addLog('CRITICAL: Axios library not loaded!', 'error');
+            } else {
+                axiosCheckDiv.className = 'status-box status-success';
+                axiosCheckDiv.innerHTML = '✅ <strong>SUCCESS:</strong> Axios library loaded correctly. Ready to test login.';
+                addLog('Axios library loaded successfully', 'success');
+            }
+        });
+
+        function updateCredentials() {
+            const select = document.getElementById('userSelect');
+            const username = document.getElementById('username');
+            const password = document.getElementById('password');
+            
+            if (select.value !== 'custom') {
+                const [user, pass] = select.value.split(':');
+                username.value = user;
+                password.value = pass;
+                username.readOnly = true;
+                password.readOnly = true;
+            } else {
+                username.value = '';
+                password.value = '';
+                username.readOnly = false;
+                password.readOnly = false;
+            }
+        }
+
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+
+            // Clear old logs
+            logContainer.innerHTML = '';
+            
+            addLog('=== STARTING LOGIN TEST ===', 'info');
+            addLog('Username: ' + username, 'info');
+            addLog('Password: ' + ('*'.repeat(password.length)), 'info');
+
+            // Check axios
+            if (typeof axios === 'undefined') {
+                addLog('ERROR: Axios not available!', 'error');
+                alert('Axios library is not loaded. Please refresh the page.');
+                return;
+            }
+            addLog('Axios available: YES', 'success');
+
+            // Validate inputs
+            if (!username || !password) {
+                addLog('ERROR: Username or password is empty', 'error');
+                alert('Please enter both username and password');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = '⏳ Testing...';
+
+            try {
+                addLog('Sending POST request to /api/auth/login...', 'info');
+                
+                const response = await axios.post('/api/auth/login', {
+                    username: username,
+                    password: password
+                });
+
+                addLog('Response received!', 'success');
+                addLog('Status: ' + response.status, 'success');
+                addLog('Response data: ' + JSON.stringify(response.data, null, 2), 'info');
+
+                if (response.data.success) {
+                    addLog('✅ LOGIN SUCCESSFUL!', 'success');
+                    addLog('User: ' + response.data.data.fullName, 'success');
+                    addLog('Role: ' + response.data.data.role, 'success');
+                    
+                    alert('✅ Login Successful!\n\nUser: ' + response.data.data.fullName + '\nRole: ' + response.data.data.role + '\n\nYou can now try the main application!');
+                } else {
+                    addLog('❌ LOGIN FAILED: ' + response.data.error, 'error');
+                    alert('Login failed: ' + response.data.error);
+                }
+            } catch (error) {
+                addLog('❌ ERROR OCCURRED', 'error');
+                addLog('Error type: ' + error.name, 'error');
+                addLog('Error message: ' + error.message, 'error');
+                
+                if (error.response) {
+                    addLog('Response status: ' + error.response.status, 'error');
+                    addLog('Response data: ' + JSON.stringify(error.response.data), 'error');
+                } else if (error.request) {
+                    addLog('No response received from server', 'error');
+                    addLog('Request was made but no response', 'error');
+                } else {
+                    addLog('Error setting up request: ' + error.message, 'error');
+                }
+
+                alert('Login failed!\n\n' + error.message + '\n\nCheck the console logs below for details.');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '🚀 Test Login';
+                addLog('=== TEST COMPLETED ===', 'info');
+            }
+        }
+    </script>
+</body>
+</html>

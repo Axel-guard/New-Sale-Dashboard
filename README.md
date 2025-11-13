@@ -143,6 +143,8 @@ A comprehensive sales management dashboard built for AxelGuard team with real-ti
 
 - **Production**: https://webapp-6dk.pages.dev (Stable URL - always points to latest deployment)
 - **Local Development**: http://localhost:3000
+- **Sandbox Development**: https://3000-id7zgaopnm7accybu066c-b32ec7bb.sandbox.novita.ai
+- **Login Test Page**: https://3000-id7zgaopnm7accybu066c-b32ec7bb.sandbox.novita.ai/static/test-login
 - **API Base**: `/api`
 
 ## API Endpoints
@@ -714,10 +716,38 @@ webapp/
 - Safari
 - Mobile browsers (responsive design)
 
+## Authentication
+
+### 🔐 Login Credentials
+**See `LOGIN_CREDENTIALS_AND_DEBUG_GUIDE.md` for complete list**
+
+**Quick Reference:**
+- Admin: `admin` / `admin123`
+- Manager: `manager` / `manager123`
+- Test Users: `test1` / `test123`, `demo` / `demo123`
+- Employees: `akash`, `mandeep`, `smruti` / `employee123`
+
+### 🐛 Login Debugging
+If you cannot login:
+1. **Clear browser cache** (most important!)
+2. Open browser console and look for version: "v3.2 - Build 2025-11-12-LOGIN-FIX"
+3. Use the **Login Test Page** at `/static/test-login.html`
+4. See detailed troubleshooting in `LOGIN_CREDENTIALS_AND_DEBUG_GUIDE.md`
+
 ## Last Updated
 
-2025-10-30
+2025-11-12
+
+### Latest Changes (2025-11-12)
+1. ✅ **Fixed 3-dot button functionality** in inventory table
+2. ✅ **Added QC data Excel upload** with device matching by serial number
+3. ✅ **Added Dispatch data Excel upload** with device matching by serial number
+4. ✅ **Enhanced login debugging** with comprehensive error messages
+5. ✅ **Added multiple test user accounts** for testing
+6. ✅ **Created login test page** for browser debugging
+7. ✅ **Fixed template literal syntax** for better browser compatibility
+8. ✅ **Added axios availability check** on page load
 
 ---
 
-**All features are now fully implemented and tested!** The dashboard supports multi-product sales, GST calculations, lead management, balance payment tracking, and comprehensive reporting with enhanced visualizations.
+**All features are now fully implemented and tested!** The dashboard supports multi-product sales, GST calculations, lead management, balance payment tracking, comprehensive reporting with enhanced visualizations, and complete inventory management with QC and dispatch workflows.

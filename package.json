@@ -17,6 +17,7 @@
     "test": "curl http://localhost:3000"
   },
   "dependencies": {
+    "better-sqlite3": "^12.4.1",
     "hono": "^4.10.4",
     "papaparse": "^5.5.3",
     "xlsx": "^0.18.5"
