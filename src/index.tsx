@@ -2768,60 +2768,174 @@ app.get('/api/inventory/activity', async (c) => {
   }
 });
 
-// Get model-wise inventory report
+// Get model-wise inventory report (category-based)
 app.get('/api/inventory/model-wise', async (c) => {
   const { env } = c;
   
   try {
-    const modelWise = await env.DB.prepare(`
+    // Get all inventory data
+    const allDevices = await env.DB.prepare(`
       SELECT 
         model_name,
-        SUM(CASE WHEN status = 'In Stock' THEN 1 ELSE 0 END) as in_stock,
-        SUM(CASE WHEN status = 'Dispatched' THEN 1 ELSE 0 END) as dispatched,
-        SUM(CASE WHEN status = 'Quality Check' THEN 1 ELSE 0 END) as quality_check,
-        SUM(CASE WHEN status = 'Defective' THEN 1 ELSE 0 END) as defective,
-        COUNT(*) as total
+        status,
+        COUNT(*) as count
       FROM inventory
-      GROUP BY model_name
-      ORDER BY total DESC, model_name ASC
+      GROUP BY model_name, status
     `).all();
     
-    return c.json({ success: true, data: modelWise.results || [] });
+    const devices = allDevices.results || [];
+    
+    // Category mapping function
+    const getCategory = (modelName) => {
+      const name = modelName.toLowerCase();
+      
+      // Check for specific patterns
+      if (name.includes('mdvr') && !name.includes('cable') && !name.includes('box') && !name.includes('remote') && !name.includes('panic') && !name.includes('server') && !name.includes('maintenance') && !name.includes('adaptor') && !name.includes('sensor') && !name.includes('alcohol') && !name.includes('vga')) {
+        return 'MDVR';
+      }
+      if (name.includes('dashcam') || name.includes('dash cam')) {
+        return 'Dashcam';
+      }
+      if ((name.includes('camera') || name.includes('ptz')) && !name.includes('dashcam')) {
+        return 'Cameras';
+      }
+      if (name.includes('monitor')) {
+        return 'Monitor & Monitor Kit';
+      }
+      if (name.includes('rfid') && (name.includes('reader') || name.includes('smart'))) {
+        return 'RFID Reader';
+      }
+      if (name.includes('rfid') && (name.includes('tag') || name.includes('ear'))) {
+        return 'RFID Tags';
+      }
+      if (name.includes('sd card') || name.includes('hdd 1 tb') || name.includes('storage')) {
+        return 'Storage';
+      }
+      if (name.includes('gps') && (name.includes('tracker') || name.includes('vehicle'))) {
+        return 'GPS';
+      }
+      if (name.includes('cable') || name.includes('box') || name.includes('remote') || name.includes('panic') || name.includes('server') || name.includes('maintenance') || name.includes('adaptor') || name.includes('sensor') || name.includes('alcohol') || name.includes('vga') || name.includes('communication')) {
+        return 'MDVR Accessories';
+      }
+      
+      return 'Other product';
+    };
+    
+    // Group by category and model
+    const categoryData = {};
+    
+    devices.forEach(device => {
+      const category = getCategory(device.model_name);
+      
+      if (!categoryData[category]) {
+        categoryData[category] = {
+          category,
+          in_stock: 0,
+          dispatched: 0,
+          quality_check: 0,
+          defective: 0,
+          total: 0,
+          models: {}
+        };
+      }
+      
+      // Add to category totals
+      const count = device.count;
+      categoryData[category].total += count;
+      
+      if (device.status === 'In Stock') categoryData[category].in_stock += count;
+      else if (device.status === 'Dispatched') categoryData[category].dispatched += count;
+      else if (device.status === 'Quality Check') categoryData[category].quality_check += count;
+      else if (device.status === 'Defective') categoryData[category].defective += count;
+      
+      // Track individual models
+      if (!categoryData[category].models[device.model_name]) {
+        categoryData[category].models[device.model_name] = {
+          model_name: device.model_name,
+          in_stock: 0,
+          dispatched: 0,
+          quality_check: 0,
+          defective: 0,
+          total: 0
+        };
+      }
+      
+      categoryData[category].models[device.model_name].total += count;
+      if (device.status === 'In Stock') categoryData[category].models[device.model_name].in_stock += count;
+      else if (device.status === 'Dispatched') categoryData[category].models[device.model_name].dispatched += count;
+      else if (device.status === 'Quality Check') categoryData[category].models[device.model_name].quality_check += count;
+      else if (device.status === 'Defective') categoryData[category].models[device.model_name].defective += count;
+    });
+    
+    // Convert to array and sort by total
+    const result = Object.values(categoryData).map(cat => ({
+      ...cat,
+      models: Object.values(cat.models).sort((a, b) => b.total - a.total)
+    })).sort((a, b) => b.total - a.total);
+    
+    return c.json({ success: true, data: result });
   } catch (error) {
     console.error('Model-wise report error:', error);
     return c.json({ success: false, error: 'Failed to fetch model-wise report' }, 500);
   }
 });
 
-// Get dispatch summary report
+// Get dispatch summary report (from sales table)
 app.get('/api/dispatch/summary', async (c) => {
   const { env } = c;
   
   try {
-    // Get all orders with dispatch counts
-    const orders = await env.DB.prepare(`
+    // Get all sales/orders with their items and dispatch counts
+    const salesQuery = await env.DB.prepare(`
       SELECT 
-        o.order_id,
-        o.customer_name,
-        o.company_name,
-        o.order_date,
-        o.total_items,
-        o.dispatch_status,
-        COUNT(DISTINCT d.id) as dispatched_items,
-        MAX(d.dispatch_date) as last_dispatch_date
-      FROM orders o
-      LEFT JOIN dispatch_records d ON o.order_id = d.order_id
-      GROUP BY o.order_id
-      ORDER BY o.order_date DESC
+        s.order_id,
+        s.customer_name,
+        s.company_name,
+        s.sale_date as order_date,
+        COUNT(DISTINCT si.id) as total_items
+      FROM sales s
+      LEFT JOIN sale_items si ON s.order_id = si.order_id
+      GROUP BY s.order_id
     `).all();
     
-    const ordersList = orders.results || [];
+    const salesList = salesQuery.results || [];
+    
+    // For each sale, get dispatch count
+    const ordersWithDispatch = [];
+    
+    for (const sale of salesList) {
+      const dispatchQuery = await env.DB.prepare(`
+        SELECT 
+          COUNT(*) as dispatched_items,
+          MAX(dispatch_date) as last_dispatch_date
+        FROM dispatch_records
+        WHERE order_id = ?
+      `).bind(sale.order_id).first();
+      
+      const dispatchedItems = dispatchQuery?.dispatched_items || 0;
+      const remaining = sale.total_items - dispatchedItems;
+      const dispatchStatus = remaining <= 0 ? 'Completed' : 'Pending';
+      
+      ordersWithDispatch.push({
+        order_id: sale.order_id,
+        customer_name: sale.customer_name,
+        company_name: sale.company_name,
+        order_date: sale.order_date,
+        total_items: sale.total_items,
+        dispatched_items: dispatchedItems,
+        dispatch_status: dispatchStatus,
+        last_dispatch_date: dispatchQuery?.last_dispatch_date
+      });
+    }
     
     // Calculate statistics
-    const totalOrders = ordersList.length;
-    const totalDispatched = ordersList.reduce((sum, o) => sum + (o.dispatched_items || 0), 0);
-    const completedOrders = ordersList.filter(o => o.dispatch_status === 'Completed').length;
-    const pendingOrders = ordersList.filter(o => o.dispatch_status === 'Pending').length;
+    const totalOrders = ordersWithDispatch.length;
+    const totalDispatched = ordersWithDispatch.reduce((sum, o) => sum + (o.dispatched_items || 0), 0);
+    const completedOrders = ordersWithDispatch.filter(o => o.dispatch_status === 'Completed').length;
+    const pendingOrders = ordersWithDispatch.filter(o => o.dispatch_status === 'Pending').length;
+    
+    // Sort by order date descending
+    ordersWithDispatch.sort((a, b) => new Date(b.order_date) - new Date(a.order_date));
     
     return c.json({ 
       success: true, 
@@ -2830,7 +2944,7 @@ app.get('/api/dispatch/summary', async (c) => {
         totalDispatched,
         completedOrders,
         pendingOrders,
-        orders: ordersList
+        orders: ordersWithDispatch
       }
     });
   } catch (error) {
@@ -10692,6 +10806,23 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
+            // Toggle category models visibility
+            function toggleCategoryModels(category) {
+                const categoryClass = category.replace(/\s+/g, '-');
+                const modelRows = document.querySelectorAll('.model-' + categoryClass);
+                const icon = document.getElementById('icon-' + categoryClass);
+                
+                modelRows.forEach(row => {
+                    if (row.style.display === 'none' || row.style.display === '') {
+                        row.style.display = 'table-row';
+                        icon.style.transform = 'rotate(90deg)';
+                    } else {
+                        row.style.display = 'none';
+                        icon.style.transform = 'rotate(0deg)';
+                    }
+                });
+            }
+            
             // Load inventory reports
             async function loadInventoryReports() {
                 try {
@@ -10768,26 +10899,62 @@ Prices are subject to change without prior notice.</textarea>
                         });
                     }
                     
-                    // Load model-wise report
+                    // Load model-wise report (category-based with expandable rows)
                     const modelResponse = await axios.get('/api/inventory/model-wise');
                     if (modelResponse.data.success) {
                         const tbody = document.getElementById('modelWiseTableBody');
-                        const modelData = modelResponse.data.data;
+                        const categoryData = modelResponse.data.data;
                         
-                        if (modelData.length === 0) {
+                        if (categoryData.length === 0) {
                             tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #9ca3af;">No inventory data available</td></tr>';
                         } else {
-                            tbody.innerHTML = modelData.map((model, index) => \`
-                                <tr>
-                                    <td style="font-weight: 600;">\${index + 1}</td>
-                                    <td style="font-weight: 600; color: #1f2937;">\${model.model_name}</td>
-                                    <td style="background: #d1fae5; font-weight: 700; color: #065f46;">\${model.in_stock || 0}</td>
-                                    <td style="background: #dbeafe; font-weight: 700; color: #1e40af;">\${model.dispatched || 0}</td>
-                                    <td style="background: #fef3c7; font-weight: 700; color: #92400e;">\${model.quality_check || 0}</td>
-                                    <td style="background: #fee2e2; font-weight: 700; color: #991b1b;">\${model.defective || 0}</td>
-                                    <td style="font-weight: 700; font-size: 15px; color: #1f2937;">\${model.total}</td>
-                                </tr>
-                            \`).join('');
+                            let html = '';
+                            let sno = 1;
+                            
+                            categoryData.forEach(category => {
+                                // Category row (clickable to expand/collapse)
+                                html += \`
+                                    <tr onclick="toggleCategoryModels('\${category.category}')" 
+                                        style="cursor: pointer; background: #f3f4f6; font-weight: 700; font-size: 14px;"
+                                        class="category-row">
+                                        <td style="padding: 15px 12px;">
+                                            <i class="fas fa-chevron-right" id="icon-\${category.category.replace(/\s+/g, '-')}" 
+                                               style="margin-right: 8px; transition: transform 0.3s;"></i>
+                                            <span style="color: #1f2937;">\${sno++}</span>
+                                        </td>
+                                        <td style="padding: 15px 12px; color: #374151;">
+                                            <i class="fas fa-box" style="margin-right: 8px; color: #667eea;"></i>
+                                            \${category.category}
+                                        </td>
+                                        <td style="background: #d1fae5; padding: 15px 12px; color: #065f46;">\${category.in_stock || 0}</td>
+                                        <td style="background: #dbeafe; padding: 15px 12px; color: #1e40af;">\${category.dispatched || 0}</td>
+                                        <td style="background: #fef3c7; padding: 15px 12px; color: #92400e;">\${category.quality_check || 0}</td>
+                                        <td style="background: #fee2e2; padding: 15px 12px; color: #991b1b;">\${category.defective || 0}</td>
+                                        <td style="padding: 15px 12px; font-size: 16px; color: #1f2937;">\${category.total}</td>
+                                    </tr>
+                                \`;
+                                
+                                // Model rows (hidden by default)
+                                category.models.forEach((model, modelIndex) => {
+                                    html += \`
+                                        <tr class="model-row model-\${category.category.replace(/\s+/g, '-')}" 
+                                            style="display: none; background: #fefefe; border-left: 4px solid #667eea;">
+                                            <td style="padding: 10px 12px 10px 40px; color: #9ca3af; font-size: 12px;"></td>
+                                            <td style="padding: 10px 12px; font-size: 13px; color: #6b7280;">
+                                                <i class="fas fa-minus" style="margin-right: 8px; font-size: 8px; color: #d1d5db;"></i>
+                                                \${model.model_name}
+                                            </td>
+                                            <td style="background: #ecfdf5; padding: 10px 12px; font-weight: 600; color: #059669; font-size: 13px;">\${model.in_stock || 0}</td>
+                                            <td style="background: #eff6ff; padding: 10px 12px; font-weight: 600; color: #2563eb; font-size: 13px;">\${model.dispatched || 0}</td>
+                                            <td style="background: #fffbeb; padding: 10px 12px; font-weight: 600; color: #d97706; font-size: 13px;">\${model.quality_check || 0}</td>
+                                            <td style="background: #fef2f2; padding: 10px 12px; font-weight: 600; color: #dc2626; font-size: 13px;">\${model.defective || 0}</td>
+                                            <td style="padding: 10px 12px; font-weight: 600; font-size: 14px; color: #374151;">\${model.total}</td>
+                                        </tr>
+                                    \`;
+                                });
+                            });
+                            
+                            tbody.innerHTML = html;
                         }
                     }
                     
