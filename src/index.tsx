@@ -2922,10 +2922,14 @@ app.get('/api/inventory/model-wise', async (c) => {
       if (device.status === 'In Stock') categoryData[category].in_stock += count;
       else if (device.status === 'Dispatched') categoryData[category].dispatched += count;
       
+      // Use lowercase key for grouping to handle case variations
+      // But preserve the original model_name for display (use first occurrence)
+      const modelKey = device.model_name.toLowerCase();
+      
       // Track individual models
-      if (!categoryData[category].models[device.model_name]) {
-        categoryData[category].models[device.model_name] = {
-          model_name: device.model_name,
+      if (!categoryData[category].models[modelKey]) {
+        categoryData[category].models[modelKey] = {
+          model_name: device.model_name, // Use first occurrence as display name
           in_stock: 0,
           dispatched: 0,
           qc_pass: 0,
@@ -2934,9 +2938,9 @@ app.get('/api/inventory/model-wise', async (c) => {
         };
       }
       
-      categoryData[category].models[device.model_name].total += count;
-      if (device.status === 'In Stock') categoryData[category].models[device.model_name].in_stock += count;
-      else if (device.status === 'Dispatched') categoryData[category].models[device.model_name].dispatched += count;
+      categoryData[category].models[modelKey].total += count;
+      if (device.status === 'In Stock') categoryData[category].models[modelKey].in_stock += count;
+      else if (device.status === 'Dispatched') categoryData[category].models[modelKey].dispatched += count;
     });
     
     // Now add QC counts to each model
