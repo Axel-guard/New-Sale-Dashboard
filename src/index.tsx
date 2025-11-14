@@ -2797,6 +2797,40 @@ app.get('/api/inventory/model-wise', async (c) => {
     
     const devices = allDevices.results || [];
     
+    // Get all QC data
+    const allQCData = await env.DB.prepare(`
+      SELECT 
+        test_results,
+        pass_fail
+      FROM quality_check
+      WHERE pass_fail IN ('QC Pass', 'Pass', 'QC Fail', 'Fail')
+    `).all();
+    
+    const qcRecords = allQCData.results || [];
+    
+    // Process QC data to count Pass/Fail by model
+    const qcCounts = {};
+    qcRecords.forEach(record => {
+      try {
+        const testResults = JSON.parse(record.test_results);
+        const deviceType = testResults.device_type;
+        
+        if (deviceType) {
+          if (!qcCounts[deviceType]) {
+            qcCounts[deviceType] = { pass: 0, fail: 0 };
+          }
+          
+          if (record.pass_fail === 'QC Pass' || record.pass_fail === 'Pass') {
+            qcCounts[deviceType].pass += 1;
+          } else if (record.pass_fail === 'QC Fail' || record.pass_fail === 'Fail') {
+            qcCounts[deviceType].fail += 1;
+          }
+        }
+      } catch (e) {
+        // Skip malformed JSON
+      }
+    });
+    
     // Category mapping function
     const getCategory = (modelName) => {
       const name = modelName.toLowerCase();
@@ -2833,6 +2867,36 @@ app.get('/api/inventory/model-wise', async (c) => {
       return 'Other product';
     };
     
+    // Helper function to find matching QC counts for a model
+    const getQCCountsForModel = (modelName) => {
+      // Try exact match first
+      if (qcCounts[modelName]) {
+        return qcCounts[modelName];
+      }
+      
+      // Try fuzzy match - find QC device type that closely matches model name
+      const modelLower = modelName.toLowerCase();
+      for (const [qcDeviceType, counts] of Object.entries(qcCounts)) {
+        const qcLower = qcDeviceType.toLowerCase();
+        
+        // Extract key model identifiers (e.g., "MR9704E", "MT95L")
+        const modelMatch = modelName.match(/\(([^)]+)\)/);
+        const qcMatch = qcDeviceType.match(/\(([^)]+)\)/);
+        
+        // If both have model codes in parentheses and they match
+        if (modelMatch && qcMatch && modelMatch[1] === qcMatch[1]) {
+          return counts;
+        }
+        
+        // Fallback: check if QC device type contains key parts of model name
+        if (qcLower.includes(modelLower.slice(0, 20)) || modelLower.includes(qcLower.slice(0, 20))) {
+          return counts;
+        }
+      }
+      
+      return { pass: 0, fail: 0 };
+    };
+    
     // Group by category and model
     const categoryData = {};
     
@@ -2844,8 +2908,8 @@ app.get('/api/inventory/model-wise', async (c) => {
           category,
           in_stock: 0,
           dispatched: 0,
-          quality_check: 0,
-          defective: 0,
+          qc_pass: 0,
+          qc_fail: 0,
           total: 0,
           models: {}
         };
@@ -2857,8 +2921,6 @@ app.get('/api/inventory/model-wise', async (c) => {
       
       if (device.status === 'In Stock') categoryData[category].in_stock += count;
       else if (device.status === 'Dispatched') categoryData[category].dispatched += count;
-      else if (device.status === 'Quality Check') categoryData[category].quality_check += count;
-      else if (device.status === 'Defective') categoryData[category].defective += count;
       
       // Track individual models
       if (!categoryData[category].models[device.model_name]) {
@@ -2866,8 +2928,8 @@ app.get('/api/inventory/model-wise', async (c) => {
           model_name: device.model_name,
           in_stock: 0,
           dispatched: 0,
-          quality_check: 0,
-          defective: 0,
+          qc_pass: 0,
+          qc_fail: 0,
           total: 0
         };
       }
@@ -2875,8 +2937,19 @@ app.get('/api/inventory/model-wise', async (c) => {
       categoryData[category].models[device.model_name].total += count;
       if (device.status === 'In Stock') categoryData[category].models[device.model_name].in_stock += count;
       else if (device.status === 'Dispatched') categoryData[category].models[device.model_name].dispatched += count;
-      else if (device.status === 'Quality Check') categoryData[category].models[device.model_name].quality_check += count;
-      else if (device.status === 'Defective') categoryData[category].models[device.model_name].defective += count;
+    });
+    
+    // Now add QC counts to each model
+    Object.values(categoryData).forEach(category => {
+      Object.values(category.models).forEach(model => {
+        const qcData = getQCCountsForModel(model.model_name);
+        model.qc_pass = qcData.pass;
+        model.qc_fail = qcData.fail;
+        
+        // Add to category totals
+        category.qc_pass += qcData.pass;
+        category.qc_fail += qcData.fail;
+      });
     });
     
     // Convert to array and sort by total
@@ -5021,7 +5094,7 @@ app.get('/', (c) => {
                     
                     <!-- Model-Wise Inventory Report -->
                     <div style="margin-bottom: 30px;">
-                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #1f2937;">
+                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #667eea;">
                             <i class="fas fa-box"></i> Model-Wise Inventory Report
                         </h3>
                         <div style="overflow-x: auto;">
@@ -5032,8 +5105,8 @@ app.get('/', (c) => {
                                         <th style="background: #1f2937;">Model Name</th>
                                         <th style="background: #10b981;">In Stock</th>
                                         <th style="background: #3b82f6;">Dispatched</th>
-                                        <th style="background: #f59e0b;">Quality Check</th>
-                                        <th style="background: #ef4444;">Defective</th>
+                                        <th style="background: #10b981;">QC Pass</th>
+                                        <th style="background: #ef4444;">QC Fail</th>
                                         <th style="background: #1f2937;">Total</th>
                                     </tr>
                                 </thead>
@@ -11287,8 +11360,8 @@ Prices are subject to change without prior notice.</textarea>
                                         </td>
                                         <td style="background: #d1fae5; padding: 15px 12px; color: #065f46;">\${category.in_stock || 0}</td>
                                         <td style="background: #dbeafe; padding: 15px 12px; color: #1e40af;">\${category.dispatched || 0}</td>
-                                        <td style="background: #fef3c7; padding: 15px 12px; color: #92400e;">\${category.quality_check || 0}</td>
-                                        <td style="background: #fee2e2; padding: 15px 12px; color: #991b1b;">\${category.defective || 0}</td>
+                                        <td style="background: #d1fae5; padding: 15px 12px; color: #065f46;">\${category.qc_pass || 0}</td>
+                                        <td style="background: #fee2e2; padding: 15px 12px; color: #991b1b;">\${category.qc_fail || 0}</td>
                                         <td style="padding: 15px 12px; font-size: 16px; color: #1f2937;">\${category.total}</td>
                                     </tr>
                                 \`;
@@ -11305,8 +11378,8 @@ Prices are subject to change without prior notice.</textarea>
                                             </td>
                                             <td style="background: #ecfdf5; padding: 10px 12px; font-weight: 600; color: #059669; font-size: 13px;">\${model.in_stock || 0}</td>
                                             <td style="background: #eff6ff; padding: 10px 12px; font-weight: 600; color: #2563eb; font-size: 13px;">\${model.dispatched || 0}</td>
-                                            <td style="background: #fffbeb; padding: 10px 12px; font-weight: 600; color: #d97706; font-size: 13px;">\${model.quality_check || 0}</td>
-                                            <td style="background: #fef2f2; padding: 10px 12px; font-weight: 600; color: #dc2626; font-size: 13px;">\${model.defective || 0}</td>
+                                            <td style="background: #ecfdf5; padding: 10px 12px; font-weight: 600; color: #059669; font-size: 13px;">\${model.qc_pass || 0}</td>
+                                            <td style="background: #fef2f2; padding: 10px 12px; font-weight: 600; color: #dc2626; font-size: 13px;">\${model.qc_fail || 0}</td>
                                             <td style="padding: 10px 12px; font-weight: 600; font-size: 14px; color: #374151;">\${model.total}</td>
                                         </tr>
                                     \`;
