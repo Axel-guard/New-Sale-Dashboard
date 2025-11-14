@@ -5101,13 +5101,13 @@ app.get('/', (c) => {
                             <table class="data-table">
                                 <thead>
                                     <tr>
-                                        <th style="background: #1f2937;">S.No</th>
-                                        <th style="background: #1f2937;">Model Name</th>
-                                        <th style="background: #10b981;">In Stock</th>
-                                        <th style="background: #3b82f6;">Dispatched</th>
-                                        <th style="background: #10b981;">QC Pass</th>
-                                        <th style="background: #ef4444;">QC Fail</th>
-                                        <th style="background: #1f2937;">Total</th>
+                                        <th style="background: #e0e7ff; color: #4338ca;">S.No</th>
+                                        <th style="background: #e0e7ff; color: #4338ca;">Model Name</th>
+                                        <th style="background: #d1fae5; color: #065f46;">In Stock</th>
+                                        <th style="background: #dbeafe; color: #1e40af;">Dispatched</th>
+                                        <th style="background: #d1fae5; color: #065f46;">QC Pass</th>
+                                        <th style="background: #fee2e2; color: #991b1b;">QC Fail</th>
+                                        <th style="background: #e0e7ff; color: #4338ca;">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody id="modelWiseTableBody">
@@ -11354,14 +11354,14 @@ Prices are subject to change without prior notice.</textarea>
                                                style="margin-right: 8px; transition: transform 0.3s;"></i>
                                             <span style="color: #1f2937;">\${sno++}</span>
                                         </td>
-                                        <td style="padding: 15px 12px; color: #374151;">
+                                        <td style="padding: 15px 12px; color: #374151; background: #f5f3ff;">
                                             <i class="fas fa-box" style="margin-right: 8px; color: #667eea;"></i>
                                             \${category.category}
                                         </td>
-                                        <td style="background: #d1fae5; padding: 15px 12px; color: #065f46;">\${category.in_stock || 0}</td>
-                                        <td style="background: #dbeafe; padding: 15px 12px; color: #1e40af;">\${category.dispatched || 0}</td>
-                                        <td style="background: #d1fae5; padding: 15px 12px; color: #065f46;">\${category.qc_pass || 0}</td>
-                                        <td style="background: #fee2e2; padding: 15px 12px; color: #991b1b;">\${category.qc_fail || 0}</td>
+                                        <td style="background: #ecfdf5; padding: 15px 12px; color: #047857;">\${category.in_stock || 0}</td>
+                                        <td style="background: #eff6ff; padding: 15px 12px; color: #1d4ed8;">\${category.dispatched || 0}</td>
+                                        <td style="background: #ecfdf5; padding: 15px 12px; color: #047857;">\${category.qc_pass || 0}</td>
+                                        <td style="background: #fef2f2; padding: 15px 12px; color: #dc2626;">\${category.qc_fail || 0}</td>
                                         <td style="padding: 15px 12px; font-size: 16px; color: #1f2937;">\${category.total}</td>
                                     </tr>
                                 \`;
@@ -11372,14 +11372,14 @@ Prices are subject to change without prior notice.</textarea>
                                         <tr class="model-row model-\${safeCategoryClass}" 
                                             style="display: none; background: #fefefe; border-left: 4px solid #667eea;">
                                             <td style="padding: 10px 12px 10px 40px; color: #9ca3af; font-size: 12px;"></td>
-                                            <td style="padding: 10px 12px; font-size: 13px; color: #6b7280;">
+                                            <td style="padding: 10px 12px; font-size: 13px; color: #6b7280; background: #faf5ff;">
                                                 <i class="fas fa-minus" style="margin-right: 8px; font-size: 8px; color: #d1d5db;"></i>
                                                 \${model.model_name}
                                             </td>
-                                            <td style="background: #ecfdf5; padding: 10px 12px; font-weight: 600; color: #059669; font-size: 13px;">\${model.in_stock || 0}</td>
-                                            <td style="background: #eff6ff; padding: 10px 12px; font-weight: 600; color: #2563eb; font-size: 13px;">\${model.dispatched || 0}</td>
-                                            <td style="background: #ecfdf5; padding: 10px 12px; font-weight: 600; color: #059669; font-size: 13px;">\${model.qc_pass || 0}</td>
-                                            <td style="background: #fef2f2; padding: 10px 12px; font-weight: 600; color: #dc2626; font-size: 13px;">\${model.qc_fail || 0}</td>
+                                            <td style="background: #f0fdf4; padding: 10px 12px; font-weight: 600; color: #15803d; font-size: 13px;">\${model.in_stock || 0}</td>
+                                            <td style="background: #f0f9ff; padding: 10px 12px; font-weight: 600; color: #0369a1; font-size: 13px;">\${model.dispatched || 0}</td>
+                                            <td style="background: #f0fdf4; padding: 10px 12px; font-weight: 600; color: #15803d; font-size: 13px;">\${model.qc_pass || 0}</td>
+                                            <td style="background: #fef8f8; padding: 10px 12px; font-weight: 600; color: #dc2626; font-size: 13px;">\${model.qc_fail || 0}</td>
                                             <td style="padding: 10px 12px; font-weight: 600; font-size: 14px; color: #374151;">\${model.total}</td>
                                         </tr>
                                     \`;
