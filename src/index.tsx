@@ -1079,6 +1079,366 @@ app.get('/api/leads/by-code/:customerCode', async (c) => {
   }
 });
 
+// ===== CUSTOMER DETAILS API ENDPOINTS =====
+
+// Get customer basic info from leads table (fallback to sales table if not in leads)
+app.get('/api/customer-details/basic/:query', async (c) => {
+  const { env } = c;
+  const query = c.req.param('query');
+  
+  try {
+    // Search by customer_code or mobile_number in leads table first
+    let customer = await env.DB.prepare(`
+      SELECT * FROM leads WHERE customer_code = ? LIMIT 1
+    `).bind(query).first();
+    
+    if (!customer) {
+      customer = await env.DB.prepare(`
+        SELECT * FROM leads WHERE mobile_number = ? LIMIT 1
+      `).bind(query).first();
+    }
+    
+    // If not found in leads, try sales table
+    if (!customer) {
+      const sale = await env.DB.prepare(`
+        SELECT DISTINCT customer_code, customer_name, customer_contact as mobile_number, company_name, created_at 
+        FROM sales 
+        WHERE customer_code = ? OR customer_contact = ?
+        LIMIT 1
+      `).bind(query, query).first();
+      
+      if (sale) {
+        customer = sale;
+      }
+    }
+    
+    if (!customer) {
+      return c.json({ success: false, error: 'Customer not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: customer });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch customer basic info' }, 500);
+  }
+});
+
+// Get customer full history (leads + sales + payments + quotations)
+app.get('/api/customer-details/history/:query', async (c) => {
+  const { env } = c;
+  const query = c.req.param('query');
+  
+  try {
+    // Get customer info from leads first
+    let customer = await env.DB.prepare(`
+      SELECT * FROM leads WHERE customer_code = ? LIMIT 1
+    `).bind(query).first();
+    
+    if (!customer) {
+      customer = await env.DB.prepare(`
+        SELECT * FROM leads WHERE mobile_number = ? LIMIT 1
+      `).bind(query).first();
+    }
+    
+    // Fallback to sales table if not in leads
+    if (!customer) {
+      const sale = await env.DB.prepare(`
+        SELECT DISTINCT customer_code, customer_name, customer_contact as mobile_number, company_name, created_at 
+        FROM sales 
+        WHERE customer_code = ? OR customer_contact = ?
+        LIMIT 1
+      `).bind(query, query).first();
+      
+      if (sale) {
+        customer = sale;
+      }
+    }
+    
+    if (!customer) {
+      return c.json({ success: false, error: 'Customer not found' }, 404);
+    }
+    
+    // Get all sales for this customer
+    const sales = await env.DB.prepare(`
+      SELECT s.*, 
+        (SELECT GROUP_CONCAT(si.product_name || ' (x' || si.quantity || ')', ', ')
+         FROM sale_items si WHERE si.sale_id = s.id) as products
+      FROM sales s
+      WHERE s.customer_code = ? OR s.customer_contact = ?
+      ORDER BY s.sale_date DESC
+    `).bind(customer.customer_code, customer.mobile_number).all();
+    
+    // Get all payments for this customer
+    const payments = await env.DB.prepare(`
+      SELECT ph.*, s.customer_name, s.company_name
+      FROM payment_history ph
+      LEFT JOIN sales s ON ph.order_id = s.order_id
+      WHERE s.customer_code = ? OR s.customer_contact = ?
+      ORDER BY ph.payment_date DESC
+    `).bind(customer.customer_code, customer.mobile_number).all();
+    
+    // Get all quotations for this customer
+    const quotations = await env.DB.prepare(`
+      SELECT q.*,
+        (SELECT GROUP_CONCAT(qi.item_name || ' (x' || qi.quantity || ')', ', ')
+         FROM quotation_items qi WHERE qi.quotation_number = q.quotation_number) as products
+      FROM quotations q
+      WHERE q.customer_code = ?
+      ORDER BY q.created_at DESC
+    `).bind(customer.customer_code).all();
+    
+    return c.json({
+      success: true,
+      data: {
+        customer,
+        sales: sales.results || [],
+        payments: payments.results || [],
+        quotations: quotations.results || [],
+        summary: {
+          total_sales: sales.results?.length || 0,
+          total_payments: payments.results?.length || 0,
+          total_quotations: quotations.results?.length || 0,
+          total_sale_amount: sales.results?.reduce((sum, s) => sum + (s.total_amount || 0), 0) || 0,
+          total_balance: sales.results?.reduce((sum, s) => sum + (s.balance_amount || 0), 0) || 0,
+          total_paid: payments.results?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching customer history:', error);
+    return c.json({ success: false, error: 'Failed to fetch customer history' }, 500);
+  }
+});
+
+// Get customer orders from sales table
+app.get('/api/customer-details/orders/:query', async (c) => {
+  const { env } = c;
+  const query = c.req.param('query');
+  
+  try {
+    // Get customer info first from leads
+    let customer = await env.DB.prepare(`
+      SELECT customer_code, mobile_number FROM leads WHERE customer_code = ? LIMIT 1
+    `).bind(query).first();
+    
+    if (!customer) {
+      customer = await env.DB.prepare(`
+        SELECT customer_code, mobile_number FROM leads WHERE mobile_number = ? LIMIT 1
+      `).bind(query).first();
+    }
+    
+    // Fallback to sales table if not in leads
+    if (!customer) {
+      const sale = await env.DB.prepare(`
+        SELECT DISTINCT customer_code, customer_contact as mobile_number 
+        FROM sales 
+        WHERE customer_code = ? OR customer_contact = ?
+        LIMIT 1
+      `).bind(query, query).first();
+      
+      if (sale) {
+        customer = sale;
+      }
+    }
+    
+    if (!customer) {
+      return c.json({ success: false, error: 'Customer not found' }, 404);
+    }
+    
+    // Get all sales with items
+    const sales = await env.DB.prepare(`
+      SELECT * FROM sales 
+      WHERE customer_code = ? OR customer_contact = ?
+      ORDER BY sale_date DESC
+    `).bind(customer.customer_code, customer.mobile_number).all();
+    
+    // Get items for each sale
+    const salesWithItems = [];
+    for (const sale of (sales.results || [])) {
+      const items = await env.DB.prepare(`
+        SELECT * FROM sale_items WHERE sale_id = ?
+      `).bind(sale.id).all();
+      
+      salesWithItems.push({
+        ...sale,
+        items: items.results || []
+      });
+    }
+    
+    return c.json({ success: true, data: salesWithItems });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch customer orders' }, 500);
+  }
+});
+
+// Get customer account ledger (payment in/out from payment_history)
+app.get('/api/customer-details/ledger/:query', async (c) => {
+  const { env } = c;
+  const query = c.req.param('query');
+  
+  try {
+    // Get customer info first from leads
+    let customer = await env.DB.prepare(`
+      SELECT customer_code, mobile_number, customer_name FROM leads WHERE customer_code = ? LIMIT 1
+    `).bind(query).first();
+    
+    if (!customer) {
+      customer = await env.DB.prepare(`
+        SELECT customer_code, mobile_number, customer_name FROM leads WHERE mobile_number = ? LIMIT 1
+      `).bind(query).first();
+    }
+    
+    // Fallback to sales table if not in leads
+    if (!customer) {
+      const sale = await env.DB.prepare(`
+        SELECT DISTINCT customer_code, customer_contact as mobile_number, customer_name 
+        FROM sales 
+        WHERE customer_code = ? OR customer_contact = ?
+        LIMIT 1
+      `).bind(query, query).first();
+      
+      if (sale) {
+        customer = sale;
+      }
+    }
+    
+    if (!customer) {
+      return c.json({ success: false, error: 'Customer not found' }, 404);
+    }
+    
+    // Get all sales for this customer to calculate total due
+    const sales = await env.DB.prepare(`
+      SELECT order_id, sale_date, total_amount, balance_amount, amount_received
+      FROM sales 
+      WHERE customer_code = ? OR customer_contact = ?
+      ORDER BY sale_date ASC
+    `).bind(customer.customer_code, customer.mobile_number).all();
+    
+    // Get all payments
+    const payments = await env.DB.prepare(`
+      SELECT ph.*, s.customer_name
+      FROM payment_history ph
+      LEFT JOIN sales s ON ph.order_id = s.order_id
+      WHERE s.customer_code = ? OR s.customer_contact = ?
+      ORDER BY ph.payment_date ASC
+    `).bind(customer.customer_code, customer.mobile_number).all();
+    
+    // Build ledger entries (combination of sales and payments)
+    const ledgerEntries = [];
+    let runningBalance = 0;
+    
+    // Combine and sort by date
+    const allTransactions = [];
+    
+    (sales.results || []).forEach(sale => {
+      allTransactions.push({
+        date: sale.sale_date,
+        type: 'sale',
+        order_id: sale.order_id,
+        description: 'Sale - ' + sale.order_id,
+        debit: sale.total_amount,
+        credit: sale.amount_received || 0,
+        balance: sale.balance_amount
+      });
+    });
+    
+    (payments.results || []).forEach(payment => {
+      allTransactions.push({
+        date: payment.payment_date,
+        type: 'payment',
+        order_id: payment.order_id,
+        description: 'Payment - ' + payment.order_id + (payment.payment_reference ? ' (' + payment.payment_reference + ')' : ''),
+        debit: 0,
+        credit: payment.amount,
+        balance: 0,
+        account: payment.account_received
+      });
+    });
+    
+    // Sort by date
+    allTransactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    // Calculate running balance
+    allTransactions.forEach(txn => {
+      runningBalance += txn.debit - txn.credit;
+      ledgerEntries.push({
+        ...txn,
+        running_balance: runningBalance
+      });
+    });
+    
+    // Calculate summary
+    const totalDebit = allTransactions.reduce((sum, t) => sum + t.debit, 0);
+    const totalCredit = allTransactions.reduce((sum, t) => sum + t.credit, 0);
+    const finalBalance = totalDebit - totalCredit;
+    
+    return c.json({
+      success: true,
+      data: {
+        customer,
+        ledger: ledgerEntries,
+        summary: {
+          total_debit: totalDebit,
+          total_credit: totalCredit,
+          final_balance: finalBalance
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching account ledger:', error);
+    return c.json({ success: false, error: 'Failed to fetch account ledger' }, 500);
+  }
+});
+
+// Get customer tickets (placeholder - will show message if no tickets table exists)
+app.get('/api/customer-details/tickets/:query', async (c) => {
+  const { env } = c;
+  const query = c.req.param('query');
+  
+  try {
+    // Get customer info first from leads
+    let customer = await env.DB.prepare(`
+      SELECT customer_code, mobile_number, customer_name FROM leads WHERE customer_code = ? LIMIT 1
+    `).bind(query).first();
+    
+    if (!customer) {
+      customer = await env.DB.prepare(`
+        SELECT customer_code, mobile_number, customer_name FROM leads WHERE mobile_number = ? LIMIT 1
+      `).bind(query).first();
+    }
+    
+    // Fallback to sales table if not in leads
+    if (!customer) {
+      const sale = await env.DB.prepare(`
+        SELECT DISTINCT customer_code, customer_contact as mobile_number, customer_name 
+        FROM sales 
+        WHERE customer_code = ? OR customer_contact = ?
+        LIMIT 1
+      `).bind(query, query).first();
+      
+      if (sale) {
+        customer = sale;
+      }
+    }
+    
+    if (!customer) {
+      return c.json({ success: false, error: 'Customer not found' }, 404);
+    }
+    
+    // For now, return empty tickets array (tickets table doesn't exist yet)
+    // When tickets table is created, this endpoint can be updated
+    return c.json({
+      success: true,
+      data: {
+        customer,
+        tickets: [],
+        message: 'Tickets feature coming soon'
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch tickets' }, 500);
+  }
+});
+
 // Get single sale by ID
 app.get('/api/sales/:orderId', async (c) => {
   const { env } = c;
@@ -4538,30 +4898,30 @@ app.get('/', (c) => {
                         </div>
                     </div>
                     
-                    <div id="customerDetailsResult" style="display: none;">
-                        <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                            <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">Customer Information</h3>
-                            <div id="customerInfo"></div>
+                    <!-- 5-Button Dropdown Menu (appears after customer found) -->
+                    <div id="customerActionButtons" style="display: none; margin-bottom: 20px;">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button type="button" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerBasicInfo()" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <i class="fas fa-user"></i> Basic
+                            </button>
+                            <button type="button" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerHistory()" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <i class="fas fa-history"></i> History
+                            </button>
+                            <button type="button" class="btn" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerOrders()" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <i class="fas fa-shopping-cart"></i> Orders
+                            </button>
+                            <button type="button" class="btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerLedger()" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <i class="fas fa-book"></i> Account Ledger
+                            </button>
+                            <button type="button" class="btn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerTickets()" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <i class="fas fa-ticket-alt"></i> Tickets
+                            </button>
                         </div>
-                        
-                        <div>
-                            <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">Sales History</h3>
-                            <div class="table-container">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Order ID</th>
-                                            <th>Date</th>
-                                            <th>Products</th>
-                                            <th>Total Amount</th>
-                                            <th>Balance</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="customerSalesTableBody">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                    </div>
+                    
+                    <!-- Content Display Area -->
+                    <div id="customerDetailsContent" style="display: none;">
+                        <!-- Dynamic content will be loaded here based on button clicked -->
                     </div>
                 </div>
             </div>
@@ -8627,6 +8987,9 @@ Prices are subject to change without prior notice.</textarea>
                 searchCustomerByCode(customerCode);
             }
             
+            // Store currently selected customer
+            let currentCustomerQuery = '';
+            
             async function searchCustomerByCode(customerCode) {
                 try {
                     const response = await axios.get('/api/leads?search=' + encodeURIComponent(customerCode));
@@ -8634,58 +8997,500 @@ Prices are subject to change without prior notice.</textarea>
                     
                     if (!leads || leads.length === 0) {
                         alert('No customer found');
+                        document.getElementById('customerActionButtons').style.display = 'none';
+                        document.getElementById('customerDetailsContent').style.display = 'none';
                         return;
                     }
                     
-                    const customer = leads[0];
+                    // Store the customer query for later use
+                    currentCustomerQuery = leads[0].customer_code || customerCode;
                     
-                    // Display customer info
-                    document.getElementById('customerInfo').innerHTML = 
-                        '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">' +
-                            '<div><strong>Customer Code:</strong> ' + (customer.customer_code || 'N/A') + '</div>' +
-                            '<div><strong>Name:</strong> ' + customer.customer_name + '</div>' +
-                            '<div><strong>Mobile:</strong> ' + customer.mobile_number + '</div>' +
-                            '<div><strong>Alternate Mobile:</strong> ' + (customer.alternate_mobile || 'N/A') + '</div>' +
-                            '<div><strong>Company:</strong> ' + (customer.company_name || 'N/A') + '</div>' +
-                            '<div><strong>Email:</strong> ' + (customer.email || 'N/A') + '</div>' +
-                            '<div><strong>Location:</strong> ' + (customer.location || 'N/A') + '</div>' +
-                            '<div><strong>GST:</strong> ' + (customer.gst_number || 'N/A') + '</div>' +
-                        '</div>';
+                    // Show the 5-button menu
+                    document.getElementById('customerActionButtons').style.display = 'block';
+                    document.getElementById('customerDetailsContent').style.display = 'none';
                     
-                    // Fetch sales for this customer
-                    const salesResponse = await axios.get('/api/sales/current-month?page=1&limit=1000');
-                    const allSales = salesResponse.data.data;
-                    
-                    // Filter sales by customer code or mobile
-                    const customerSales = allSales.filter(sale => 
-                        sale.customer_code === customer.customer_code || 
-                        sale.customer_contact === customer.mobile_number
-                    );
-                    
-                    // Display sales
-                    const tbody = document.getElementById('customerSalesTableBody');
-                    if (customerSales.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No sales found for this customer</td></tr>';
-                    } else {
-                        tbody.innerHTML = customerSales.map(sale => {
-                            const items = sale.items || [];
-                            const products = items.length > 0 
-                                ? items.map(item => item.product_name + ' (x' + item.quantity + ')').join(', ')
-                                : 'No products';
-                            
-                            return '<tr>' +
-                                '<td><strong>' + sale.order_id + '</strong></td>' +
-                                '<td>' + new Date(sale.sale_date).toLocaleDateString() + '</td>' +
-                                '<td><small>' + products + '</small></td>' +
-                                '<td>₹' + sale.total_amount.toLocaleString() + '</td>' +
-                                '<td>' + (sale.balance_amount > 0 ? '<span style="color: #dc2626;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>') + '</td>' +
-                            '</tr>';
-                        }).join('');
-                    }
-                    
-                    document.getElementById('customerDetailsResult').style.display = 'block';
                 } catch (error) {
                     console.error('Error loading customer:', error);
+                    alert('Error loading customer');
+                }
+            }
+            
+            // Button 1: Basic Info
+            async function showCustomerBasicInfo() {
+                if (!currentCustomerQuery) {
+                    alert('Please search for a customer first');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get('/api/customer-details/basic/' + encodeURIComponent(currentCustomerQuery));
+                    if (!response.data.success) {
+                        alert('Customer not found');
+                        return;
+                    }
+                    
+                    const customer = response.data.data;
+                    
+                    const content = '<div style="background: #f9fafb; padding: 20px; border-radius: 8px;">' +
+                        '<h3 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1f2937; border-bottom: 2px solid #667eea; padding-bottom: 10px;">' +
+                            '<i class="fas fa-user" style="color: #667eea; margin-right: 10px;"></i>Customer Basic Information' +
+                        '</h3>' +
+                        '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Customer Code</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.customer_code || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Customer Name</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.customer_name || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Mobile Number</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.mobile_number || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Alternate Mobile</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.alternate_mobile || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Company Name</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.company_name || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Email</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.email || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Location</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.location || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">GST Number</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.gst_number || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); grid-column: 1 / -1;">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Complete Address</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.complete_address || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Status</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.status || 'N/A') + '</div>' +
+                            '</div>' +
+                            '<div style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Created At</div>' +
+                                '<div style="font-size: 16px; font-weight: 600; color: #1f2937;">' + (customer.created_at ? new Date(customer.created_at).toLocaleDateString() : 'N/A') + '</div>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                    
+                    document.getElementById('customerDetailsContent').innerHTML = content;
+                    document.getElementById('customerDetailsContent').style.display = 'block';
+                } catch (error) {
+                    console.error('Error fetching basic info:', error);
+                    alert('Error loading basic information');
+                }
+            }
+            
+            // Button 2: Full History
+            async function showCustomerHistory() {
+                if (!currentCustomerQuery) {
+                    alert('Please search for a customer first');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get('/api/customer-details/history/' + encodeURIComponent(currentCustomerQuery));
+                    if (!response.data.success) {
+                        alert('Customer not found');
+                        return;
+                    }
+                    
+                    const data = response.data.data;
+                    const customer = data.customer;
+                    const sales = data.sales;
+                    const payments = data.payments;
+                    const quotations = data.quotations;
+                    const summary = data.summary;
+                    
+                    let content = '<div style="background: #f9fafb; padding: 20px; border-radius: 8px;">' +
+                        '<h3 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1f2937; border-bottom: 2px solid #10b981; padding-bottom: 10px;">' +
+                            '<i class="fas fa-history" style="color: #10b981; margin-right: 10px;"></i>Customer Full History' +
+                        '</h3>' +
+                        
+                        // Summary Cards
+                        '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">' +
+                            '<div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Sales</div>' +
+                                '<div style="font-size: 28px; font-weight: 700;">' + summary.total_sales + '</div>' +
+                                '<div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">₹' + (summary.total_sale_amount || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Paid</div>' +
+                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_paid || 0).toLocaleString() + '</div>' +
+                                '<div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">' + summary.total_payments + ' payments</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Balance Due</div>' +
+                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_balance || 0).toLocaleString() + '</div>' +
+                                '<div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">' + summary.total_quotations + ' quotations</div>' +
+                            '</div>' +
+                        '</div>' +
+                        
+                        // Recent Sales
+                        '<div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937;">Recent Sales</h4>';
+                    
+                    if (sales.length === 0) {
+                        content += '<p style="color: #6b7280; text-align: center; padding: 20px;">No sales found</p>';
+                    } else {
+                        content += '<div class="table-container"><table>' +
+                            '<thead><tr>' +
+                                '<th>Order ID</th>' +
+                                '<th>Date</th>' +
+                                '<th>Products</th>' +
+                                '<th>Total Amount</th>' +
+                                '<th>Paid</th>' +
+                                '<th>Balance</th>' +
+                            '</tr></thead><tbody>';
+                        
+                        sales.slice(0, 10).forEach(sale => {
+                            content += '<tr>' +
+                                '<td><strong>' + sale.order_id + '</strong></td>' +
+                                '<td>' + new Date(sale.sale_date).toLocaleDateString() + '</td>' +
+                                '<td><small>' + (sale.products || 'N/A') + '</small></td>' +
+                                '<td>₹' + (sale.total_amount || 0).toLocaleString() + '</td>' +
+                                '<td>₹' + (sale.amount_received || 0).toLocaleString() + '</td>' +
+                                '<td>' + (sale.balance_amount > 0 ? '<span style="color: #dc2626;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span style="color: #10b981;">Paid</span>') + '</td>' +
+                            '</tr>';
+                        });
+                        
+                        content += '</tbody></table></div>';
+                    }
+                    
+                    content += '</div>' +
+                        
+                        // Recent Payments
+                        '<div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937;">Recent Payments</h4>';
+                    
+                    if (payments.length === 0) {
+                        content += '<p style="color: #6b7280; text-align: center; padding: 20px;">No payments found</p>';
+                    } else {
+                        content += '<div class="table-container"><table>' +
+                            '<thead><tr>' +
+                                '<th>Order ID</th>' +
+                                '<th>Date</th>' +
+                                '<th>Amount</th>' +
+                                '<th>Account</th>' +
+                                '<th>Reference</th>' +
+                            '</tr></thead><tbody>';
+                        
+                        payments.slice(0, 10).forEach(payment => {
+                            content += '<tr>' +
+                                '<td><strong>' + payment.order_id + '</strong></td>' +
+                                '<td>' + new Date(payment.payment_date).toLocaleDateString() + '</td>' +
+                                '<td><span style="color: #10b981; font-weight: 600;">₹' + (payment.amount || 0).toLocaleString() + '</span></td>' +
+                                '<td>' + (payment.account_received || 'N/A') + '</td>' +
+                                '<td>' + (payment.payment_reference || 'N/A') + '</td>' +
+                            '</tr>';
+                        });
+                        
+                        content += '</tbody></table></div>';
+                    }
+                    
+                    content += '</div>' +
+                        
+                        // Quotations
+                        '<div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937;">Quotations</h4>';
+                    
+                    if (quotations.length === 0) {
+                        content += '<p style="color: #6b7280; text-align: center; padding: 20px;">No quotations found</p>';
+                    } else {
+                        content += '<div class="table-container"><table>' +
+                            '<thead><tr>' +
+                                '<th>Quotation #</th>' +
+                                '<th>Date</th>' +
+                                '<th>Products</th>' +
+                                '<th>Total Amount</th>' +
+                            '</tr></thead><tbody>';
+                        
+                        quotations.slice(0, 10).forEach(quot => {
+                            content += '<tr>' +
+                                '<td><strong>Q-' + quot.id + '</strong></td>' +
+                                '<td>' + new Date(quot.quotation_date).toLocaleDateString() + '</td>' +
+                                '<td><small>' + (quot.products || 'N/A') + '</small></td>' +
+                                '<td>₹' + (quot.total_amount || 0).toLocaleString() + '</td>' +
+                            '</tr>';
+                        });
+                        
+                        content += '</tbody></table></div>';
+                    }
+                    
+                    content += '</div></div>';
+                    
+                    document.getElementById('customerDetailsContent').innerHTML = content;
+                    document.getElementById('customerDetailsContent').style.display = 'block';
+                } catch (error) {
+                    console.error('Error fetching history:', error);
+                    alert('Error loading customer history');
+                }
+            }
+            
+            // Button 3: Orders
+            async function showCustomerOrders() {
+                if (!currentCustomerQuery) {
+                    alert('Please search for a customer first');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get('/api/customer-details/orders/' + encodeURIComponent(currentCustomerQuery));
+                    if (!response.data.success) {
+                        alert('Customer not found');
+                        return;
+                    }
+                    
+                    const orders = response.data.data;
+                    
+                    let content = '<div style="background: #f9fafb; padding: 20px; border-radius: 8px;">' +
+                        '<h3 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">' +
+                            '<i class="fas fa-shopping-cart" style="color: #3b82f6; margin-right: 10px;"></i>Complete Order Details' +
+                        '</h3>';
+                    
+                    if (orders.length === 0) {
+                        content += '<p style="color: #6b7280; text-align: center; padding: 40px;">No orders found for this customer</p>';
+                    } else {
+                        orders.forEach((order, idx) => {
+                            const items = order.items || [];
+                            
+                            content += '<div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">' +
+                                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">' +
+                                    '<div>' +
+                                        '<div style="font-size: 18px; font-weight: 700; color: #1f2937;">Order #' + order.order_id + '</div>' +
+                                        '<div style="font-size: 13px; color: #6b7280; margin-top: 3px;">Date: ' + new Date(order.sale_date).toLocaleDateString() + '</div>' +
+                                    '</div>' +
+                                    '<div style="text-align: right;">' +
+                                        '<div style="font-size: 13px; color: #6b7280;">Employee</div>' +
+                                        '<div style="font-size: 14px; font-weight: 600; color: #1f2937;">' + order.employee_name + '</div>' +
+                                    '</div>' +
+                                '</div>' +
+                                
+                                '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">' +
+                                    '<div>' +
+                                        '<div style="font-size: 12px; color: #6b7280;">Customer</div>' +
+                                        '<div style="font-size: 14px; font-weight: 600; color: #1f2937;">' + order.customer_name + '</div>' +
+                                    '</div>' +
+                                    '<div>' +
+                                        '<div style="font-size: 12px; color: #6b7280;">Company</div>' +
+                                        '<div style="font-size: 14px; font-weight: 600; color: #1f2937;">' + (order.company_name || 'N/A') + '</div>' +
+                                    '</div>' +
+                                    '<div>' +
+                                        '<div style="font-size: 12px; color: #6b7280;">Sale Type</div>' +
+                                        '<div style="font-size: 14px; font-weight: 600; color: #1f2937;">' + order.sale_type + '</div>' +
+                                    '</div>' +
+                                    '<div>' +
+                                        '<div style="font-size: 12px; color: #6b7280;">Courier Cost</div>' +
+                                        '<div style="font-size: 14px; font-weight: 600; color: #1f2937;">₹' + (order.courier_cost || 0).toLocaleString() + '</div>' +
+                                    '</div>' +
+                                '</div>' +
+                                
+                                '<div style="background: #f9fafb; padding: 12px; border-radius: 6px; margin-bottom: 15px;">' +
+                                    '<div style="font-size: 13px; font-weight: 600; color: #1f2937; margin-bottom: 10px;">Products:</div>' +
+                                    '<div class="table-container"><table style="font-size: 13px;">' +
+                                        '<thead><tr>' +
+                                            '<th style="padding: 8px;">Product</th>' +
+                                            '<th style="padding: 8px;">Quantity</th>' +
+                                            '<th style="padding: 8px;">Unit Price</th>' +
+                                            '<th style="padding: 8px;">Total</th>' +
+                                        '</tr></thead><tbody>';
+                            
+                            items.forEach(item => {
+                                content += '<tr>' +
+                                    '<td style="padding: 8px;">' + item.product_name + '</td>' +
+                                    '<td style="padding: 8px;">' + item.quantity + '</td>' +
+                                    '<td style="padding: 8px;">₹' + (item.unit_price || 0).toLocaleString() + '</td>' +
+                                    '<td style="padding: 8px; font-weight: 600;">₹' + (item.total_price || 0).toLocaleString() + '</td>' +
+                                '</tr>';
+                            });
+                            
+                            content += '</tbody></table></div>' +
+                                '</div>' +
+                                
+                                '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; background: #f3f4f6; padding: 15px; border-radius: 6px;">' +
+                                    '<div style="text-align: right; font-size: 14px; color: #6b7280;">Subtotal:</div>' +
+                                    '<div style="font-size: 14px; font-weight: 600; color: #1f2937;">₹' + (order.subtotal || 0).toLocaleString() + '</div>' +
+                                    
+                                    '<div style="text-align: right; font-size: 14px; color: #6b7280;">GST:</div>' +
+                                    '<div style="font-size: 14px; font-weight: 600; color: #1f2937;">₹' + (order.gst_amount || 0).toLocaleString() + '</div>' +
+                                    
+                                    '<div style="text-align: right; font-size: 16px; font-weight: 600; color: #1f2937; border-top: 2px solid #d1d5db; padding-top: 10px;">Total:</div>' +
+                                    '<div style="font-size: 16px; font-weight: 700; color: #1f2937; border-top: 2px solid #d1d5db; padding-top: 10px;">₹' + (order.total_amount || 0).toLocaleString() + '</div>' +
+                                    
+                                    '<div style="text-align: right; font-size: 14px; color: #10b981;">Received:</div>' +
+                                    '<div style="font-size: 14px; font-weight: 600; color: #10b981;">₹' + (order.amount_received || 0).toLocaleString() + '</div>' +
+                                    
+                                    '<div style="text-align: right; font-size: 14px; ' + (order.balance_amount > 0 ? 'color: #dc2626;' : 'color: #10b981;') + '">Balance:</div>' +
+                                    '<div style="font-size: 14px; font-weight: 600; ' + (order.balance_amount > 0 ? 'color: #dc2626;' : 'color: #10b981;') + '">₹' + (order.balance_amount || 0).toLocaleString() + '</div>' +
+                                '</div>' +
+                                
+                                (order.remarks ? '<div style="margin-top: 10px; padding: 10px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;"><strong>Remarks:</strong> ' + order.remarks + '</div>' : '') +
+                                
+                            '</div>';
+                        });
+                    }
+                    
+                    content += '</div>';
+                    
+                    document.getElementById('customerDetailsContent').innerHTML = content;
+                    document.getElementById('customerDetailsContent').style.display = 'block';
+                } catch (error) {
+                    console.error('Error fetching orders:', error);
+                    alert('Error loading customer orders');
+                }
+            }
+            
+            // Button 4: Account Ledger
+            async function showCustomerLedger() {
+                if (!currentCustomerQuery) {
+                    alert('Please search for a customer first');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get('/api/customer-details/ledger/' + encodeURIComponent(currentCustomerQuery));
+                    if (!response.data.success) {
+                        alert('Customer not found');
+                        return;
+                    }
+                    
+                    const data = response.data.data;
+                    const customer = data.customer;
+                    const ledger = data.ledger;
+                    const summary = data.summary;
+                    
+                    let content = '<div style="background: #f9fafb; padding: 20px; border-radius: 8px;">' +
+                        '<h3 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1f2937; border-bottom: 2px solid #f59e0b; padding-bottom: 10px;">' +
+                            '<i class="fas fa-book" style="color: #f59e0b; margin-right: 10px;"></i>Account Ledger - ' + customer.customer_name +
+                        '</h3>' +
+                        
+                        // Summary Cards
+                        '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">' +
+                            '<div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Debit (Sales)</div>' +
+                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_debit || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Credit (Payments)</div>' +
+                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_credit || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Final Balance</div>' +
+                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.final_balance || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        
+                        // Ledger Table
+                        '<div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937;">Transaction History</h4>';
+                    
+                    if (ledger.length === 0) {
+                        content += '<p style="color: #6b7280; text-align: center; padding: 40px;">No transactions found</p>';
+                    } else {
+                        content += '<div class="table-container"><table>' +
+                            '<thead><tr>' +
+                                '<th>Date</th>' +
+                                '<th>Order ID</th>' +
+                                '<th>Description</th>' +
+                                '<th>Debit (Dr.)</th>' +
+                                '<th>Credit (Cr.)</th>' +
+                                '<th>Balance</th>' +
+                            '</tr></thead><tbody>';
+                        
+                        ledger.forEach(entry => {
+                            content += '<tr style="' + (entry.type === 'sale' ? 'background: #fef2f2;' : 'background: #f0fdf4;') + '">' +
+                                '<td>' + new Date(entry.date).toLocaleDateString() + '</td>' +
+                                '<td><strong>' + entry.order_id + '</strong></td>' +
+                                '<td>' + entry.description + (entry.account ? '<br><small style="color: #6b7280;">' + entry.account + '</small>' : '') + '</td>' +
+                                '<td>' + (entry.debit > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + entry.debit.toLocaleString() + '</span>' : '-') + '</td>' +
+                                '<td>' + (entry.credit > 0 ? '<span style="color: #10b981; font-weight: 600;">₹' + entry.credit.toLocaleString() + '</span>' : '-') + '</td>' +
+                                '<td style="font-weight: 600; ' + (entry.running_balance > 0 ? 'color: #f59e0b;' : 'color: #10b981;') + '">₹' + entry.running_balance.toLocaleString() + '</td>' +
+                            '</tr>';
+                        });
+                        
+                        content += '</tbody></table></div>';
+                    }
+                    
+                    content += '</div></div>';
+                    
+                    document.getElementById('customerDetailsContent').innerHTML = content;
+                    document.getElementById('customerDetailsContent').style.display = 'block';
+                } catch (error) {
+                    console.error('Error fetching ledger:', error);
+                    alert('Error loading account ledger');
+                }
+            }
+            
+            // Button 5: Tickets
+            async function showCustomerTickets() {
+                if (!currentCustomerQuery) {
+                    alert('Please search for a customer first');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get('/api/customer-details/tickets/' + encodeURIComponent(currentCustomerQuery));
+                    if (!response.data.success) {
+                        alert('Customer not found');
+                        return;
+                    }
+                    
+                    const data = response.data.data;
+                    const customer = data.customer;
+                    const tickets = data.tickets;
+                    const message = data.message;
+                    
+                    let content = '<div style="background: #f9fafb; padding: 20px; border-radius: 8px;">' +
+                        '<h3 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1f2937; border-bottom: 2px solid #ef4444; padding-bottom: 10px;">' +
+                            '<i class="fas fa-ticket-alt" style="color: #ef4444; margin-right: 10px;"></i>Customer Tickets - ' + customer.customer_name +
+                        '</h3>';
+                    
+                    if (tickets.length === 0) {
+                        content += '<div style="background: white; padding: 40px; border-radius: 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
+                            '<i class="fas fa-ticket-alt" style="font-size: 48px; color: #d1d5db; margin-bottom: 15px;"></i>' +
+                            '<p style="color: #6b7280; font-size: 16px;">' + (message || 'No tickets found for this customer') + '</p>' +
+                        '</div>';
+                    } else {
+                        // When tickets table exists, this will display ticket data
+                        content += '<div class="table-container"><table>' +
+                            '<thead><tr>' +
+                                '<th>Ticket ID</th>' +
+                                '<th>Date</th>' +
+                                '<th>Subject</th>' +
+                                '<th>Status</th>' +
+                                '<th>Priority</th>' +
+                            '</tr></thead><tbody>';
+                        
+                        tickets.forEach(ticket => {
+                            content += '<tr>' +
+                                '<td><strong>' + ticket.id + '</strong></td>' +
+                                '<td>' + new Date(ticket.created_at).toLocaleDateString() + '</td>' +
+                                '<td>' + ticket.subject + '</td>' +
+                                '<td>' + ticket.status + '</td>' +
+                                '<td>' + ticket.priority + '</td>' +
+                            '</tr>';
+                        });
+                        
+                        content += '</tbody></table></div>';
+                    }
+                    
+                    content += '</div>';
+                    
+                    document.getElementById('customerDetailsContent').innerHTML = content;
+                    document.getElementById('customerDetailsContent').style.display = 'block';
+                } catch (error) {
+                    console.error('Error fetching tickets:', error);
+                    alert('Error loading customer tickets');
                 }
             }
             
