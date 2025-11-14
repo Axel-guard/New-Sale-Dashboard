@@ -2835,16 +2835,23 @@ app.get('/api/inventory/model-wise', async (c) => {
     const getCategory = (modelName) => {
       const name = modelName.toLowerCase();
       
-      // Check for specific patterns
+      // Check for specific patterns - ORDER MATTERS!
+      // Check dashcam FIRST before camera (dashcam contains "camera" word)
+      // Also handle typo: "dahscam" (without 's')
+      if (name.includes('dashcam') || name.includes('dash cam') || name.includes('dahscam')) {
+        return 'Dashcam';
+      }
+      
+      // Check MDVR BEFORE camera (some MDVRs have "camera" in name like "MDVR IP Camera")
       if (name.includes('mdvr') && !name.includes('cable') && !name.includes('box') && !name.includes('remote') && !name.includes('panic') && !name.includes('server') && !name.includes('maintenance') && !name.includes('adaptor') && !name.includes('sensor') && !name.includes('alcohol') && !name.includes('vga')) {
         return 'MDVR';
       }
-      if (name.includes('dashcam') || name.includes('dash cam')) {
-        return 'Dashcam';
-      }
-      if ((name.includes('camera') || name.includes('ptz')) && !name.includes('dashcam')) {
+      
+      // Check camera LAST (after dashcam and MDVR are excluded)
+      if (name.includes('camera') || name.includes('ptz')) {
         return 'Cameras';
       }
+      
       if (name.includes('monitor')) {
         return 'Monitor & Monitor Kit';
       }
@@ -11365,8 +11372,8 @@ Prices are subject to change without prior notice.</textarea>
                                 const safeCategoryClass = category.category.replace(/[^a-zA-Z0-9]/g, '-');
                                 const escapedCategory = category.category.replace(/'/g, "\\'");
                                 
-                                // Check if category has low inventory
-                                const categoryLowStock = category.in_stock < 20;
+                                // Check if category has low inventory (threshold: 15)
+                                const categoryLowStock = category.in_stock < 15;
                                 const categoryStockStyle = categoryLowStock 
                                     ? 'background: #fee2e2; padding: 15px 12px; color: #dc2626; font-weight: 700;' 
                                     : 'background: #ecfdf5; padding: 15px 12px; color: #047857;';
@@ -11398,8 +11405,8 @@ Prices are subject to change without prior notice.</textarea>
                                 
                                 // Model rows (hidden by default)
                                 category.models.forEach((model, modelIndex) => {
-                                    // Check if model has low inventory
-                                    const modelLowStock = model.in_stock < 20;
+                                    // Check if model has low inventory (threshold: 15)
+                                    const modelLowStock = model.in_stock < 15;
                                     const modelStockStyle = modelLowStock 
                                         ? 'background: #fee2e2; padding: 10px 12px; font-weight: 700; color: #dc2626; font-size: 13px;' 
                                         : 'background: #f0fdf4; padding: 10px 12px; font-weight: 600; color: #15803d; font-size: 13px;';
