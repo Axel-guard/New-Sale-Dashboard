@@ -2952,11 +2952,11 @@ app.get('/api/inventory/model-wise', async (c) => {
       });
     });
     
-    // Convert to array and sort by total
+    // Convert to array and sort by category name (ascending)
     const result = Object.values(categoryData).map(cat => ({
       ...cat,
-      models: Object.values(cat.models).sort((a, b) => b.total - a.total)
-    })).sort((a, b) => b.total - a.total);
+      models: Object.values(cat.models).sort((a, b) => a.model_name.localeCompare(b.model_name))
+    })).sort((a, b) => a.category.localeCompare(b.category));
     
     return c.json({ success: true, data: result });
   } catch (error) {
@@ -11339,10 +11339,22 @@ Prices are subject to change without prior notice.</textarea>
                             let html = '';
                             let sno = 1;
                             
+                            // Sort categories in ascending order by category name
+                            categoryData.sort((a, b) => a.category.localeCompare(b.category));
+                            
                             categoryData.forEach(category => {
+                                // Sort models within each category in ascending order by model name
+                                category.models.sort((a, b) => a.model_name.localeCompare(b.model_name));
+                                
                                 // Create safe class name by removing all special characters
                                 const safeCategoryClass = category.category.replace(/[^a-zA-Z0-9]/g, '-');
                                 const escapedCategory = category.category.replace(/'/g, "\\'");
+                                
+                                // Check if category has low inventory
+                                const categoryLowStock = category.in_stock < 20;
+                                const categoryStockStyle = categoryLowStock 
+                                    ? 'background: #fee2e2; padding: 15px 12px; color: #dc2626; font-weight: 700;' 
+                                    : 'background: #ecfdf5; padding: 15px 12px; color: #047857;';
                                 
                                 // Category row (clickable to expand/collapse)
                                 html += \`
@@ -11358,7 +11370,10 @@ Prices are subject to change without prior notice.</textarea>
                                             <i class="fas fa-box" style="margin-right: 8px; color: #667eea;"></i>
                                             \${category.category}
                                         </td>
-                                        <td style="background: #ecfdf5; padding: 15px 12px; color: #047857;">\${category.in_stock || 0}</td>
+                                        <td style="\${categoryStockStyle}">
+                                            \${category.in_stock || 0}
+                                            \${categoryLowStock ? '<span style="margin-left: 5px; font-size: 11px;">⚠️ LOW</span>' : ''}
+                                        </td>
                                         <td style="background: #eff6ff; padding: 15px 12px; color: #1d4ed8;">\${category.dispatched || 0}</td>
                                         <td style="background: #ecfdf5; padding: 15px 12px; color: #047857;">\${category.qc_pass || 0}</td>
                                         <td style="background: #fef2f2; padding: 15px 12px; color: #dc2626;">\${category.qc_fail || 0}</td>
@@ -11368,6 +11383,12 @@ Prices are subject to change without prior notice.</textarea>
                                 
                                 // Model rows (hidden by default)
                                 category.models.forEach((model, modelIndex) => {
+                                    // Check if model has low inventory
+                                    const modelLowStock = model.in_stock < 20;
+                                    const modelStockStyle = modelLowStock 
+                                        ? 'background: #fee2e2; padding: 10px 12px; font-weight: 700; color: #dc2626; font-size: 13px;' 
+                                        : 'background: #f0fdf4; padding: 10px 12px; font-weight: 600; color: #15803d; font-size: 13px;';
+                                    
                                     html += \`
                                         <tr class="model-row model-\${safeCategoryClass}" 
                                             style="display: none; background: #fefefe; border-left: 4px solid #667eea;">
@@ -11376,7 +11397,10 @@ Prices are subject to change without prior notice.</textarea>
                                                 <i class="fas fa-minus" style="margin-right: 8px; font-size: 8px; color: #d1d5db;"></i>
                                                 \${model.model_name}
                                             </td>
-                                            <td style="background: #f0fdf4; padding: 10px 12px; font-weight: 600; color: #15803d; font-size: 13px;">\${model.in_stock || 0}</td>
+                                            <td style="\${modelStockStyle}">
+                                                \${model.in_stock || 0}
+                                                \${modelLowStock ? '<span style="margin-left: 5px; font-size: 10px;">⚠️ LOW STOCK</span>' : ''}
+                                            </td>
                                             <td style="background: #f0f9ff; padding: 10px 12px; font-weight: 600; color: #0369a1; font-size: 13px;">\${model.dispatched || 0}</td>
                                             <td style="background: #f0fdf4; padding: 10px 12px; font-weight: 600; color: #15803d; font-size: 13px;">\${model.qc_pass || 0}</td>
                                             <td style="background: #fef8f8; padding: 10px 12px; font-weight: 600; color: #dc2626; font-size: 13px;">\${model.qc_fail || 0}</td>
