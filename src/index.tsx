@@ -5835,6 +5835,19 @@ app.get('/', (c) => {
             </div>
         </div>
 
+        <!-- Order Details Modal (from Dispatch Summary) -->
+        <div class="modal" id="orderDetailsModal">
+            <div class="modal-content" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Order Details</h2>
+                    <span class="close" onclick="document.getElementById('orderDetailsModal').classList.remove('show')">&times;</span>
+                </div>
+                <div id="orderDetailsContent" style="padding: 20px;">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Edit Lead Modal -->
         <div class="modal" id="editLeadModal">
             <div class="modal-content">
@@ -11327,7 +11340,12 @@ Prices are subject to change without prior notice.</textarea>
                                 
                                 return \`
                                     <tr>
-                                        <td style="font-weight: 600; color: #667eea;">\${order.order_id}</td>
+                                        <td>
+                                            <a href="javascript:void(0)" onclick="viewOrderDetailsFromDispatch('\${order.order_id}')" 
+                                               style="font-weight: 600; color: #667eea; text-decoration: none; cursor: pointer;">
+                                                \${order.order_id}
+                                            </a>
+                                        </td>
                                         <td>\${order.customer_name || 'N/A'}</td>
                                         <td>\${new Date(order.order_date).toLocaleDateString('en-IN')}</td>
                                         <td style="font-weight: 700; font-size: 15px;">\${order.total_items}</td>
@@ -11368,6 +11386,167 @@ Prices are subject to change without prior notice.</textarea>
                     }
                 } catch (error) {
                     console.error('Error loading inventory reports:', error);
+                }
+            }
+            
+            // View Order Details from Dispatch Summary
+            async function viewOrderDetailsFromDispatch(orderId) {
+                try {
+                    // Show modal with loading state
+                    document.getElementById('orderDetailsModal').classList.add('show');
+                    document.getElementById('orderDetailsContent').innerHTML = '<div class="loading">Loading order details...</div>';
+                    
+                    // Fetch sale details
+                    const response = await axios.get('/api/sales/' + orderId);
+                    if (!response.data.success) {
+                        document.getElementById('orderDetailsContent').innerHTML = '<div style="color: #ef4444;">Error loading order details</div>';
+                        return;
+                    }
+                    
+                    const sale = response.data.data;
+                    
+                    // Create detailed view with split layout
+                    const modalHTML = \`
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <!-- Left Panel: Customer Details -->
+                            <div style="background: #f9fafb; padding: 20px; border-radius: 10px; border: 2px solid #e5e7eb;">
+                                <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">
+                                    <i class="fas fa-user"></i> Customer Information
+                                </h3>
+                                <div style="display: grid; gap: 12px;">
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Customer Name</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.customer_name || 'N/A'}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Company Name</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.company_name || 'N/A'}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Customer Code</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.customer_code || 'N/A'}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Contact Number</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.customer_contact || 'N/A'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Right Panel: Sale Details -->
+                            <div style="background: #f0f9ff; padding: 20px; border-radius: 10px; border: 2px solid #bfdbfe;">
+                                <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937; border-bottom: 2px solid #bfdbfe; padding-bottom: 10px;">
+                                    <i class="fas fa-file-invoice"></i> Sale Information
+                                </h3>
+                                <div style="display: grid; gap: 12px;">
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Order ID</div>
+                                        <div style="font-weight: 700; color: #667eea; font-size: 16px;">\${sale.order_id}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Sale Date</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${new Date(sale.sale_date).toLocaleDateString('en-IN')}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Employee</div>
+                                        <div style="font-weight: 600; color: #1f2937;">\${sale.employee_name}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Sale Type</div>
+                                        <div>
+                                            <span style="background: \${sale.sale_type === 'With' ? '#d1fae5' : '#fef3c7'}; color: \${sale.sale_type === 'With' ? '#065f46' : '#92400e'}; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                                                \${sale.sale_type === 'With' ? 'With GST' : 'Without GST'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Products Section -->
+                        <div style="margin-top: 20px; background: white; padding: 20px; border-radius: 10px; border: 2px solid #e5e7eb;">
+                            <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">
+                                <i class="fas fa-boxes"></i> Products Ordered
+                            </h3>
+                            <div id="orderProducts" style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="loading">Loading products...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Details -->
+                        <div style="margin-top: 20px; background: #fef3c7; padding: 20px; border-radius: 10px; border: 2px solid #fbbf24;">
+                            <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937; border-bottom: 2px solid #fbbf24; padding-bottom: 10px;">
+                                <i class="fas fa-money-bill-wave"></i> Payment Summary
+                            </h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Subtotal</div>
+                                    <div style="font-weight: 700; font-size: 18px; color: #1f2937;">₹\${parseFloat(sale.subtotal || 0).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Courier Cost</div>
+                                    <div style="font-weight: 700; font-size: 18px; color: #1f2937;">₹\${parseFloat(sale.courier_cost || 0).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">GST (18%)</div>
+                                    <div style="font-weight: 700; font-size: 18px; color: #1f2937;">₹\${parseFloat(sale.gst_amount || 0).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Total Amount</div>
+                                    <div style="font-weight: 700; font-size: 20px; color: #667eea;">₹\${parseFloat(sale.total_amount || 0).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Amount Received</div>
+                                    <div style="font-weight: 700; font-size: 18px; color: #10b981;">₹\${parseFloat(sale.amount_received || 0).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Balance Amount</div>
+                                    <div style="font-weight: 700; font-size: 18px; color: \${parseFloat(sale.balance_amount) > 0 ? '#ef4444' : '#10b981'};">
+                                        ₹\${parseFloat(sale.balance_amount || 0).toFixed(2)}
+                                    </div>
+                                </div>
+                            </div>
+                            \${sale.remarks ? \`
+                                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #fbbf24;">
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Remarks</div>
+                                    <div style="color: #1f2937;">\${sale.remarks}</div>
+                                </div>
+                            \` : ''}
+                        </div>
+                    \`;
+                    
+                    document.getElementById('orderDetailsContent').innerHTML = modalHTML;
+                    
+                    // Load products
+                    const itemsResponse = await axios.get('/api/sales/' + orderId + '/items');
+                    if (itemsResponse.data.success) {
+                        const items = itemsResponse.data.data;
+                        const productsHTML = items.map((item, index) => \`
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">\${index + 1}. \${item.product_name}</div>
+                                    <div style="font-size: 12px; color: #6b7280;">
+                                        Quantity: <span style="font-weight: 600; color: #3b82f6;">\${item.quantity}</span> × 
+                                        ₹\${parseFloat(item.unit_price).toFixed(2)}
+                                    </div>
+                                </div>
+                                <div style="font-weight: 700; font-size: 16px; color: #667eea;">
+                                    ₹\${(item.quantity * item.unit_price).toFixed(2)}
+                                </div>
+                            </div>
+                        \`).join('');
+                        
+                        document.getElementById('orderProducts').innerHTML = productsHTML || '<div style="color: #9ca3af;">No products found</div>';
+                    }
+                } catch (error) {
+                    console.error('Error loading order details:', error);
+                    document.getElementById('orderDetailsContent').innerHTML = \`
+                        <div style="color: #ef4444; padding: 20px; text-align: center;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 10px;"></i>
+                            <div style="font-weight: 600; margin-bottom: 5px;">Error Loading Order Details</div>
+                            <div style="font-size: 14px;">\${error.message}</div>
+                        </div>
+                    \`;
                 }
             }
             
