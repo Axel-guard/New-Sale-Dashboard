@@ -2780,6 +2780,38 @@ app.get('/api/inventory/activity', async (c) => {
   }
 });
 
+// Get QC Pass/Fail statistics from quality_check table
+app.get('/api/quality-check/stats', async (c) => {
+  const { env } = c;
+  
+  try {
+    const qcStats = await env.DB.prepare(`
+      SELECT 
+        pass_fail,
+        COUNT(*) as count
+      FROM quality_check
+      WHERE pass_fail IN ('QC Pass', 'Pass', 'QC Fail', 'Fail')
+      GROUP BY pass_fail
+    `).all();
+    
+    let qc_pass = 0;
+    let qc_fail = 0;
+    
+    (qcStats.results || []).forEach(stat => {
+      if (stat.pass_fail === 'QC Pass' || stat.pass_fail === 'Pass') {
+        qc_pass += stat.count;
+      } else if (stat.pass_fail === 'QC Fail' || stat.pass_fail === 'Fail') {
+        qc_fail += stat.count;
+      }
+    });
+    
+    return c.json({ success: true, qc_pass, qc_fail });
+  } catch (error) {
+    console.error('QC stats error:', error);
+    return c.json({ success: false, error: 'Failed to fetch QC statistics' }, 500);
+  }
+});
+
 // Get model-wise inventory report (category-based)
 app.get('/api/inventory/model-wise', async (c) => {
   const { env } = c;
@@ -5093,13 +5125,13 @@ app.get('/', (c) => {
                             <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Dispatched</div>
                             <div style="font-size: 32px; font-weight: bold;" id="statDispatched">0</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 12px; color: white;">
-                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Quality Check</div>
-                            <div style="font-size: 32px; font-weight: bold;" id="statQC">0</div>
+                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">QC Pass</div>
+                            <div style="font-size: 32px; font-weight: bold;" id="statQCPass">0</div>
                         </div>
                         <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 12px; color: white;">
-                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Defective</div>
-                            <div style="font-size: 32px; font-weight: bold;" id="statDefective">0</div>
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">QC Fail</div>
+                            <div style="font-size: 32px; font-weight: bold;" id="statQCFail">0</div>
                         </div>
                     </div>
                     
@@ -5151,13 +5183,19 @@ app.get('/', (c) => {
                                 <div style="font-size: 28px; font-weight: bold;" id="statTotalDispatched">0</div>
                             </div>
                             <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 15px; border-radius: 10px; color: white;">
-                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Completed Orders</div>
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Completed Dispatch</div>
                                 <div style="font-size: 28px; font-weight: bold;" id="statCompletedOrders">0</div>
                             </div>
                             <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 15px; border-radius: 10px; color: white;">
-                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Pending Orders</div>
+                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Pending Dispatch</div>
                                 <div style="font-size: 28px; font-weight: bold;" id="statPendingOrders">0</div>
                             </div>
+                        </div>
+                        
+                        <!-- Dispatch Status Pie Chart -->
+                        <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; max-width: 400px; margin-left: auto; margin-right: auto;">
+                            <h4 style="margin-bottom: 15px; text-align: center; color: #1f2937;">Dispatch Status Distribution</h4>
+                            <canvas id="dispatchChart" style="max-height: 250px;"></canvas>
                         </div>
                         
                         <div style="overflow-x: auto;">
@@ -10466,6 +10504,7 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             
             let inventoryChart = null;
+            let dispatchChart = null;
             
             // Load inventory stock
             async function loadInventory() {
@@ -11284,8 +11323,16 @@ Prices are subject to change without prior notice.</textarea>
                         
                         document.getElementById('statInStock').textContent = statusCounts['In Stock'] || 0;
                         document.getElementById('statDispatched').textContent = statusCounts['Dispatched'] || 0;
-                        document.getElementById('statQC').textContent = statusCounts['Quality Check'] || 0;
-                        document.getElementById('statDefective').textContent = statusCounts['Defective'] || 0;
+                        
+                        // Fetch QC data from quality_check table
+                        const qcResponse = await axios.get('/api/quality-check/stats');
+                        if (qcResponse.data.success) {
+                            document.getElementById('statQCPass').textContent = qcResponse.data.qc_pass || 0;
+                            document.getElementById('statQCFail').textContent = qcResponse.data.qc_fail || 0;
+                        } else {
+                            document.getElementById('statQCPass').textContent = 0;
+                            document.getElementById('statQCFail').textContent = 0;
+                        }
                         
                         // Draw chart
                         const ctx = document.getElementById('inventoryChart');
@@ -11443,10 +11490,59 @@ Prices are subject to change without prior notice.</textarea>
                         const tbody = document.getElementById('dispatchSummaryTableBody');
                         
                         // Update dispatch stats cards
+                        const completedCount = dispatchData.completedOrders || 0;
+                        const pendingCount = dispatchData.pendingOrders || 0;
+                        
                         document.getElementById('statTotalOrders').textContent = dispatchData.totalOrders || 0;
                         document.getElementById('statTotalDispatched').textContent = dispatchData.totalDispatched || 0;
-                        document.getElementById('statCompletedOrders').textContent = dispatchData.completedOrders || 0;
-                        document.getElementById('statPendingOrders').textContent = dispatchData.pendingOrders || 0;
+                        document.getElementById('statCompletedOrders').textContent = completedCount;
+                        document.getElementById('statPendingOrders').textContent = pendingCount;
+                        
+                        // Draw dispatch pie chart
+                        const dispatchCtx = document.getElementById('dispatchChart');
+                        if (dispatchChart) {
+                            dispatchChart.destroy();
+                        }
+                        
+                        dispatchChart = new Chart(dispatchCtx, {
+                            type: 'pie',
+                            data: {
+                                labels: ['Completed Dispatch', 'Pending Dispatch'],
+                                datasets: [{
+                                    data: [completedCount, pendingCount],
+                                    backgroundColor: ['#10b981', '#f59e0b'],
+                                    borderWidth: 3,
+                                    borderColor: 'white'
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        position: 'bottom',
+                                        labels: {
+                                            padding: 12,
+                                            font: {
+                                                size: 13,
+                                                weight: '600'
+                                            }
+                                        }
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const label = context.label || '';
+                                                const value = context.parsed || 0;
+                                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                                return label + ': ' + value + ' (' + percentage + '%)';
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
                         
                         const orders = dispatchData.orders || [];
                         if (orders.length === 0) {
