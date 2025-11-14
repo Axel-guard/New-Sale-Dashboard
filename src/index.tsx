@@ -2952,11 +2952,13 @@ app.get('/api/inventory/model-wise', async (c) => {
       });
     });
     
-    // Convert to array and sort by category name (ascending)
+    // Convert to array and sort by category name (ascending, case-insensitive)
     const result = Object.values(categoryData).map(cat => ({
       ...cat,
-      models: Object.values(cat.models).sort((a, b) => a.model_name.localeCompare(b.model_name))
-    })).sort((a, b) => a.category.localeCompare(b.category));
+      models: Object.values(cat.models).sort((a, b) => 
+        a.model_name.toLowerCase().localeCompare(b.model_name.toLowerCase())
+      )
+    })).sort((a, b) => a.category.toLowerCase().localeCompare(b.category.toLowerCase()));
     
     return c.json({ success: true, data: result });
   } catch (error) {
@@ -11339,12 +11341,12 @@ Prices are subject to change without prior notice.</textarea>
                             let html = '';
                             let sno = 1;
                             
-                            // Sort categories in ascending order by category name
-                            categoryData.sort((a, b) => a.category.localeCompare(b.category));
+                            // Sort categories in ascending order by category name (case-insensitive)
+                            categoryData.sort((a, b) => a.category.toLowerCase().localeCompare(b.category.toLowerCase()));
                             
                             categoryData.forEach(category => {
-                                // Sort models within each category in ascending order by model name
-                                category.models.sort((a, b) => a.model_name.localeCompare(b.model_name));
+                                // Sort models within each category in ascending order by model name (case-insensitive)
+                                category.models.sort((a, b) => a.model_name.toLowerCase().localeCompare(b.model_name.toLowerCase()));
                                 
                                 // Create safe class name by removing all special characters
                                 const safeCategoryClass = category.category.replace(/[^a-zA-Z0-9]/g, '-');
