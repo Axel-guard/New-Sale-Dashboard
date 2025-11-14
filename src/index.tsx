@@ -2829,18 +2829,17 @@ app.get('/api/inventory/model-wise', async (c) => {
     
     const devices = allDevices.results || [];
     
-    // Get all QC data
+    // Get all QC data including Pending
     const allQCData = await env.DB.prepare(`
       SELECT 
         test_results,
         pass_fail
       FROM quality_check
-      WHERE pass_fail IN ('QC Pass', 'Pass', 'QC Fail', 'Fail')
     `).all();
     
     const qcRecords = allQCData.results || [];
     
-    // Process QC data to count Pass/Fail by model
+    // Process QC data to count Pass/Fail/Pending by model
     const qcCounts = {};
     qcRecords.forEach(record => {
       try {
@@ -2849,13 +2848,15 @@ app.get('/api/inventory/model-wise', async (c) => {
         
         if (deviceType) {
           if (!qcCounts[deviceType]) {
-            qcCounts[deviceType] = { pass: 0, fail: 0 };
+            qcCounts[deviceType] = { pass: 0, fail: 0, pending: 0 };
           }
           
           if (record.pass_fail === 'QC Pass' || record.pass_fail === 'Pass') {
             qcCounts[deviceType].pass += 1;
           } else if (record.pass_fail === 'QC Fail' || record.pass_fail === 'Fail') {
             qcCounts[deviceType].fail += 1;
+          } else if (record.pass_fail === 'Pending' || record.pass_fail === 'QC Pending') {
+            qcCounts[deviceType].pending += 1;
           }
         }
       } catch (e) {
@@ -2933,7 +2934,7 @@ app.get('/api/inventory/model-wise', async (c) => {
         }
       }
       
-      return { pass: 0, fail: 0 };
+      return { pass: 0, fail: 0, pending: 0 };
     };
     
     // Group by category and model
@@ -2949,6 +2950,7 @@ app.get('/api/inventory/model-wise', async (c) => {
           dispatched: 0,
           qc_pass: 0,
           qc_fail: 0,
+          qc_pending: 0,
           total: 0,
           models: {}
         };
@@ -2973,6 +2975,7 @@ app.get('/api/inventory/model-wise', async (c) => {
           dispatched: 0,
           qc_pass: 0,
           qc_fail: 0,
+          qc_pending: 0,
           total: 0
         };
       }
@@ -2988,10 +2991,12 @@ app.get('/api/inventory/model-wise', async (c) => {
         const qcData = getQCCountsForModel(model.model_name);
         model.qc_pass = qcData.pass;
         model.qc_fail = qcData.fail;
+        model.qc_pending = qcData.pending;
         
         // Add to category totals
         category.qc_pass += qcData.pass;
         category.qc_fail += qcData.fail;
+        category.qc_pending += qcData.pending;
       });
     });
     
@@ -5156,11 +5161,12 @@ app.get('/', (c) => {
                                         <th style="background: #dbeafe; color: #1e40af;">Dispatched</th>
                                         <th style="background: #d1fae5; color: #065f46;">QC Pass</th>
                                         <th style="background: #fee2e2; color: #991b1b;">QC Fail</th>
+                                        <th style="background: #fef3c7; color: #92400e;">QC Pending</th>
                                         <th style="background: #e0e7ff; color: #4338ca;">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody id="modelWiseTableBody">
-                                    <tr><td colspan="7" class="loading">Loading...</td></tr>
+                                    <tr><td colspan="8" class="loading">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -11446,6 +11452,7 @@ Prices are subject to change without prior notice.</textarea>
                                         <td style="background: #eff6ff; padding: 15px 12px; color: #1d4ed8;">\${category.dispatched || 0}</td>
                                         <td style="background: #ecfdf5; padding: 15px 12px; color: #047857;">\${category.qc_pass || 0}</td>
                                         <td style="background: #fef2f2; padding: 15px 12px; color: #dc2626;">\${category.qc_fail || 0}</td>
+                                        <td style="background: #fef3c7; padding: 15px 12px; color: #92400e;">\${category.qc_pending || 0}</td>
                                         <td style="padding: 15px 12px; font-size: 16px; color: #1f2937;">\${category.total}</td>
                                     </tr>
                                 \`;
@@ -11473,6 +11480,7 @@ Prices are subject to change without prior notice.</textarea>
                                             <td style="background: #f0f9ff; padding: 10px 12px; font-weight: 600; color: #0369a1; font-size: 13px;">\${model.dispatched || 0}</td>
                                             <td style="background: #f0fdf4; padding: 10px 12px; font-weight: 600; color: #15803d; font-size: 13px;">\${model.qc_pass || 0}</td>
                                             <td style="background: #fef8f8; padding: 10px 12px; font-weight: 600; color: #dc2626; font-size: 13px;">\${model.qc_fail || 0}</td>
+                                            <td style="background: #fffbeb; padding: 10px 12px; font-weight: 600; color: #d97706; font-size: 13px;">\${model.qc_pending || 0}</td>
                                             <td style="padding: 10px 12px; font-weight: 600; font-size: 14px; color: #374151;">\${model.total}</td>
                                         </tr>
                                     \`;
