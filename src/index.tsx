@@ -8992,10 +8992,34 @@ Prices are subject to change without prior notice.</textarea>
             
             async function searchCustomerByCode(customerCode) {
                 try {
-                    const response = await axios.get('/api/leads?search=' + encodeURIComponent(customerCode));
-                    const leads = response.data.data;
+                    // First try searching in leads table
+                    let response = await axios.get('/api/leads?search=' + encodeURIComponent(customerCode));
+                    let leads = response.data.data;
                     
+                    // If not found in leads, try searching in sales table
                     if (!leads || leads.length === 0) {
+                        try {
+                            const salesResponse = await axios.get('/api/sales');
+                            const allSales = salesResponse.data.data;
+                            
+                            // Search in sales by customer_code, customer_contact, or customer_name
+                            const found = allSales.find(sale => 
+                                sale.customer_code === customerCode ||
+                                sale.customer_contact === customerCode ||
+                                (sale.customer_name && sale.customer_name.toLowerCase().includes(customerCode.toLowerCase()))
+                            );
+                            
+                            if (found) {
+                                // Use customer data from sales
+                                currentCustomerQuery = found.customer_code || found.customer_contact || customerCode;
+                                document.getElementById('customerActionButtons').style.display = 'block';
+                                document.getElementById('customerDetailsContent').style.display = 'none';
+                                return;
+                            }
+                        } catch (salesError) {
+                            console.error('Error searching in sales:', salesError);
+                        }
+                        
                         alert('No customer found');
                         document.getElementById('customerActionButtons').style.display = 'none';
                         document.getElementById('customerDetailsContent').style.display = 'none';
@@ -9091,7 +9115,7 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
-            // Button 2: Full History
+            // Button 2: Full History - Complete Timeline
             async function showCustomerHistory() {
                 if (!currentCustomerQuery) {
                     alert('Please search for a customer first');
@@ -9112,119 +9136,158 @@ Prices are subject to change without prior notice.</textarea>
                     const quotations = data.quotations;
                     const summary = data.summary;
                     
+                    // Create timeline array with all events
+                    const timeline = [];
+                    
+                    // Add customer info as first event
+                    timeline.push({
+                        date: new Date(customer.created_at || '2020-01-01'),
+                        type: 'customer',
+                        title: 'Customer Created',
+                        icon: 'fa-user-plus',
+                        color: '#667eea',
+                        data: customer
+                    });
+                    
+                    // Add all sales
+                    sales.forEach(sale => {
+                        timeline.push({
+                            date: new Date(sale.sale_date),
+                            type: 'sale',
+                            title: 'Sale / Order',
+                            icon: 'fa-shopping-cart',
+                            color: '#3b82f6',
+                            data: sale
+                        });
+                    });
+                    
+                    // Add all payments
+                    payments.forEach(payment => {
+                        timeline.push({
+                            date: new Date(payment.payment_date),
+                            type: 'payment',
+                            title: 'Payment Received',
+                            icon: 'fa-money-bill-wave',
+                            color: '#10b981',
+                            data: payment
+                        });
+                    });
+                    
+                    // Add all quotations
+                    quotations.forEach(quot => {
+                        timeline.push({
+                            date: new Date(quot.created_at),
+                            type: 'quotation',
+                            title: 'Quotation',
+                            icon: 'fa-file-invoice',
+                            color: '#f59e0b',
+                            data: quot
+                        });
+                    });
+                    
+                    // Sort by date descending (most recent first)
+                    timeline.sort((a, b) => b.date - a.date);
+                    
                     let content = '<div style="background: #f9fafb; padding: 20px; border-radius: 8px;">' +
                         '<h3 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1f2937; border-bottom: 2px solid #10b981; padding-bottom: 10px;">' +
-                            '<i class="fas fa-history" style="color: #10b981; margin-right: 10px;"></i>Customer Full History' +
+                            '<i class="fas fa-history" style="color: #10b981; margin-right: 10px;"></i>Customer Complete History Timeline' +
                         '</h3>' +
                         
-                        // Summary Cards
-                        '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">' +
-                            '<div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Sales</div>' +
-                                '<div style="font-size: 28px; font-weight: 700;">' + summary.total_sales + '</div>' +
-                                '<div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">₹' + (summary.total_sale_amount || 0).toLocaleString() + '</div>' +
-                            '</div>' +
-                            '<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Paid</div>' +
-                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_paid || 0).toLocaleString() + '</div>' +
-                                '<div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">' + summary.total_payments + ' payments</div>' +
-                            '</div>' +
-                            '<div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Balance Due</div>' +
-                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_balance || 0).toLocaleString() + '</div>' +
-                                '<div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">' + summary.total_quotations + ' quotations</div>' +
+                        // Customer Info Card
+                        '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 25px;">' +
+                            '<div style="font-size: 16px; font-weight: 700; margin-bottom: 10px;"><i class="fas fa-user"></i> ' + (customer.customer_name || 'N/A') + '</div>' +
+                            '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 13px; opacity: 0.95;">' +
+                                '<div><strong>Code:</strong> ' + (customer.customer_code || 'N/A') + '</div>' +
+                                '<div><strong>Mobile:</strong> ' + (customer.mobile_number || customer.customer_contact || 'N/A') + '</div>' +
+                                '<div><strong>Company:</strong> ' + (customer.company_name || 'N/A') + '</div>' +
                             '</div>' +
                         '</div>' +
                         
-                        // Recent Sales
-                        '<div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
-                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937;">Recent Sales</h4>';
-                    
-                    if (sales.length === 0) {
-                        content += '<p style="color: #6b7280; text-align: center; padding: 20px;">No sales found</p>';
-                    } else {
-                        content += '<div class="table-container"><table>' +
-                            '<thead><tr>' +
-                                '<th>Order ID</th>' +
-                                '<th>Date</th>' +
-                                '<th>Products</th>' +
-                                '<th>Total Amount</th>' +
-                                '<th>Paid</th>' +
-                                '<th>Balance</th>' +
-                            '</tr></thead><tbody>';
+                        // Summary Cards
+                        '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px;">' +
+                            '<div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 15px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Total Sales</div>' +
+                                '<div style="font-size: 24px; font-weight: 700;">' + summary.total_sales + '</div>' +
+                                '<div style="font-size: 11px; opacity: 0.8; margin-top: 5px;">₹' + (summary.total_sale_amount || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 15px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Payments</div>' +
+                                '<div style="font-size: 24px; font-weight: 700;">' + summary.total_payments + '</div>' +
+                                '<div style="font-size: 11px; opacity: 0.8; margin-top: 5px;">₹' + (summary.total_paid || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 15px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Quotations</div>' +
+                                '<div style="font-size: 24px; font-weight: 700;">' + summary.total_quotations + '</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 15px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Balance Due</div>' +
+                                '<div style="font-size: 24px; font-weight: 700;">₹' + (summary.total_balance || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                        '</div>' +
                         
-                        sales.slice(0, 10).forEach(sale => {
-                            content += '<tr>' +
-                                '<td><strong>' + sale.order_id + '</strong></td>' +
-                                '<td>' + new Date(sale.sale_date).toLocaleDateString() + '</td>' +
-                                '<td><small>' + (sale.products || 'N/A') + '</small></td>' +
-                                '<td>₹' + (sale.total_amount || 0).toLocaleString() + '</td>' +
-                                '<td>₹' + (sale.amount_received || 0).toLocaleString() + '</td>' +
-                                '<td>' + (sale.balance_amount > 0 ? '<span style="color: #dc2626;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span style="color: #10b981;">Paid</span>') + '</td>' +
-                            '</tr>';
-                        });
-                        
-                        content += '</tbody></table></div>';
-                    }
-                    
-                    content += '</div>' +
-                        
-                        // Recent Payments
-                        '<div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
-                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937;">Recent Payments</h4>';
-                    
-                    if (payments.length === 0) {
-                        content += '<p style="color: #6b7280; text-align: center; padding: 20px;">No payments found</p>';
-                    } else {
-                        content += '<div class="table-container"><table>' +
-                            '<thead><tr>' +
-                                '<th>Order ID</th>' +
-                                '<th>Date</th>' +
-                                '<th>Amount</th>' +
-                                '<th>Account</th>' +
-                                '<th>Reference</th>' +
-                            '</tr></thead><tbody>';
-                        
-                        payments.slice(0, 10).forEach(payment => {
-                            content += '<tr>' +
-                                '<td><strong>' + payment.order_id + '</strong></td>' +
-                                '<td>' + new Date(payment.payment_date).toLocaleDateString() + '</td>' +
-                                '<td><span style="color: #10b981; font-weight: 600;">₹' + (payment.amount || 0).toLocaleString() + '</span></td>' +
-                                '<td>' + (payment.account_received || 'N/A') + '</td>' +
-                                '<td>' + (payment.payment_reference || 'N/A') + '</td>' +
-                            '</tr>';
-                        });
-                        
-                        content += '</tbody></table></div>';
-                    }
-                    
-                    content += '</div>' +
-                        
-                        // Quotations
+                        // Complete Timeline
                         '<div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">' +
-                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #1f2937;">Quotations</h4>';
+                            '<h4 style="font-size: 16px; font-weight: 600; margin-bottom: 20px; color: #1f2937;"><i class="fas fa-stream"></i> Complete Activity Timeline</h4>';
                     
-                    if (quotations.length === 0) {
-                        content += '<p style="color: #6b7280; text-align: center; padding: 20px;">No quotations found</p>';
+                    if (timeline.length === 0) {
+                        content += '<p style="color: #6b7280; text-align: center; padding: 40px;">No activity found</p>';
                     } else {
-                        content += '<div class="table-container"><table>' +
-                            '<thead><tr>' +
-                                '<th>Quotation #</th>' +
-                                '<th>Date</th>' +
-                                '<th>Products</th>' +
-                                '<th>Total Amount</th>' +
-                            '</tr></thead><tbody>';
-                        
-                        quotations.slice(0, 10).forEach(quot => {
-                            content += '<tr>' +
-                                '<td><strong>Q-' + quot.id + '</strong></td>' +
-                                '<td>' + new Date(quot.quotation_date).toLocaleDateString() + '</td>' +
-                                '<td><small>' + (quot.products || 'N/A') + '</small></td>' +
-                                '<td>₹' + (quot.total_amount || 0).toLocaleString() + '</td>' +
-                            '</tr>';
+                        // Timeline items
+                        timeline.forEach((event, idx) => {
+                            const dateStr = event.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                            const timeStr = event.date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            
+                            content += '<div style="display: flex; gap: 15px; margin-bottom: ' + (idx === timeline.length - 1 ? '0' : '20px') + '; border-left: 3px solid ' + event.color + '; padding-left: 15px;">' +
+                                '<div style="flex-shrink: 0; width: 40px; height: 40px; background: ' + event.color + '; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; margin-left: -22px;">' +
+                                    '<i class="fas ' + event.icon + '"></i>' +
+                                '</div>' +
+                                '<div style="flex-grow: 1;">' +
+                                    '<div style="font-size: 14px; font-weight: 600; color: #1f2937; margin-bottom: 5px;">' + event.title + '</div>' +
+                                    '<div style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">' + dateStr + ' at ' + timeStr + '</div>';
+                            
+                            // Event-specific details
+                            if (event.type === 'customer') {
+                                content += '<div style="background: #f9fafb; padding: 12px; border-radius: 6px; font-size: 13px;">' +
+                                    '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">' +
+                                        '<div><strong>Mobile:</strong> ' + (event.data.mobile_number || event.data.customer_contact || 'N/A') + '</div>' +
+                                        '<div><strong>Email:</strong> ' + (event.data.email || 'N/A') + '</div>' +
+                                        '<div><strong>Location:</strong> ' + (event.data.location || 'N/A') + '</div>' +
+                                        '<div><strong>GST:</strong> ' + (event.data.gst_number || 'N/A') + '</div>' +
+                                    '</div>' +
+                                '</div>';
+                            } else if (event.type === 'sale') {
+                                content += '<div style="background: #eff6ff; padding: 12px; border-radius: 6px; font-size: 13px;">' +
+                                    '<div style="font-weight: 600; margin-bottom: 8px; color: #1e40af;">Order ID: ' + event.data.order_id + '</div>' +
+                                    '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">' +
+                                        '<div><strong>Total Amount:</strong> ₹' + (event.data.total_amount || 0).toLocaleString() + '</div>' +
+                                        '<div><strong>Amount Paid:</strong> ₹' + (event.data.amount_received || 0).toLocaleString() + '</div>' +
+                                        '<div><strong>Balance:</strong> <span style="color: ' + (event.data.balance_amount > 0 ? '#dc2626' : '#10b981') + ';">₹' + (event.data.balance_amount || 0).toLocaleString() + '</span></div>' +
+                                        '<div><strong>Sale Type:</strong> ' + (event.data.sale_type || 'N/A') + '</div>' +
+                                    '</div>' +
+                                    (event.data.products ? '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #dbeafe;"><strong>Products:</strong> ' + event.data.products + '</div>' : '') +
+                                '</div>';
+                            } else if (event.type === 'payment') {
+                                content += '<div style="background: #f0fdf4; padding: 12px; border-radius: 6px; font-size: 13px;">' +
+                                    '<div style="font-weight: 600; margin-bottom: 8px; color: #065f46;">Payment for Order: ' + event.data.order_id + '</div>' +
+                                    '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">' +
+                                        '<div><strong>Amount:</strong> <span style="color: #10b981; font-weight: 600;">₹' + (event.data.amount || 0).toLocaleString() + '</span></div>' +
+                                        '<div><strong>Account:</strong> ' + (event.data.account_received || 'N/A') + '</div>' +
+                                        '<div style="grid-column: 1 / -1;"><strong>Reference:</strong> ' + (event.data.payment_reference || 'N/A') + '</div>' +
+                                    '</div>' +
+                                '</div>';
+                            } else if (event.type === 'quotation') {
+                                content += '<div style="background: #fffbeb; padding: 12px; border-radius: 6px; font-size: 13px;">' +
+                                    '<div style="font-weight: 600; margin-bottom: 8px; color: #92400e;">Quotation #' + event.data.quotation_number + '</div>' +
+                                    '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">' +
+                                        '<div><strong>Total Amount:</strong> ₹' + (event.data.total_amount || 0).toLocaleString() + '</div>' +
+                                        '<div><strong>Status:</strong> ' + (event.data.status || 'N/A') + '</div>' +
+                                    '</div>' +
+                                    (event.data.products ? '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #fef3c7;"><strong>Products:</strong> ' + event.data.products + '</div>' : '') +
+                                '</div>';
+                            }
+                            
+                            content += '</div></div>';
                         });
-                        
-                        content += '</tbody></table></div>';
                     }
                     
                     content += '</div></div>';
