@@ -2859,7 +2859,7 @@ app.post('/api/tracking-details', async (c) => {
   
   try {
     const body = await c.req.json();
-    const { order_id, courier_partner, courier_mode, tracking_id } = body;
+    const { order_id, courier_partner, courier_mode, tracking_id, weight } = body;
     
     if (!order_id || !courier_partner || !courier_mode || !tracking_id) {
       return c.json({ success: false, error: 'All fields are required' }, 400);
@@ -2874,12 +2874,13 @@ app.post('/api/tracking-details', async (c) => {
       return c.json({ success: false, error: 'Order ID not found in sales records' }, 404);
     }
     
-    // Insert tracking details
+    // Insert tracking details with weight
+    const weightValue = weight ? parseFloat(weight) : 0;
     await env.DB.prepare(`
       INSERT INTO tracking_details (
-        order_id, courier_partner, courier_mode, tracking_id
-      ) VALUES (?, ?, ?, ?)
-    `).bind(order_id, courier_partner, courier_mode, tracking_id).run();
+        order_id, courier_partner, courier_mode, tracking_id, weight
+      ) VALUES (?, ?, ?, ?, ?)
+    `).bind(order_id, courier_partner, courier_mode, tracking_id, weightValue).run();
     
     return c.json({ 
       success: true, 
@@ -2889,6 +2890,7 @@ app.post('/api/tracking-details', async (c) => {
         courier_partner,
         courier_mode,
         tracking_id,
+        weight: weightValue,
         actual_price: sale.courier_cost || sale.total_amount || 0
       }
     });
@@ -5318,6 +5320,18 @@ app.get('/', (c) => {
                                         style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
                                 </div>
 
+                                <div class="form-group">
+                                    <label>Weight (kg)</label>
+                                    <input type="number" id="trackingWeightTab" 
+                                        placeholder="e.g., 2.5" 
+                                        step="0.01"
+                                        min="0"
+                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                    <small style="color: #6b7280; display: block; margin-top: 5px;">
+                                        <i class="fas fa-info-circle"></i> Enter weight in kilograms (optional)
+                                    </small>
+                                </div>
+
                                 <button type="submit" class="btn-primary" 
                                     style="width: 100%; padding: 15px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 16px; font-weight: 700; margin-top: 10px;">
                                     <i class="fas fa-save"></i> Save Tracking Details
@@ -5360,12 +5374,13 @@ app.get('/', (c) => {
                                             <th style="padding: 12px; text-align: left; font-weight: 700;">Courier Partner</th>
                                             <th style="padding: 12px; text-align: left; font-weight: 700;">Mode</th>
                                             <th style="padding: 12px; text-align: left; font-weight: 700;">Tracking ID</th>
+                                            <th style="padding: 12px; text-align: right; font-weight: 700;">Weight (kg)</th>
                                             <th style="padding: 12px; text-align: right; font-weight: 700;">Actual Price</th>
                                             <th style="padding: 12px; text-align: center; font-weight: 700;">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="trackingReportBodyTab">
-                                        <tr><td colspan="6" style="text-align: center; padding: 40px; color: #9ca3af;">Loading tracking records...</td></tr>
+                                        <tr><td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">Loading tracking records...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -11873,6 +11888,7 @@ Prices are subject to change without prior notice.</textarea>
                 const courierPartner = document.getElementById('trackingCourierPartnerTab').value;
                 const courierMode = document.getElementById('trackingCourierModeTab').value;
                 const trackingId = document.getElementById('trackingTrackingIdTab').value.trim();
+                const weight = document.getElementById('trackingWeightTab').value;
                 
                 if (!orderId || !courierPartner || !courierMode || !trackingId) {
                     showTrackingStatusTab('Please fill all required fields', 'error');
@@ -11884,7 +11900,8 @@ Prices are subject to change without prior notice.</textarea>
                         order_id: orderId,
                         courier_partner: courierPartner,
                         courier_mode: courierMode,
-                        tracking_id: trackingId
+                        tracking_id: trackingId,
+                        weight: weight || 0
                     });
                     
                     if (response.data.success) {
@@ -11895,6 +11912,7 @@ Prices are subject to change without prior notice.</textarea>
                         document.getElementById('trackingCourierPartnerTab').value = '';
                         document.getElementById('trackingCourierModeTab').value = '';
                         document.getElementById('trackingTrackingIdTab').value = '';
+                        document.getElementById('trackingWeightTab').value = '';
                         
                         // Reload tracking records
                         await loadTrackingRecordsTab();
@@ -11974,18 +11992,20 @@ Prices are subject to change without prior notice.</textarea>
                 const tbody = document.getElementById('trackingReportBodyTab');
                 
                 if (records.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #9ca3af;">No tracking records found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">No tracking records found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = records.map(record => {
                     const actualPrice = record.courier_cost || record.total_amount || 0;
+                    const weight = record.weight || 0;
                     
                     return '<tr style="border-bottom: 1px solid #e5e7eb;">' +
                         '<td style="padding: 12px; font-weight: 600; color: #1f2937;">' + record.order_id + '</td>' +
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_partner + '</td>' +
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_mode + '</td>' +
                         '<td style="padding: 12px; font-family: monospace; color: #7c3aed; font-weight: 600;">' + record.tracking_id + '</td>' +
+                        '<td style="padding: 12px; text-align: right; font-weight: 600; color: #f59e0b;">' + weight.toFixed(2) + ' kg</td>' +
                         '<td style="padding: 12px; text-align: right; font-weight: 600; color: #059669;">₹' + actualPrice.toLocaleString() + '</td>' +
                         '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecord(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fas fa-trash"></i></button></td>' +
                     '</tr>';

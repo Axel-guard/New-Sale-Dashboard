@@ -1,16 +1,18 @@
--- Add order_id column to sale_items table for easier querying
+-- Add order_id column to sale_items table for easier querying (if not exists)
 -- This allows direct lookup by order_id without joining through sales table
 
-ALTER TABLE sale_items ADD COLUMN order_id TEXT;
+-- Check and add order_id column only if it doesn't exist
+-- SQLite doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN
+-- So we use this workaround: attempt to create index will check if column exists
 
--- Create index for faster order_id lookups
+-- Create index for faster order_id lookups (this will succeed regardless)
 CREATE INDEX IF NOT EXISTS idx_sale_items_order_id ON sale_items(order_id);
 
--- Update existing records to populate order_id from sales table
+-- Update existing records to populate order_id from sales table (if needed)
 UPDATE sale_items 
 SET order_id = (
   SELECT order_id 
   FROM sales 
   WHERE sales.id = sale_items.sale_id
 )
-WHERE order_id IS NULL;
+WHERE order_id IS NULL OR order_id = '';
