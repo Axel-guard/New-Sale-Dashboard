@@ -718,27 +718,100 @@ webapp/
 
 ## Authentication
 
-### 🔐 Login Credentials
-**See `LOGIN_CREDENTIALS_AND_DEBUG_GUIDE.md` for complete list**
+### 🔐 Login System (NEW - 2025-11-15)
 
-**Quick Reference:**
-- Admin: `admin` / `admin123`
-- Manager: `manager` / `manager123`
-- Test Users: `test1` / `test123`, `demo` / `demo123`
-- Employees: `akash`, `mandeep`, `smruti` / `employee123`
+**Simple Hardcoded Login - No Database Required**
+
+The login system has been completely rewritten for simplicity and reliability:
+
+**Default Credentials:**
+- Username: `admin`
+- Password: `admin123`
+
+**Key Features:**
+1. ✅ **No API calls** - Pure JavaScript validation
+2. ✅ **No database dependencies** - Works instantly
+3. ✅ **Change Password Support** - Custom password stored in browser localStorage
+4. ✅ **Persistent Sessions** - Uses sessionStorage for current session
+5. ✅ **Console Logging** - Easy debugging with detailed logs
+
+### 🔑 Change Password Feature
+
+After logging in, you can change your password:
+
+1. Navigate to **"Change Password"** in the sidebar
+2. Enter your current password (default: `admin123`)
+3. Enter your new password (minimum 6 characters)
+4. Confirm your new password
+5. Click **"Change Password"**
+
+**Important:** Your custom password is stored in browser localStorage and persists across sessions. If you clear browser data, it will reset to the default `admin123`.
 
 ### 🐛 Login Debugging
+
 If you cannot login:
-1. **Clear browser cache** (most important!)
-2. Open browser console and look for version: "v3.2 - Build 2025-11-12-LOGIN-FIX"
-3. Use the **Login Test Page** at `/static/test-login.html`
-4. See detailed troubleshooting in `LOGIN_CREDENTIALS_AND_DEBUG_GUIDE.md`
+1. **Clear browser cache completely** (Ctrl+F5 or Cmd+Shift+R)
+2. **Try default credentials:** username = `admin`, password = `admin123`
+3. **Check browser console** for login debugging messages
+4. **Look for these console messages:**
+   - "=== LOGIN STARTED ==="
+   - "Username entered: admin"
+   - "Password source: default (admin123)" or "custom (localStorage)"
+   - "✅ LOGIN SUCCESS" or "❌ LOGIN FAILED"
+
+### 🔄 How It Works
+
+**Login Flow:**
+1. Enter username and password
+2. System checks: username === 'admin'
+3. System checks: password === localStorage.adminPassword || 'admin123'
+4. If match: Creates user session and shows dashboard
+5. If no match: Shows error message
+
+**Password Storage:**
+- Default password: `admin123` (hardcoded)
+- Custom password: Stored in `localStorage.adminPassword`
+- Session data: Stored in `sessionStorage.user`
 
 ## Last Updated
 
-2025-11-13
+2025-11-15
 
-### Latest Changes (2025-11-13)
+### Latest Changes (2025-11-15)
+
+**🔐 COMPLETE LOGIN SYSTEM REWRITE** ✨
+
+1. ✅ **Removed complex API-based authentication**
+   - No more database queries for login
+   - No more axios API calls
+   - No more network dependencies
+
+2. ✅ **Implemented simple hardcoded login system**
+   - Default credentials: `admin` / `admin123`
+   - Pure JavaScript validation
+   - Instant response, no delays
+   - Works offline (no API needed)
+
+3. ✅ **Added Change Password functionality**
+   - Accessible from dashboard sidebar
+   - Stores custom password in localStorage
+   - Password persists across browser sessions
+   - Falls back to default `admin123` if no custom password
+   - Minimum 6 characters validation
+   - Detailed console logging for debugging
+
+4. ✅ **Enhanced login debugging**
+   - Comprehensive console.log messages
+   - Clear success/failure indicators
+   - Password source tracking (default vs custom)
+   - User-friendly error messages
+
+**How to Use:**
+- Login with `admin` / `admin123`
+- Go to "Change Password" in sidebar to set custom password
+- Custom password saved in browser (clears with browser data)
+
+### Previous Changes (2025-11-13)
 
 **CRITICAL FIX - Requires Production Deployment** ⚠️
 
