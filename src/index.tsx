@@ -32,7 +32,12 @@ app.post('/api/auth/login', async (c) => {
     console.log('[LOGIN] Encoded password:', encodedPassword);
     
     const user = await env.DB.prepare(`
-      SELECT id, username, full_name, role, employee_name, is_active, can_edit, can_delete, can_view 
+      SELECT id, username, full_name, role, employee_name, is_active, 
+             can_edit, can_delete, can_view,
+             sales_view, sales_edit, sales_delete,
+             inventory_view, inventory_edit, inventory_delete,
+             leads_view, leads_edit, leads_delete,
+             reports_view, reports_edit
       FROM users 
       WHERE username = ? AND password = ? AND is_active = 1
     `).bind(username, encodedPassword).first();
@@ -56,7 +61,28 @@ app.post('/api/auth/login', async (c) => {
         permissions: {
           canEdit: user.can_edit === 1,
           canDelete: user.can_delete === 1,
-          canView: user.can_view === 1
+          canView: user.can_view === 1,
+          modules: {
+            sales: {
+              view: user.sales_view === 1,
+              edit: user.sales_edit === 1,
+              delete: user.sales_delete === 1
+            },
+            inventory: {
+              view: user.inventory_view === 1,
+              edit: user.inventory_edit === 1,
+              delete: user.inventory_delete === 1
+            },
+            leads: {
+              view: user.leads_view === 1,
+              edit: user.leads_edit === 1,
+              delete: user.leads_delete === 1
+            },
+            reports: {
+              view: user.reports_view === 1,
+              edit: user.reports_edit === 1
+            }
+          }
         }
       }
     });
@@ -99,7 +125,13 @@ app.get('/api/users', async (c) => {
   
   try {
     const users = await env.DB.prepare(`
-      SELECT id, username, full_name, role, employee_name, is_active, can_edit, can_delete, can_view, created_at
+      SELECT id, username, full_name, role, employee_name, is_active, 
+             can_edit, can_delete, can_view,
+             sales_view, sales_edit, sales_delete,
+             inventory_view, inventory_edit, inventory_delete,
+             leads_view, leads_edit, leads_delete,
+             reports_view, reports_edit,
+             created_at
       FROM users
       ORDER BY created_at DESC
     `).all();
@@ -150,22 +182,51 @@ app.put('/api/users/:id', async (c) => {
   try {
     const userId = c.req.param('id');
     const body = await c.req.json();
-    const { full_name, role, employee_name, is_active, can_edit, can_delete, can_view, new_password } = body;
+    const { full_name, role, employee_name, is_active, can_edit, can_delete, can_view, 
+            sales_view, sales_edit, sales_delete,
+            inventory_view, inventory_edit, inventory_delete,
+            leads_view, leads_edit, leads_delete,
+            reports_view, reports_edit,
+            new_password } = body;
     
-    // Update user information including permissions
+    // Update user information including module permissions
     if (new_password && new_password.length > 0) {
       const encodedPassword = btoa(new_password);
       await env.DB.prepare(`
         UPDATE users 
-        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, can_edit = ?, can_delete = ?, can_view = ?, password = ?, updated_at = CURRENT_TIMESTAMP
+        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, 
+            can_edit = ?, can_delete = ?, can_view = ?,
+            sales_view = ?, sales_edit = ?, sales_delete = ?,
+            inventory_view = ?, inventory_edit = ?, inventory_delete = ?,
+            leads_view = ?, leads_edit = ?, leads_delete = ?,
+            reports_view = ?, reports_edit = ?,
+            password = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(full_name, role, employee_name || null, is_active, can_edit || 0, can_delete || 0, can_view || 1, encodedPassword, userId).run();
+      `).bind(full_name, role, employee_name || null, is_active, 
+              can_edit || 0, can_delete || 0, can_view || 1,
+              sales_view || 1, sales_edit || 0, sales_delete || 0,
+              inventory_view || 1, inventory_edit || 0, inventory_delete || 0,
+              leads_view || 1, leads_edit || 0, leads_delete || 0,
+              reports_view || 1, reports_edit || 0,
+              encodedPassword, userId).run();
     } else {
       await env.DB.prepare(`
         UPDATE users 
-        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, can_edit = ?, can_delete = ?, can_view = ?, updated_at = CURRENT_TIMESTAMP
+        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, 
+            can_edit = ?, can_delete = ?, can_view = ?,
+            sales_view = ?, sales_edit = ?, sales_delete = ?,
+            inventory_view = ?, inventory_edit = ?, inventory_delete = ?,
+            leads_view = ?, leads_edit = ?, leads_delete = ?,
+            reports_view = ?, reports_edit = ?,
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(full_name, role, employee_name || null, is_active, can_edit || 0, can_delete || 0, can_view || 1, userId).run();
+      `).bind(full_name, role, employee_name || null, is_active, 
+              can_edit || 0, can_delete || 0, can_view || 1,
+              sales_view || 1, sales_edit || 0, sales_delete || 0,
+              inventory_view || 1, inventory_edit || 0, inventory_delete || 0,
+              leads_view || 1, leads_edit || 0, leads_delete || 0,
+              reports_view || 1, reports_edit || 0,
+              userId).run();
     }
     
     return c.json({ success: true, message: 'User updated successfully' });
@@ -7124,23 +7185,90 @@ app.get('/', (c) => {
                     </div>
                     
                     <div class="form-group">
-                        <label>Permissions *</label>
-                        <div style="display: flex; gap: 15px; flex-wrap: wrap; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
-                            <label style="display: flex; align-items: center; gap: 5px; cursor: not-allowed; opacity: 0.6;">
-                                <input type="checkbox" checked disabled style="cursor: not-allowed;">
-                                <span style="font-weight: 500;">View</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
-                                <input type="checkbox" id="editUserCanEdit" name="can_edit" value="1">
-                                <span style="font-weight: 500;">Edit</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
-                                <input type="checkbox" id="editUserCanDelete" name="can_delete" value="1">
-                                <span style="font-weight: 500;">Delete</span>
-                            </label>
+                        <label>Module Permissions *</label>
+                        
+                        <!-- Sales Module -->
+                        <div style="margin-bottom: 15px; padding: 12px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+                            <div style="font-weight: 600; color: #1e40af; margin-bottom: 8px;">
+                                <i class="fas fa-shopping-cart"></i> Sales Module
+                            </div>
+                            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: not-allowed; opacity: 0.6;">
+                                    <input type="checkbox" checked disabled style="cursor: not-allowed;">
+                                    <span>View</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="editUserSalesEdit" name="sales_edit" value="1">
+                                    <span>Edit</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="editUserSalesDelete" name="sales_delete" value="1">
+                                    <span>Delete</span>
+                                </label>
+                            </div>
                         </div>
+                        
+                        <!-- Inventory Module -->
+                        <div style="margin-bottom: 15px; padding: 12px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+                            <div style="font-weight: 600; color: #15803d; margin-bottom: 8px;">
+                                <i class="fas fa-warehouse"></i> Inventory Module
+                            </div>
+                            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: not-allowed; opacity: 0.6;">
+                                    <input type="checkbox" checked disabled style="cursor: not-allowed;">
+                                    <span>View</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="editUserInventoryEdit" name="inventory_edit" value="1">
+                                    <span>Edit</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="editUserInventoryDelete" name="inventory_delete" value="1">
+                                    <span>Delete</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Leads Module -->
+                        <div style="margin-bottom: 15px; padding: 12px; background: #fef3c7; border-radius: 6px; border: 1px solid #fde68a;">
+                            <div style="font-weight: 600; color: #92400e; margin-bottom: 8px;">
+                                <i class="fas fa-user-plus"></i> Leads Module
+                            </div>
+                            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: not-allowed; opacity: 0.6;">
+                                    <input type="checkbox" checked disabled style="cursor: not-allowed;">
+                                    <span>View</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="editUserLeadsEdit" name="leads_edit" value="1">
+                                    <span>Edit</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="editUserLeadsDelete" name="leads_delete" value="1">
+                                    <span>Delete</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Reports Module -->
+                        <div style="margin-bottom: 15px; padding: 12px; background: #fce7f3; border-radius: 6px; border: 1px solid #fbcfe8;">
+                            <div style="font-weight: 600; color: #9f1239; margin-bottom: 8px;">
+                                <i class="fas fa-chart-bar"></i> Reports Module
+                            </div>
+                            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: not-allowed; opacity: 0.6;">
+                                    <input type="checkbox" checked disabled style="cursor: not-allowed;">
+                                    <span>View</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="editUserReportsEdit" name="reports_edit" value="1">
+                                    <span>Edit</span>
+                                </label>
+                            </div>
+                        </div>
+                        
                         <small style="color: #6b7280; display: block; margin-top: 5px;">
-                            <i class="fas fa-info-circle"></i> View permission is always enabled. Grant Edit and Delete permissions as needed.
+                            <i class="fas fa-info-circle"></i> View permission is always enabled for all modules. Grant Edit and Delete permissions per module as needed.
                         </small>
                     </div>
                     
@@ -12076,11 +12204,25 @@ Prices are subject to change without prior notice.</textarea>
                             <td><span class="badge \${user.role === 'admin' ? 'badge-error' : 'badge-success'}">\${user.role}</span></td>
                             <td>\${user.employee_name || '-'}</td>
                             <td>
-                                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                                    \${user.can_view ? '<span class="badge badge-info" style="font-size: 10px; padding: 3px 6px;">View</span>' : ''}
-                                    \${user.can_edit ? '<span class="badge badge-success" style="font-size: 10px; padding: 3px 6px;">Edit</span>' : ''}
-                                    \${user.can_delete ? '<span class="badge badge-error" style="font-size: 10px; padding: 3px 6px;">Delete</span>' : ''}
-                                    \${(!user.can_edit && !user.can_delete && user.can_view) ? '<span class="badge badge-warning" style="font-size: 10px; padding: 3px 6px;">View Only</span>' : ''}
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    <div style="display: flex; gap: 3px; flex-wrap: wrap; align-items: center;">
+                                        <span style="font-size: 10px; font-weight: 600; color: #1e40af;">Sales:</span>
+                                        \${user.sales_edit ? '<span class="badge badge-success" style="font-size: 9px; padding: 2px 4px;">Edit</span>' : ''}
+                                        \${user.sales_delete ? '<span class="badge badge-error" style="font-size: 9px; padding: 2px 4px;">Del</span>' : ''}
+                                        \${(!user.sales_edit && !user.sales_delete) ? '<span class="badge badge-warning" style="font-size: 9px; padding: 2px 4px;">View</span>' : ''}
+                                    </div>
+                                    <div style="display: flex; gap: 3px; flex-wrap: wrap; align-items: center;">
+                                        <span style="font-size: 10px; font-weight: 600; color: #15803d;">Inv:</span>
+                                        \${user.inventory_edit ? '<span class="badge badge-success" style="font-size: 9px; padding: 2px 4px;">Edit</span>' : ''}
+                                        \${user.inventory_delete ? '<span class="badge badge-error" style="font-size: 9px; padding: 2px 4px;">Del</span>' : ''}
+                                        \${(!user.inventory_edit && !user.inventory_delete) ? '<span class="badge badge-warning" style="font-size: 9px; padding: 2px 4px;">View</span>' : ''}
+                                    </div>
+                                    <div style="display: flex; gap: 3px; flex-wrap: wrap; align-items: center;">
+                                        <span style="font-size: 10px; font-weight: 600; color: #92400e;">Leads:</span>
+                                        \${user.leads_edit ? '<span class="badge badge-success" style="font-size: 9px; padding: 2px 4px;">Edit</span>' : ''}
+                                        \${user.leads_delete ? '<span class="badge badge-error" style="font-size: 9px; padding: 2px 4px;">Del</span>' : ''}
+                                        \${(!user.leads_edit && !user.leads_delete) ? '<span class="badge badge-warning" style="font-size: 9px; padding: 2px 4px;">View</span>' : ''}
+                                    </div>
                                 </div>
                             </td>
                             <td><span class="badge \${user.is_active ? 'badge-success' : 'badge-warning'}">\${user.is_active ? 'Active' : 'Inactive'}</span></td>
@@ -12167,9 +12309,14 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('editUserStatus').value = user.is_active;
                     document.getElementById('editUserPassword').value = '';
                     
-                    // Set permission checkboxes
-                    document.getElementById('editUserCanEdit').checked = user.can_edit === 1;
-                    document.getElementById('editUserCanDelete').checked = user.can_delete === 1;
+                    // Set module permission checkboxes
+                    document.getElementById('editUserSalesEdit').checked = user.sales_edit === 1;
+                    document.getElementById('editUserSalesDelete').checked = user.sales_delete === 1;
+                    document.getElementById('editUserInventoryEdit').checked = user.inventory_edit === 1;
+                    document.getElementById('editUserInventoryDelete').checked = user.inventory_delete === 1;
+                    document.getElementById('editUserLeadsEdit').checked = user.leads_edit === 1;
+                    document.getElementById('editUserLeadsDelete').checked = user.leads_delete === 1;
+                    document.getElementById('editUserReportsEdit').checked = user.reports_edit === 1;
                     
                     // Show/hide employee name field
                     const editEmployeeNameGroup = document.getElementById('editEmployeeNameGroup');
@@ -12211,9 +12358,20 @@ Prices are subject to change without prior notice.</textarea>
                     role: formData.get('role'),
                     employee_name: formData.get('employee_name'),
                     is_active: parseInt(formData.get('is_active')),
-                    can_edit: document.getElementById('editUserCanEdit').checked ? 1 : 0,
-                    can_delete: document.getElementById('editUserCanDelete').checked ? 1 : 0,
+                    can_edit: 1,  // Legacy - always 1 for backward compatibility
+                    can_delete: 1,  // Legacy - always 1 for backward compatibility
                     can_view: 1,  // Always 1
+                    sales_view: 1,
+                    sales_edit: document.getElementById('editUserSalesEdit').checked ? 1 : 0,
+                    sales_delete: document.getElementById('editUserSalesDelete').checked ? 1 : 0,
+                    inventory_view: 1,
+                    inventory_edit: document.getElementById('editUserInventoryEdit').checked ? 1 : 0,
+                    inventory_delete: document.getElementById('editUserInventoryDelete').checked ? 1 : 0,
+                    leads_view: 1,
+                    leads_edit: document.getElementById('editUserLeadsEdit').checked ? 1 : 0,
+                    leads_delete: document.getElementById('editUserLeadsDelete').checked ? 1 : 0,
+                    reports_view: 1,
+                    reports_edit: document.getElementById('editUserReportsEdit').checked ? 1 : 0,
                     new_password: formData.get('new_password')
                 };
                 
