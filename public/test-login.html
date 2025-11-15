@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>Login Test</h1>
+    <form id="loginForm">
+        <input type="text" id="username" value="admin" placeholder="Username"><br>
+        <input type="password" id="password" value="admin123" placeholder="Password"><br>
+        <button type="submit">Login</button>
+    </form>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const result = document.getElementById('result');
+            
+            try {
+                console.log('Attempting login...');
+                const response = await axios.post('/api/auth/login', {
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                });
+                
+                console.log('Response:', response.data);
+                result.innerHTML = '<pre style="color: green">' + JSON.stringify(response.data, null, 2) + '</pre>';
+            } catch (error) {
+                console.error('Login error:', error);
+                result.innerHTML = '<pre style="color: red">' + JSON.stringify({
+                    error: error.message,
+                    response: error.response?.data
+                }, null, 2) + '</pre>';
+            }
+        });
+    </script>
+</body>
+</html>

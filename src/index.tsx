@@ -25,8 +25,11 @@ app.post('/api/auth/login', async (c) => {
     const body = await c.req.json();
     const { username, password } = body;
     
+    console.log('[LOGIN] Attempt:', { username, passwordLength: password?.length });
+    
     // Simple base64 encoding for demo (in production, use proper hashing)
     const encodedPassword = btoa(password);
+    console.log('[LOGIN] Encoded password:', encodedPassword);
     
     const user = await env.DB.prepare(`
       SELECT id, username, full_name, role, employee_name, is_active 
@@ -34,10 +37,14 @@ app.post('/api/auth/login', async (c) => {
       WHERE username = ? AND password = ? AND is_active = 1
     `).bind(username, encodedPassword).first();
     
+    console.log('[LOGIN] User found:', !!user);
+    
     if (!user) {
+      console.log('[LOGIN] Failed - Invalid credentials');
       return c.json({ success: false, error: 'Invalid credentials' }, 401);
     }
     
+    console.log('[LOGIN] Success for user:', username);
     return c.json({
       success: true,
       data: {
@@ -49,7 +56,8 @@ app.post('/api/auth/login', async (c) => {
       }
     });
   } catch (error) {
-    return c.json({ success: false, error: 'Login failed' }, 500);
+    console.error('[LOGIN] Error:', error);
+    return c.json({ success: false, error: 'Login failed: ' + error.message }, 500);
   }
 });
 
