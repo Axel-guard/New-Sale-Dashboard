@@ -2355,21 +2355,29 @@ app.get('/api/inventory', async (c) => {
     const search = c.req.query('search') || '';
     const status = c.req.query('status') || '';
     
-    let query = 'SELECT * FROM inventory WHERE 1=1';
+    // Join with dispatch_records to get the actual order_id from dispatches
+    let query = `
+      SELECT 
+        i.*,
+        d.order_id as dispatch_order_id
+      FROM inventory i
+      LEFT JOIN dispatch_records d ON i.device_serial_no = d.device_serial_no
+      WHERE 1=1
+    `;
     const params = [];
     
     if (search) {
-      query += ' AND (device_serial_no LIKE ? OR model_name LIKE ? OR customer_name LIKE ? OR cust_code LIKE ?)';
+      query += ' AND (i.device_serial_no LIKE ? OR i.model_name LIKE ? OR i.customer_name LIKE ? OR i.cust_code LIKE ?)';
       const searchParam = `%${search}%`;
       params.push(searchParam, searchParam, searchParam, searchParam);
     }
     
     if (status) {
-      query += ' AND status = ?';
+      query += ' AND i.status = ?';
       params.push(status);
     }
     
-    query += ' ORDER BY serial_number ASC';
+    query += ' ORDER BY i.serial_number ASC';
     
     const inventory = await env.DB.prepare(query).bind(...params).all();
     
@@ -5602,7 +5610,7 @@ app.get('/', (c) => {
                                 <option value="">All Status</option>
                                 <option value="In Stock">In Stock</option>
                                 <option value="Dispatched">Dispatched</option>
-                                <option value="Quality Check">Quality Check</option>
+                                <option value="QC Pending">QC Pending</option>
                                 <option value="Defective">Defective</option>
                                 <option value="Returned">Returned</option>
                             </select>
@@ -5623,12 +5631,13 @@ app.get('/', (c) => {
                                     <th>In Date</th>
                                     <th>Customer</th>
                                     <th>Dispatch Date</th>
+                                    <th>Cust Code</th>
                                     <th>Order ID</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
-                                <tr><td colspan="9" class="loading">Loading...</td></tr>
+                                <tr><td colspan="10" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -12162,29 +12171,49 @@ Prices are subject to change without prior notice.</textarea>
                     const tbody = document.getElementById('inventoryTableBody');
                     
                     if (!response.data.success || response.data.data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #9ca3af;">No devices found</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #9ca3af;">No devices found</td></tr>';
                         return;
                     }
+                    
+                    // Helper function to format date as DD-MMM-YY
+                    const formatDate = (dateStr) => {
+                        if (!dateStr || dateStr === '-' || dateStr === 'null') return '-';
+                        const date = new Date(dateStr);
+                        if (isNaN(date.getTime())) return '-';
+                        
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const month = months[date.getMonth()];
+                        const year = String(date.getFullYear()).slice(-2);
+                        
+                        return \`\${day}-\${month}-\${year}\`;
+                    };
                     
                     tbody.innerHTML = response.data.data.map(item => {
                         const statusColors = {
                             'In Stock': 'background: #d1fae5; color: #065f46;',
                             'Dispatched': 'background: #dbeafe; color: #1e40af;',
                             'Quality Check': 'background: #fef3c7; color: #92400e;',
+                            'QC Pending': 'background: #fef3c7; color: #92400e;',
                             'Defective': 'background: #fee2e2; color: #991b1b;',
                             'Returned': 'background: #e5e7eb; color: #374151;'
                         };
+                        
+                        // Display status - rename Quality Check to QC Pending
+                        let displayStatus = item.status;
+                        if (displayStatus === 'Quality Check') displayStatus = 'QC Pending';
                         
                         return \`
                             <tr>
                                 <td>\${item.serial_number || item.id}</td>
                                 <td><strong>\${item.device_serial_no}</strong></td>
                                 <td>\${item.model_name}</td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[item.status] || ''}">\${item.status}</span></td>
-                                <td>\${item.in_date || '-'}</td>
+                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[item.status] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
+                                <td>\${formatDate(item.in_date)}</td>
                                 <td>\${item.customer_name || '-'}</td>
-                                <td>\${item.dispatch_date || '-'}</td>
-                                <td>\${item.order_id || '-'}</td>
+                                <td>\${formatDate(item.dispatch_date)}</td>
+                                <td>\${item.cust_code || item.order_id || '-'}</td>
+                                <td>\${item.dispatch_order_id || '-'}</td>
                                 <td>
                                     <button class="btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="viewDevice('\${item.device_serial_no}')">
                                         <i class="fas fa-eye"></i> View
@@ -12195,7 +12224,7 @@ Prices are subject to change without prior notice.</textarea>
                     }).join('');
                 } catch (error) {
                     document.getElementById('inventoryTableBody').innerHTML = 
-                        '<tr><td colspan="9" style="text-align: center; color: #ef4444;">Error loading inventory</td></tr>';
+                        '<tr><td colspan="10" style="text-align: center; color: #ef4444;">Error loading inventory</td></tr>';
                 }
             }
             
