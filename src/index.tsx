@@ -10897,16 +10897,29 @@ Prices are subject to change without prior notice.</textarea>
             // Authentication functions
             let currentUser = null;
             
-            function handleLogin(event) {
+            // Make handleLogin globally accessible
+            window.handleLogin = function(event) {
                 event.preventDefault();
-                console.log('Login attempt started');
+                console.log('=== LOGIN ATTEMPT STARTED ===');
+                console.log('Event:', event);
+                console.log('Event type:', event.type);
+                console.log('Form element:', event.target);
                 
                 const username = document.getElementById('loginUsername').value;
                 const password = document.getElementById('loginPassword').value;
                 const errorDiv = document.getElementById('loginError');
                 
                 console.log('Username:', username);
+                console.log('Password length:', password ? password.length : 0);
                 console.log('Attempting login...');
+                
+                // Validate inputs
+                if (!username || !password) {
+                    console.error('ERROR: Username or password is empty!');
+                    errorDiv.textContent = 'Please enter both username and password';
+                    errorDiv.style.display = 'block';
+                    return false;
+                }
                 
                 // Clear previous errors
                 errorDiv.style.display = 'none';
@@ -10914,21 +10927,33 @@ Prices are subject to change without prior notice.</textarea>
                 
                 // Disable submit button during login
                 const submitBtn = event.target.querySelector('button[type="submit"]');
+                console.log('Submit button:', submitBtn);
                 if (submitBtn) {
                     submitBtn.disabled = true;
                     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
                 }
                 
+                console.log('Sending POST request to /api/auth/login...');
+                console.log('Request data:', { username, password: '***' });
+                
                 axios.post('/api/auth/login', { username, password })
                     .then(response => {
-                        console.log('Login response:', response);
+                        console.log('=== LOGIN RESPONSE RECEIVED ===');
+                        console.log('Status:', response.status);
+                        console.log('Response:', response);
+                        console.log('Response data:', response.data);
+                        
                         if (response.data.success) {
-                            console.log('Login successful!', response.data.data);
+                            console.log('✅ LOGIN SUCCESSFUL!');
+                            console.log('User data:', response.data.data);
                             currentUser = response.data.data;
                             sessionStorage.setItem('user', JSON.stringify(currentUser));
+                            console.log('User saved to sessionStorage');
+                            console.log('Calling showDashboard()...');
                             showDashboard();
                         } else {
-                            console.error('Login failed:', response.data);
+                            console.error('❌ LOGIN FAILED - Response success=false');
+                            console.error('Error:', response.data.error);
                             errorDiv.textContent = response.data.error || 'Login failed';
                             errorDiv.style.display = 'block';
                             if (submitBtn) {
@@ -10938,7 +10963,11 @@ Prices are subject to change without prior notice.</textarea>
                         }
                     })
                     .catch(error => {
-                        console.error('Login error:', error);
+                        console.error('=== LOGIN ERROR CAUGHT ===');
+                        console.error('Error object:', error);
+                        console.error('Error response:', error.response);
+                        console.error('Error message:', error.message);
+                        
                         errorDiv.textContent = error.response?.data?.error || 'Login failed. Please check your credentials.';
                         errorDiv.style.display = 'block';
                         if (submitBtn) {
@@ -10946,7 +10975,16 @@ Prices are subject to change without prior notice.</textarea>
                             submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
                         }
                     });
+                
+                return false; // Prevent default form submission
+            };
+            
+            // Also create a regular function for compatibility
+            function handleLogin(event) {
+                return window.handleLogin(event);
             }
+            
+            console.log('✓ handleLogin function defined and attached to window');
             
             function handleLogout() {
                 currentUser = null;
