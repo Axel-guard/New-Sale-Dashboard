@@ -10859,10 +10859,11 @@ Prices are subject to change without prior notice.</textarea>
             
             // ============================================
             // SIMPLE LOGIN SYSTEM - ADMIN/ADMIN123
+            // Supports custom password via localStorage
             // ============================================
             let currentUser = null;
             
-            // Simple hardcoded login - admin/admin123
+            // Simple hardcoded login - admin/admin123 (or custom password)
             function handleLogin(event) {
                 event.preventDefault();
                 
@@ -10885,8 +10886,12 @@ Prices are subject to change without prior notice.</textarea>
                     submitBtn.textContent = 'Logging in...';
                 }
                 
-                // Simple check: admin/admin123
-                if (username === 'admin' && password === 'admin123') {
+                // Get password: check localStorage first, default to 'admin123'
+                const correctPassword = localStorage.getItem('adminPassword') || 'admin123';
+                console.log('Password source:', localStorage.getItem('adminPassword') ? 'custom (localStorage)' : 'default (admin123)');
+                
+                // Check credentials: username must be 'admin', password from localStorage or default
+                if (username === 'admin' && password === correctPassword) {
                     console.log('✅ LOGIN SUCCESS - Credentials match!');
                     
                     // Set user data
@@ -10908,7 +10913,10 @@ Prices are subject to change without prior notice.</textarea>
                     
                 } else {
                     console.log('❌ LOGIN FAILED - Wrong credentials');
-                    errorDiv.textContent = 'Invalid username or password. Use admin/admin123';
+                    const defaultMsg = localStorage.getItem('adminPassword') 
+                        ? 'Invalid username or password. Use your custom password.' 
+                        : 'Invalid username or password. Default is admin/admin123';
+                    errorDiv.textContent = defaultMsg;
                     errorDiv.style.display = 'block';
                     
                     if (submitBtn) {
@@ -11373,48 +11381,65 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
-            // Change Password Functions
-            async function changePassword(event) {
+            // ============================================
+            // CHANGE PASSWORD - WORKS WITH HARDCODED LOGIN
+            // ============================================
+            function changePassword(event) {
                 event.preventDefault();
+                
+                console.log('=== CHANGE PASSWORD STARTED ===');
                 
                 const currentPassword = document.getElementById('currentPassword').value;
                 const newPassword = document.getElementById('newPassword').value;
                 const confirmPassword = document.getElementById('confirmPassword').value;
                 const statusDiv = document.getElementById('passwordChangeStatus');
                 
+                // Get stored password (default is 'admin123')
+                const storedPassword = localStorage.getItem('adminPassword') || 'admin123';
+                console.log('Checking current password...');
+                
+                // Validate current password
+                if (currentPassword !== storedPassword) {
+                    console.log('❌ Current password incorrect');
+                    statusDiv.className = 'alert-error';
+                    statusDiv.textContent = 'Current password is incorrect!';
+                    statusDiv.style.display = 'block';
+                    return;
+                }
+                
                 // Validate new passwords match
                 if (newPassword !== confirmPassword) {
+                    console.log('❌ New passwords do not match');
                     statusDiv.className = 'alert-error';
                     statusDiv.textContent = 'New passwords do not match!';
                     statusDiv.style.display = 'block';
                     return;
                 }
                 
-                try {
-                    const response = await axios.post('/api/auth/change-password', {
-                        userId: currentUser.id,
-                        currentPassword,
-                        newPassword
-                    });
-                    
-                    if (response.data.success) {
-                        statusDiv.className = 'alert-success';
-                        statusDiv.textContent = response.data.message;
-                        statusDiv.style.display = 'block';
-                        
-                        // Clear form
-                        document.getElementById('changePasswordForm').reset();
-                        
-                        // Hide success message after 3 seconds
-                        setTimeout(() => {
-                            statusDiv.style.display = 'none';
-                        }, 3000);
-                    }
-                } catch (error) {
+                // Validate new password length
+                if (newPassword.length < 6) {
+                    console.log('❌ Password too short');
                     statusDiv.className = 'alert-error';
-                    statusDiv.textContent = error.response?.data?.error || 'Failed to change password';
+                    statusDiv.textContent = 'New password must be at least 6 characters long!';
                     statusDiv.style.display = 'block';
+                    return;
                 }
+                
+                // Save new password to localStorage
+                localStorage.setItem('adminPassword', newPassword);
+                console.log('✅ Password changed successfully');
+                
+                statusDiv.className = 'alert-success';
+                statusDiv.textContent = 'Password changed successfully! Please use your new password next time you login.';
+                statusDiv.style.display = 'block';
+                
+                // Clear form
+                document.getElementById('changePasswordForm').reset();
+                
+                // Hide success message after 5 seconds
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
             }
             
             // User Management Functions
