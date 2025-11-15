@@ -5189,16 +5189,29 @@ app.get('/', (c) => {
                         <button onclick="exportDispatchToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 12px 24px;">
                             <i class="fas fa-file-excel"></i> Export Excel
                         </button>
-                        <button onclick="openTrackingDetailsModal()" class="btn-primary" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 12px 24px;">
-                            <i class="fas fa-shipping-fast"></i> Tracking Details
-                        </button>
                         <button onclick="openCreateDispatchModal()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 24px;">
                             <i class="fas fa-plus-circle"></i> Create Dispatch
                         </button>
                     </div>
                 </div>
                 
-                <!-- Sorting and Search Section -->
+                <!-- Tabs Navigation -->
+                <div style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+                    <div style="display: flex; gap: 0;">
+                        <button id="dispatchOrdersTab" onclick="switchDispatchTab('orders')" 
+                            style="padding: 12px 24px; border: none; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid #2563eb;">
+                            <i class="fas fa-box"></i> Dispatch Orders
+                        </button>
+                        <button id="trackingDetailsTab" onclick="switchDispatchTab('tracking')" 
+                            style="padding: 12px 24px; border: none; background: #f3f4f6; color: #6b7280; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid transparent;">
+                            <i class="fas fa-shipping-fast"></i> Tracking Details
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Dispatch Orders Tab Content -->
+                <div id="dispatchOrdersContent" style="display: block;">
+                    <!-- Sorting and Search Section -->
                 <div class="card" style="margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
                         <div style="display: flex; gap: 10px; flex: 1;">
@@ -5229,15 +5242,133 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 
-                <!-- Grouped Dispatch Orders -->
-                <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">
-                        <i class="fas fa-shipping-fast"></i> Dispatch Orders
-                    </h2>
-                    <div id="groupedDispatchesContainer" style="max-height: 700px; overflow-y: auto;">
-                        <div style="text-align: center; padding: 40px; color: #9ca3af;">
-                            <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px;"></i>
-                            <p>Loading dispatch orders...</p>
+                    <!-- Grouped Dispatch Orders -->
+                    <div class="card">
+                        <h2 class="card-title" style="margin-bottom: 20px;">
+                            <i class="fas fa-shipping-fast"></i> Dispatch Orders
+                        </h2>
+                        <div id="groupedDispatchesContainer" style="max-height: 700px; overflow-y: auto;">
+                            <div style="text-align: center; padding: 40px; color: #9ca3af;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px;"></i>
+                                <p>Loading dispatch orders...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tracking Details Tab Content -->
+                <div id="trackingDetailsContent" style="display: none;">
+                    <!-- Tracking Details Form and Report -->
+                    <div style="display: grid; grid-template-columns: 40% 60%; gap: 20px;">
+                        <!-- Left Side - Form (40%) -->
+                        <div style="border-right: 2px solid #e5e7eb; padding-right: 20px;">
+                            <div class="card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; margin-bottom: 20px;">
+                                <h3 style="color: white; margin-bottom: 15px;">
+                                    <i class="fas fa-plus-circle"></i> Add Tracking Details
+                                </h3>
+                                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
+                                    Enter order tracking information to link with sales data
+                                </p>
+                            </div>
+
+                            <form onsubmit="submitTrackingDetails(event)" style="margin-top: 20px;">
+                                <div class="form-group">
+                                    <label>Order ID *</label>
+                                    <input type="text" id="trackingOrderIdTab" 
+                                        placeholder="Enter Order ID from Sales" 
+                                        required
+                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                    <small style="color: #6b7280; display: block; margin-top: 5px;">
+                                        <i class="fas fa-info-circle"></i> Must match an existing Order ID in sales
+                                    </small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Courier Partner *</label>
+                                    <select id="trackingCourierPartnerTab" required
+                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                        <option value="">-- Select Courier Partner --</option>
+                                        <option value="Trackon">Trackon</option>
+                                        <option value="DTDC">DTDC</option>
+                                        <option value="Porter">Porter</option>
+                                        <option value="Self Pick">Self Pick</option>
+                                        <option value="By Bus">By Bus</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Courier Mode *</label>
+                                    <select id="trackingCourierModeTab" required
+                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                        <option value="">-- Select Mode --</option>
+                                        <option value="Air">Air</option>
+                                        <option value="Surface">Surface</option>
+                                        <option value="Express">Express</option>
+                                        <option value="Standard">Standard</option>
+                                        <option value="Priority">Priority</option>
+                                        <option value="Economy">Economy</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Tracking ID *</label>
+                                    <input type="text" id="trackingTrackingIdTab" 
+                                        placeholder="e.g., TRACK123456789" 
+                                        required
+                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                </div>
+
+                                <button type="submit" class="btn-primary" 
+                                    style="width: 100%; padding: 15px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 16px; font-weight: 700; margin-top: 10px;">
+                                    <i class="fas fa-save"></i> Save Tracking Details
+                                </button>
+                            </form>
+
+                            <!-- Form Status -->
+                            <div id="trackingFormStatusTab" style="margin-top: 15px; padding: 12px; border-radius: 8px; display: none;"></div>
+                        </div>
+
+                        <!-- Right Side - Report (60%) -->
+                        <div style="padding-left: 20px;">
+                            <div class="card" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; margin-bottom: 20px;">
+                                <h3 style="color: white; margin-bottom: 10px;">
+                                    <i class="fas fa-chart-bar"></i> Tracking Records Report
+                                </h3>
+                                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
+                                    All tracking records with invoice pricing
+                                </p>
+                            </div>
+
+                            <!-- Search Bar and Month Filter -->
+                            <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                                <input type="text" id="trackingReportSearchTab" 
+                                    placeholder="Search by Order ID, Courier, Tracking ID..." 
+                                    oninput="filterTrackingReportTab()"
+                                    style="flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                <select id="trackingMonthFilterTab" onchange="filterTrackingReportTab()"
+                                    style="width: 200px; padding: 10px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px; font-weight: 600; color: #7c3aed;">
+                                    <option value="">All Months</option>
+                                </select>
+                            </div>
+
+                            <!-- Report Table -->
+                            <div style="max-height: 600px; overflow-y: auto; overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                    <thead style="position: sticky; top: 0; background: white; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Order ID</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Courier Partner</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Mode</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Tracking ID</th>
+                                            <th style="padding: 12px; text-align: right; font-weight: 700;">Actual Price</th>
+                                            <th style="padding: 12px; text-align: center; font-weight: 700;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="trackingReportBodyTab">
+                                        <tr><td colspan="6" style="text-align: center; padding: 40px; color: #9ca3af;">Loading tracking records...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -6935,10 +7066,15 @@ Prices are subject to change without prior notice.</textarea>
 
                             <div class="form-group">
                                 <label>Courier Partner *</label>
-                                <input type="text" id="trackingCourierPartner" 
-                                    placeholder="e.g., Blue Dart, DTDC, Trackon" 
-                                    required
+                                <select id="trackingCourierPartner" required
                                     style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                    <option value="">-- Select Courier Partner --</option>
+                                    <option value="Trackon">Trackon</option>
+                                    <option value="DTDC">DTDC</option>
+                                    <option value="Porter">Porter</option>
+                                    <option value="Self Pick">Self Pick</option>
+                                    <option value="By Bus">By Bus</option>
+                                </select>
                             </div>
 
                             <div class="form-group">
@@ -11690,6 +11826,216 @@ Prices are subject to change without prior notice.</textarea>
             // Load recent dispatches (legacy function - now calls grouped view)
             async function loadRecentDispatches() {
                 await loadGroupedDispatches();
+            }
+            
+            // Switch Dispatch Tab
+            function switchDispatchTab(tab) {
+                const ordersTab = document.getElementById('dispatchOrdersTab');
+                const trackingTab = document.getElementById('trackingDetailsTab');
+                const ordersContent = document.getElementById('dispatchOrdersContent');
+                const trackingContent = document.getElementById('trackingDetailsContent');
+                
+                if (tab === 'orders') {
+                    // Activate orders tab
+                    ordersTab.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+                    ordersTab.style.color = 'white';
+                    ordersTab.style.borderBottom = '3px solid #2563eb';
+                    
+                    trackingTab.style.background = '#f3f4f6';
+                    trackingTab.style.color = '#6b7280';
+                    trackingTab.style.borderBottom = '3px solid transparent';
+                    
+                    ordersContent.style.display = 'block';
+                    trackingContent.style.display = 'none';
+                } else if (tab === 'tracking') {
+                    // Activate tracking tab
+                    trackingTab.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+                    trackingTab.style.color = 'white';
+                    trackingTab.style.borderBottom = '3px solid #7c3aed';
+                    
+                    ordersTab.style.background = '#f3f4f6';
+                    ordersTab.style.color = '#6b7280';
+                    ordersTab.style.borderBottom = '3px solid transparent';
+                    
+                    ordersContent.style.display = 'none';
+                    trackingContent.style.display = 'block';
+                    
+                    // Load tracking records when switching to this tab
+                    loadTrackingRecordsTab();
+                }
+            }
+            
+            // Submit tracking details from tab
+            async function submitTrackingDetails(event) {
+                event.preventDefault();
+                
+                const orderId = document.getElementById('trackingOrderIdTab').value.trim();
+                const courierPartner = document.getElementById('trackingCourierPartnerTab').value;
+                const courierMode = document.getElementById('trackingCourierModeTab').value;
+                const trackingId = document.getElementById('trackingTrackingIdTab').value.trim();
+                
+                if (!orderId || !courierPartner || !courierMode || !trackingId) {
+                    showTrackingStatusTab('Please fill all required fields', 'error');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.post('/api/tracking-details', {
+                        order_id: orderId,
+                        courier_partner: courierPartner,
+                        courier_mode: courierMode,
+                        tracking_id: trackingId
+                    });
+                    
+                    if (response.data.success) {
+                        showTrackingStatusTab('✅ Tracking details added successfully!', 'success');
+                        
+                        // Clear form
+                        document.getElementById('trackingOrderIdTab').value = '';
+                        document.getElementById('trackingCourierPartnerTab').value = '';
+                        document.getElementById('trackingCourierModeTab').value = '';
+                        document.getElementById('trackingTrackingIdTab').value = '';
+                        
+                        // Reload tracking records
+                        await loadTrackingRecordsTab();
+                        
+                        // Focus back to Order ID field
+                        document.getElementById('trackingOrderIdTab').focus();
+                    } else {
+                        showTrackingStatusTab('❌ ' + response.data.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error submitting tracking:', error);
+                    showTrackingStatusTab('❌ Error: ' + (error.response?.data?.error || error.message), 'error');
+                }
+            }
+            
+            // Show tracking status message in tab
+            function showTrackingStatusTab(message, type) {
+                const statusDiv = document.getElementById('trackingFormStatusTab');
+                statusDiv.style.display = 'block';
+                statusDiv.style.padding = '12px';
+                statusDiv.style.borderRadius = '8px';
+                statusDiv.style.fontWeight = '600';
+                statusDiv.textContent = message;
+                
+                if (type === 'success') {
+                    statusDiv.style.background = '#d1fae5';
+                    statusDiv.style.color = '#065f46';
+                    statusDiv.style.border = '2px solid #10b981';
+                } else {
+                    statusDiv.style.background = '#fee2e2';
+                    statusDiv.style.color = '#991b1b';
+                    statusDiv.style.border = '2px solid #ef4444';
+                }
+                
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+            
+            // Load tracking records for tab
+            let allTrackingRecordsTab = [];
+            async function loadTrackingRecordsTab() {
+                try {
+                    const response = await axios.get('/api/tracking-details');
+                    
+                    if (response.data.success) {
+                        allTrackingRecordsTab = response.data.data || [];
+                        populateMonthDropdownTab(allTrackingRecordsTab);
+                        displayTrackingRecordsTab(allTrackingRecordsTab);
+                    }
+                } catch (error) {
+                    console.error('Error loading tracking records:', error);
+                }
+            }
+            
+            // Populate month dropdown for tab
+            function populateMonthDropdownTab(records) {
+                const monthFilter = document.getElementById('trackingMonthFilterTab');
+                const months = new Set();
+                
+                records.forEach(record => {
+                    if (record.created_at) {
+                        const date = new Date(record.created_at);
+                        const monthYear = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                        months.add(monthYear);
+                    }
+                });
+                
+                monthFilter.innerHTML = '<option value="">All Months</option>';
+                Array.from(months).sort().reverse().forEach(month => {
+                    monthFilter.innerHTML += '<option value="' + month + '">' + month + '</option>';
+                });
+            }
+            
+            // Display tracking records in tab
+            function displayTrackingRecordsTab(records) {
+                const tbody = document.getElementById('trackingReportBodyTab');
+                
+                if (records.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #9ca3af;">No tracking records found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = records.map(record => {
+                    const actualPrice = record.courier_cost || record.total_amount || 0;
+                    
+                    return '<tr style="border-bottom: 1px solid #e5e7eb;">' +
+                        '<td style="padding: 12px; font-weight: 600; color: #1f2937;">' + record.order_id + '</td>' +
+                        '<td style="padding: 12px; color: #4b5563;">' + record.courier_partner + '</td>' +
+                        '<td style="padding: 12px; color: #4b5563;">' + record.courier_mode + '</td>' +
+                        '<td style="padding: 12px; font-family: monospace; color: #7c3aed; font-weight: 600;">' + record.tracking_id + '</td>' +
+                        '<td style="padding: 12px; text-align: right; font-weight: 600; color: #059669;">₹' + actualPrice.toLocaleString() + '</td>' +
+                        '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecord(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fas fa-trash"></i></button></td>' +
+                    '</tr>';
+                }).join('');
+            }
+            
+            // Filter tracking report in tab
+            function filterTrackingReportTab() {
+                const searchTerm = document.getElementById('trackingReportSearchTab').value.toLowerCase();
+                const selectedMonth = document.getElementById('trackingMonthFilterTab').value;
+                
+                let filtered = allTrackingRecordsTab;
+                
+                if (searchTerm) {
+                    filtered = filtered.filter(record =>
+                        record.order_id.toLowerCase().includes(searchTerm) ||
+                        record.courier_partner.toLowerCase().includes(searchTerm) ||
+                        record.tracking_id.toLowerCase().includes(searchTerm)
+                    );
+                }
+                
+                if (selectedMonth) {
+                    filtered = filtered.filter(record => {
+                        if (!record.created_at) return false;
+                        const date = new Date(record.created_at);
+                        const monthYear = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                        return monthYear === selectedMonth;
+                    });
+                }
+                
+                displayTrackingRecordsTab(filtered);
+            }
+            
+            // Delete tracking record
+            async function deleteTrackingRecord(id) {
+                if (!confirm('Are you sure you want to delete this tracking record?')) {
+                    return;
+                }
+                
+                try {
+                    const response = await axios.delete('/api/tracking-details/' + id);
+                    if (response.data.success) {
+                        showTrackingStatusTab('✅ Tracking record deleted successfully!', 'success');
+                        await loadTrackingRecordsTab();
+                    } else {
+                        alert('Error: ' + response.data.error);
+                    }
+                } catch (error) {
+                    alert('Error deleting record: ' + (error.response?.data?.error || error.message));
+                }
             }
             
             // Load grouped dispatches by order
