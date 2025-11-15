@@ -2438,7 +2438,7 @@ app.get('/api/inventory', async (c) => {
       params.push(status);
     }
     
-    query += ' ORDER BY i.serial_number ASC';
+    query += ' ORDER BY i.id DESC';
     
     const inventory = await env.DB.prepare(query).bind(...params).all();
     
