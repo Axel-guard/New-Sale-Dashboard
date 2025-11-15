@@ -10858,23 +10858,19 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // ============================================
-            // SIMPLE LOGIN SYSTEM - ADMIN/ADMIN123
-            // Supports custom password via localStorage
+            // DATABASE-BASED LOGIN SYSTEM
+            // Uses API endpoint to authenticate against users table
             // ============================================
             let currentUser = null;
             
-            // Simple hardcoded login - admin/admin123 (or custom password)
-            function handleLogin(event) {
+            // Database-based login using API
+            async function handleLogin(event) {
                 event.preventDefault();
-                
-                console.log('=== LOGIN STARTED ===');
                 
                 const username = document.getElementById('loginUsername').value.trim();
                 const password = document.getElementById('loginPassword').value;
                 const errorDiv = document.getElementById('loginError');
                 const submitBtn = event.target.querySelector('button[type="submit"]');
-                
-                console.log('Username entered:', username);
                 
                 // Hide previous errors
                 errorDiv.style.display = 'none';
@@ -10883,40 +10879,25 @@ Prices are subject to change without prior notice.</textarea>
                 // Show loading
                 if (submitBtn) {
                     submitBtn.disabled = true;
-                    submitBtn.textContent = 'Logging in...';
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
                 }
                 
-                // Get password: check localStorage first, default to 'admin123'
-                const correctPassword = localStorage.getItem('adminPassword') || 'admin123';
-                console.log('Password source:', localStorage.getItem('adminPassword') ? 'custom (localStorage)' : 'default (admin123)');
-                
-                // Check credentials: username must be 'admin', password from localStorage or default
-                if (username === 'admin' && password === correctPassword) {
-                    console.log('✅ LOGIN SUCCESS - Credentials match!');
+                try {
+                    const response = await axios.post('/api/auth/login', {
+                        username: username,
+                        password: password
+                    });
                     
-                    // Set user data
-                    currentUser = {
-                        id: 1,
-                        username: 'admin',
-                        fullName: 'Administrator',
-                        role: 'admin',
-                        employeeName: 'Administrator'
-                    };
-                    
-                    // Save to session
-                    sessionStorage.setItem('user', JSON.stringify(currentUser));
-                    console.log('User saved to sessionStorage');
-                    
-                    // Show dashboard
-                    console.log('Showing dashboard...');
-                    showDashboard();
-                    
-                } else {
-                    console.log('❌ LOGIN FAILED - Wrong credentials');
-                    const defaultMsg = localStorage.getItem('adminPassword') 
-                        ? 'Invalid username or password. Use your custom password.' 
-                        : 'Invalid username or password. Default is admin/admin123';
-                    errorDiv.textContent = defaultMsg;
+                    if (response.data.success) {
+                        currentUser = response.data.data;
+                        sessionStorage.setItem('user', JSON.stringify(currentUser));
+                        showDashboard();
+                    } else {
+                        throw new Error(response.data.error || 'Login failed');
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    errorDiv.textContent = error.response?.data?.error || error.message || 'Login failed. Please try again.';
                     errorDiv.style.display = 'block';
                     
                     if (submitBtn) {
