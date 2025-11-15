@@ -2873,14 +2873,10 @@ app.post('/api/tracking-details', async (c) => {
       return c.json({ success: false, error: 'All fields are required' }, 400);
     }
     
-    // Check if order_id exists in sales table
+    // Check if order_id exists in sales table (optional - for pricing)
     const sale = await env.DB.prepare(`
       SELECT order_id, courier_cost, total_amount FROM sales WHERE order_id = ?
     `).bind(order_id).first();
-    
-    if (!sale) {
-      return c.json({ success: false, error: 'Order ID not found in sales records' }, 404);
-    }
     
     // Calculate weight from dispatch_records count for this order_id
     const dispatchCount = await env.DB.prepare(`
@@ -2905,7 +2901,7 @@ app.post('/api/tracking-details', async (c) => {
         courier_mode,
         tracking_id,
         weight,
-        actual_price: sale.courier_cost || sale.total_amount || 0
+        actual_price: sale ? (sale.courier_cost || sale.total_amount || 0) : 0
       }
     });
   } catch (error) {
@@ -7431,6 +7427,7 @@ Prices are subject to change without prior notice.</textarea>
                         break;
                     case 'inventory-dispatch':
                         loadRecentDispatches();
+                        loadTrackingRecords(); // Load tracking records for the form
                         document.getElementById('dispatchDate').value = new Date().toISOString().split('T')[0];
                         document.getElementById('dispatchedBy').value = currentUser.employeeName || currentUser.fullName;
                         break;
