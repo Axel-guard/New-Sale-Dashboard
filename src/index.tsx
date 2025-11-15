@@ -10874,11 +10874,16 @@ Prices are subject to change without prior notice.</textarea>
             // Database-based login using API
             async function handleLogin(event) {
                 event.preventDefault();
+                console.log('🔵 [FRONTEND] handleLogin called');
                 
                 const username = document.getElementById('loginUsername').value.trim();
                 const password = document.getElementById('loginPassword').value;
                 const errorDiv = document.getElementById('loginError');
                 const submitBtn = event.target.querySelector('button[type="submit"]');
+                
+                console.log('🔵 [FRONTEND] Username:', username);
+                console.log('🔵 [FRONTEND] Password length:', password.length);
+                console.log('🔵 [FRONTEND] Axios available:', typeof axios);
                 
                 // Hide previous errors
                 errorDiv.style.display = 'none';
@@ -10891,20 +10896,32 @@ Prices are subject to change without prior notice.</textarea>
                 }
                 
                 try {
+                    console.log('🔵 [FRONTEND] Sending POST request to /api/auth/login...');
                     const response = await axios.post('/api/auth/login', {
                         username: username,
                         password: password
                     });
                     
+                    console.log('🔵 [FRONTEND] Response received:', response.data);
+                    
                     if (response.data.success) {
+                        console.log('🟢 [FRONTEND] Login successful!');
                         currentUser = response.data.data;
                         sessionStorage.setItem('user', JSON.stringify(currentUser));
+                        console.log('🟢 [FRONTEND] User saved to sessionStorage');
                         showDashboard();
                     } else {
+                        console.log('🔴 [FRONTEND] Login failed - success=false');
                         throw new Error(response.data.error || 'Login failed');
                     }
                 } catch (error) {
-                    console.error('Login error:', error);
+                    console.error('🔴 [FRONTEND] Login error:', error);
+                    console.error('🔴 [FRONTEND] Error details:', {
+                        message: error.message,
+                        response: error.response?.data,
+                        status: error.response?.status
+                    });
+                    
                     errorDiv.textContent = error.response?.data?.error || error.message || 'Login failed. Please try again.';
                     errorDiv.style.display = 'block';
                     
