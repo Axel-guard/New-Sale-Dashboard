@@ -2859,7 +2859,7 @@ app.post('/api/tracking-details', async (c) => {
   
   try {
     const body = await c.req.json();
-    const { order_id, courier_partner, courier_mode, tracking_id, weight } = body;
+    const { order_id, courier_partner, courier_mode, tracking_id } = body;
     
     if (!order_id || !courier_partner || !courier_mode || !tracking_id) {
       return c.json({ success: false, error: 'All fields are required' }, 400);
@@ -2874,13 +2874,19 @@ app.post('/api/tracking-details', async (c) => {
       return c.json({ success: false, error: 'Order ID not found in sales records' }, 404);
     }
     
-    // Insert tracking details with weight
-    const weightValue = weight ? parseFloat(weight) : 0;
+    // Calculate weight from dispatch_records count for this order_id
+    const dispatchCount = await env.DB.prepare(`
+      SELECT COUNT(*) as count FROM dispatch_records WHERE order_id = ?
+    `).bind(order_id).first();
+    
+    const weight = dispatchCount ? dispatchCount.count : 0;
+    
+    // Insert tracking details with auto-calculated weight
     await env.DB.prepare(`
       INSERT INTO tracking_details (
         order_id, courier_partner, courier_mode, tracking_id, weight
       ) VALUES (?, ?, ?, ?, ?)
-    `).bind(order_id, courier_partner, courier_mode, tracking_id, weightValue).run();
+    `).bind(order_id, courier_partner, courier_mode, tracking_id, weight).run();
     
     return c.json({ 
       success: true, 
@@ -2890,7 +2896,7 @@ app.post('/api/tracking-details', async (c) => {
         courier_partner,
         courier_mode,
         tracking_id,
-        weight: weightValue,
+        weight,
         actual_price: sale.courier_cost || sale.total_amount || 0
       }
     });
@@ -2900,7 +2906,7 @@ app.post('/api/tracking-details', async (c) => {
   }
 });
 
-// Get all tracking details with sales data
+// Get all tracking details with sales data and recalculate weight
 app.get('/api/tracking-details', async (c) => {
   const { env } = c;
   
@@ -2909,13 +2915,20 @@ app.get('/api/tracking-details', async (c) => {
       SELECT 
         t.*,
         s.courier_cost,
-        s.total_amount
+        s.total_amount,
+        (SELECT COUNT(*) FROM dispatch_records WHERE order_id = t.order_id) as calculated_weight
       FROM tracking_details t
       LEFT JOIN sales s ON t.order_id = s.order_id
       ORDER BY t.created_at DESC
     `).all();
     
-    return c.json({ success: true, data: trackingRecords.results || [] });
+    // Replace weight with calculated_weight
+    const results = (trackingRecords.results || []).map(record => ({
+      ...record,
+      weight: record.calculated_weight || 0
+    }));
+    
+    return c.json({ success: true, data: results });
   } catch (error) {
     console.error('Get tracking error:', error);
     return c.json({ success: false, error: 'Failed to fetch tracking details' }, 500);
@@ -5318,17 +5331,8 @@ app.get('/', (c) => {
                                         placeholder="e.g., TRACK123456789" 
                                         required
                                         style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
-                                </div>
-
-                                <div class="form-group">
-                                    <label>Weight (kg)</label>
-                                    <input type="number" id="trackingWeightTab" 
-                                        placeholder="e.g., 2.5" 
-                                        step="0.01"
-                                        min="0"
-                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
                                     <small style="color: #6b7280; display: block; margin-top: 5px;">
-                                        <i class="fas fa-info-circle"></i> Enter weight in kilograms (optional)
+                                        <i class="fas fa-info-circle"></i> Weight will be auto-calculated from dispatch records
                                     </small>
                                 </div>
 
@@ -5374,7 +5378,7 @@ app.get('/', (c) => {
                                             <th style="padding: 12px; text-align: left; font-weight: 700;">Courier Partner</th>
                                             <th style="padding: 12px; text-align: left; font-weight: 700;">Mode</th>
                                             <th style="padding: 12px; text-align: left; font-weight: 700;">Tracking ID</th>
-                                            <th style="padding: 12px; text-align: right; font-weight: 700;">Weight (kg)</th>
+                                            <th style="padding: 12px; text-align: right; font-weight: 700;">Weight (items)</th>
                                             <th style="padding: 12px; text-align: right; font-weight: 700;">Actual Price</th>
                                             <th style="padding: 12px; text-align: center; font-weight: 700;">Actions</th>
                                         </tr>
@@ -11888,7 +11892,6 @@ Prices are subject to change without prior notice.</textarea>
                 const courierPartner = document.getElementById('trackingCourierPartnerTab').value;
                 const courierMode = document.getElementById('trackingCourierModeTab').value;
                 const trackingId = document.getElementById('trackingTrackingIdTab').value.trim();
-                const weight = document.getElementById('trackingWeightTab').value;
                 
                 if (!orderId || !courierPartner || !courierMode || !trackingId) {
                     showTrackingStatusTab('Please fill all required fields', 'error');
@@ -11900,19 +11903,17 @@ Prices are subject to change without prior notice.</textarea>
                         order_id: orderId,
                         courier_partner: courierPartner,
                         courier_mode: courierMode,
-                        tracking_id: trackingId,
-                        weight: weight || 0
+                        tracking_id: trackingId
                     });
                     
                     if (response.data.success) {
-                        showTrackingStatusTab('✅ Tracking details added successfully!', 'success');
+                        showTrackingStatusTab('✅ Tracking details added successfully! Weight: ' + response.data.data.weight + ' items', 'success');
                         
                         // Clear form
                         document.getElementById('trackingOrderIdTab').value = '';
                         document.getElementById('trackingCourierPartnerTab').value = '';
                         document.getElementById('trackingCourierModeTab').value = '';
                         document.getElementById('trackingTrackingIdTab').value = '';
-                        document.getElementById('trackingWeightTab').value = '';
                         
                         // Reload tracking records
                         await loadTrackingRecordsTab();
@@ -12005,9 +12006,9 @@ Prices are subject to change without prior notice.</textarea>
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_partner + '</td>' +
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_mode + '</td>' +
                         '<td style="padding: 12px; font-family: monospace; color: #7c3aed; font-weight: 600;">' + record.tracking_id + '</td>' +
-                        '<td style="padding: 12px; text-align: right; font-weight: 600; color: #f59e0b;">' + weight.toFixed(2) + ' kg</td>' +
+                        '<td style="padding: 12px; text-align: right; font-weight: 600; color: #f59e0b;">' + weight + ' items</td>' +
                         '<td style="padding: 12px; text-align: right; font-weight: 600; color: #059669;">₹' + actualPrice.toLocaleString() + '</td>' +
-                        '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecord(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fas fa-trash"></i></button></td>' +
+                        '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecordTab(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;" onmouseover="this.style.background=\'#dc2626\'" onmouseout="this.style.background=\'#ef4444\'"><i class="fas fa-trash"></i></button></td>' +
                     '</tr>';
                 }).join('');
             }
@@ -12039,8 +12040,8 @@ Prices are subject to change without prior notice.</textarea>
                 displayTrackingRecordsTab(filtered);
             }
             
-            // Delete tracking record
-            async function deleteTrackingRecord(id) {
+            // Delete tracking record from tab
+            async function deleteTrackingRecordTab(id) {
                 if (!confirm('Are you sure you want to delete this tracking record?')) {
                     return;
                 }
@@ -12051,10 +12052,11 @@ Prices are subject to change without prior notice.</textarea>
                         showTrackingStatusTab('✅ Tracking record deleted successfully!', 'success');
                         await loadTrackingRecordsTab();
                     } else {
-                        alert('Error: ' + response.data.error);
+                        showTrackingStatusTab('❌ ' + response.data.error, 'error');
                     }
                 } catch (error) {
-                    alert('Error deleting record: ' + (error.response?.data?.error || error.message));
+                    console.error('Error deleting tracking:', error);
+                    showTrackingStatusTab('❌ Error: ' + (error.response?.data?.error || error.message), 'error');
                 }
             }
             
