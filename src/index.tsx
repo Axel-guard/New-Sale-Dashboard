@@ -12087,7 +12087,7 @@ Prices are subject to change without prior notice.</textarea>
                         '<td style="padding: 12px; font-family: monospace; color: #7c3aed; font-weight: 600;">' + record.tracking_id + '</td>' +
                         '<td style="padding: 12px; text-align: right; font-weight: 600; color: #f59e0b;">' + weight + ' items</td>' +
                         '<td style="padding: 12px; text-align: right; font-weight: 600; color: #059669;">₹' + actualPrice.toLocaleString() + '</td>' +
-                        '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecordTab(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;" onmouseover="this.style.background=\'#dc2626\'" onmouseout="this.style.background=\'#ef4444\'"><i class="fas fa-trash"></i></button></td>' +
+                        '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecordTab(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;" onmouseover="this.style.background=&#39;#dc2626&#39;" onmouseout="this.style.background=&#39;#ef4444&#39;"><i class="fas fa-trash"></i></button></td>' +
                     '</tr>';
                 }).join('');
             }
