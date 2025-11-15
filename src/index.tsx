@@ -2647,6 +2647,125 @@ app.post('/api/inventory/dispatch', async (c) => {
   }
 });
 
+// Device replacement - replace old device with new device
+app.post('/api/inventory/replacement', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { old_device_serial_no, new_device_serial_no, replacement_reason, replaced_by } = body;
+    
+    if (!old_device_serial_no || !new_device_serial_no) {
+      return c.json({ success: false, error: 'Both old and new device serial numbers are required' }, 400);
+    }
+    
+    // Find old device
+    const oldDevice = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no LIKE ?
+    `).bind(`%${old_device_serial_no}%`).first();
+    
+    if (!oldDevice) {
+      return c.json({ success: false, error: 'Old device not found' }, 404);
+    }
+    
+    // Find new device
+    const newDevice = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no LIKE ?
+    `).bind(`%${new_device_serial_no}%`).first();
+    
+    if (!newDevice) {
+      return c.json({ success: false, error: 'New device not found' }, 404);
+    }
+    
+    // Check if new device is available
+    if (newDevice.status !== 'In Stock') {
+      return c.json({ success: false, error: `New device is not available (Status: ${newDevice.status})` }, 400);
+    }
+    
+    // Update old device - mark as Returned
+    await env.DB.prepare(`
+      UPDATE inventory SET
+        status = 'Returned',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(oldDevice.id).run();
+    
+    // Add history for old device
+    await env.DB.prepare(`
+      INSERT INTO inventory_status_history (
+        inventory_id, device_serial_no, old_status, new_status,
+        changed_by, change_reason
+      ) VALUES (?, ?, ?, 'Returned', ?, ?)
+    `).bind(oldDevice.id, oldDevice.device_serial_no, oldDevice.status, replaced_by, `Replaced with ${new_device_serial_no}: ${replacement_reason}`).run();
+    
+    // Update new device - copy customer details from old device and mark as Dispatched
+    await env.DB.prepare(`
+      UPDATE inventory SET
+        status = 'Dispatched',
+        dispatch_date = date('now'),
+        customer_name = ?,
+        cust_code = ?,
+        cust_mobile = ?,
+        cust_city = ?,
+        order_id = ?,
+        dispatch_reason = ?,
+        old_serial_no = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(
+      oldDevice.customer_name,
+      oldDevice.cust_code,
+      oldDevice.cust_mobile,
+      oldDevice.cust_city,
+      oldDevice.order_id,
+      `Replacement for ${old_device_serial_no}: ${replacement_reason}`,
+      old_device_serial_no,
+      newDevice.id
+    ).run();
+    
+    // Add history for new device
+    await env.DB.prepare(`
+      INSERT INTO inventory_status_history (
+        inventory_id, device_serial_no, old_status, new_status,
+        changed_by, change_reason
+      ) VALUES (?, ?, 'In Stock', 'Dispatched', ?, ?)
+    `).bind(newDevice.id, newDevice.device_serial_no, replaced_by, `Replacement for ${old_device_serial_no}: ${replacement_reason}`).run();
+    
+    // Create dispatch record for the new device
+    await env.DB.prepare(`
+      INSERT INTO dispatch_records (
+        inventory_id, device_serial_no, dispatch_date,
+        customer_name, customer_code, customer_mobile, customer_city,
+        dispatch_reason, dispatched_by, notes
+      ) VALUES (?, ?, date('now'), ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      newDevice.id,
+      newDevice.device_serial_no,
+      oldDevice.customer_name,
+      oldDevice.cust_code,
+      oldDevice.cust_mobile,
+      oldDevice.cust_city,
+      `Replacement for ${old_device_serial_no}`,
+      replaced_by,
+      replacement_reason
+    ).run();
+    
+    return c.json({
+      success: true,
+      message: 'Device replacement completed successfully',
+      data: {
+        old_device: old_device_serial_no,
+        new_device: new_device_serial_no,
+        customer: oldDevice.customer_name,
+        order_id: oldDevice.order_id
+      }
+    });
+  } catch (error) {
+    console.error('Replacement error:', error);
+    return c.json({ success: false, error: 'Failed to replace device: ' + error.message }, 500);
+  }
+});
+
 // Get dispatch records
 app.get('/api/inventory/dispatches', async (c) => {
   const { env } = c;
@@ -2854,6 +2973,132 @@ app.get('/api/inventory/quality-checks', async (c) => {
     return c.json({ success: true, data: qcRecords.results || [] });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to fetch QC records' }, 500);
+  }
+});
+
+// Upload QC Excel - match devices and create QC records with all parameters
+app.post('/api/inventory/upload-qc', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { items } = body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return c.json({ success: false, error: 'No QC items provided' }, 400);
+    }
+    
+    let matched = 0;
+    let notFound = 0;
+    let qcCreated = 0;
+    const notFoundDevices = [];
+    
+    for (const item of items) {
+      try {
+        const serialNo = item['Device Serial Number'] || item['Device Serial_No'] || item.device_serial_no || item['Serial Number'];
+        if (!serialNo) {
+          notFound++;
+          continue;
+        }
+        
+        // Find device in inventory
+        const device = await env.DB.prepare(`
+          SELECT id, status, model_name FROM inventory WHERE device_serial_no = ?
+        `).bind(serialNo).first();
+        
+        if (device) {
+          matched++;
+          
+          // Extract QC info from sheet - flexible column mapping
+          const qcDate = item['QC Date'] || item['Check Date'] || item.qc_date || new Date().toISOString().split('T')[0];
+          const checkedBy = item['Checked By'] || item['QC Done By'] || item.checked_by || 'Excel Upload';
+          
+          // Extract all QC parameter columns
+          const sdConnect = item['SD Connect'] || item['SD Card'] || item.sd_connect || '';
+          const allChStatus = item['All Ch Status'] || item['Channel Status'] || item.all_ch_status || '';
+          const network = item['Network'] || item.network || '';
+          const gps = item['GPS'] || item.gps || '';
+          const simSlot = item['SIM Slot'] || item['Sim Slot'] || item.sim_slot || '';
+          const online = item['Online'] || item.online || '';
+          const cameraQuality = item['Camera Quality'] || item.camera_quality || '';
+          const monitor = item['Monitor'] || item.monitor || '';
+          const finalStatus = item['Final Status'] || item['QC Status'] || item.final_status || item['Pass/Fail'] || '';
+          const ipAddress = item['IP Address'] || item.ip_address || '';
+          const notes = item['Notes'] || item['Remarks'] || item.notes || '';
+          
+          // Determine pass_fail from final_status
+          let passFail = finalStatus.toLowerCase().includes('pass') ? 'Pass' : 
+                        finalStatus.toLowerCase().includes('fail') ? 'Fail' : 'Pass';
+          
+          // Build test results summary
+          const testResults = [
+            sdConnect ? `SD Connect: ${sdConnect}` : '',
+            allChStatus ? `All Ch: ${allChStatus}` : '',
+            network ? `Network: ${network}` : '',
+            gps ? `GPS: ${gps}` : '',
+            simSlot ? `SIM: ${simSlot}` : '',
+            online ? `Online: ${online}` : '',
+            cameraQuality ? `Camera: ${cameraQuality}` : '',
+            monitor ? `Monitor: ${monitor}` : '',
+            ipAddress ? `IP: ${ipAddress}` : ''
+          ].filter(Boolean).join(', ');
+          
+          // Insert QC record with all details
+          await env.DB.prepare(`
+            INSERT INTO quality_check (
+              inventory_id, device_serial_no, check_date, checked_by,
+              test_results, pass_fail, notes,
+              sd_connect, all_ch_status, network, gps, sim_slot,
+              online, camera_quality, monitor, final_status, ip_address
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            device.id, serialNo, qcDate, checkedBy,
+            testResults, passFail, notes,
+            sdConnect, allChStatus, network, gps, simSlot,
+            online, cameraQuality, monitor, finalStatus, ipAddress
+          ).run();
+          qcCreated++;
+          
+          // Update inventory status based on QC result
+          const newStatus = passFail === 'Fail' ? 'Defective' : 'In Stock';
+          
+          if (device.status !== newStatus) {
+            await env.DB.prepare(`
+              UPDATE inventory SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+            `).bind(newStatus, device.id).run();
+            
+            // Add to history
+            await env.DB.prepare(`
+              INSERT INTO inventory_status_history (
+                inventory_id, device_serial_no, old_status, new_status,
+                changed_by, change_reason
+              ) VALUES (?, ?, ?, ?, ?, ?)
+            `).bind(device.id, serialNo, device.status, newStatus, checkedBy, `QC ${passFail} - Excel Upload`).run();
+          }
+          
+        } else {
+          notFound++;
+          notFoundDevices.push(serialNo);
+        }
+      } catch (err) {
+        notFound++;
+        console.error('Error processing QC item:', err);
+      }
+    }
+    
+    return c.json({
+      success: true,
+      message: `QC upload complete. Matched: ${matched}, Created: ${qcCreated}, Not Found: ${notFound}`,
+      data: {
+        matched,
+        qcCreated,
+        notFound,
+        notFoundDevices: notFoundDevices.slice(0, 10)
+      }
+    });
+  } catch (error) {
+    console.error('QC upload error:', error);
+    return c.json({ success: false, error: 'Failed to upload QC data: ' + error.message }, 500);
   }
 });
 
@@ -5236,12 +5481,23 @@ app.get('/', (c) => {
                         </p>
                     </div>
                     <div style="display: flex; gap: 10px;">
-                        <button onclick="exportDispatchToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 12px 24px;">
+                        <button onclick="exportDispatchToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #059669 0%, #047857 100 %); padding: 12px 24px;">
                             <i class="fas fa-file-excel"></i> Export Excel
                         </button>
-                        <button onclick="openCreateDispatchModal()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 24px;">
-                            <i class="fas fa-plus-circle"></i> Create Dispatch
-                        </button>
+                        <!-- Dropdown button for Create actions -->
+                        <div class="dropdown-container" style="position: relative; display: inline-block;">
+                            <button onclick="toggleCreateDropdown()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 24px;">
+                                <i class="fas fa-plus-circle"></i> Create <i class="fas fa-chevron-down" style="margin-left: 8px; font-size: 12px;"></i>
+                            </button>
+                            <div id="createDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 5px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); min-width: 200px; z-index: 1000;">
+                                <button onclick="openCreateDispatchModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                                    <i class="fas fa-shipping-fast" style="color: #10b981; width: 20px;"></i> Create Dispatch
+                                </button>
+                                <button onclick="openReplacementModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                                    <i class="fas fa-exchange-alt" style="color: #f59e0b; width: 20px;"></i> Replacement
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -7082,6 +7338,84 @@ Prices are subject to change without prior notice.</textarea>
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Replacement Modal -->
+        <div id="replacementModal" class="modal">
+            <div class="modal-content" style="max-width: 800px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                    <h2 style="font-size: 24px; font-weight: 700; color: #1f2937;">
+                        <i class="fas fa-exchange-alt" style="color: #f59e0b;"></i> Device Replacement
+                    </h2>
+                    <button onclick="closeReplacementModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <form onsubmit="submitReplacement(event)">
+                    <div class="card" style="background: #fef3c7; border: 2px solid #f59e0b; margin-bottom: 20px;">
+                        <p style="margin: 0; color: #92400e; font-size: 14px;">
+                            <i class="fas fa-info-circle"></i> <strong>Note:</strong> This will mark the old device as "Returned" and dispatch the new device to the same customer with the same order details.
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Old Device Serial Number *</label>
+                        <input type="text" id="oldDeviceSerialNo" required
+                            placeholder="Scan or enter old device serial number"
+                            onchange="fetchOldDeviceDetails()"
+                            style="width: 100%; padding: 12px; border: 2px solid #f59e0b; border-radius: 8px; font-size: 16px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>New Device Serial Number *</label>
+                        <input type="text" id="newDeviceSerialNo" required
+                            placeholder="Scan or enter new device serial number"
+                            style="width: 100%; padding: 12px; border: 2px solid #10b981; border-radius: 8px; font-size: 16px;">
+                    </div>
+
+                    <!-- Auto-fetched Details -->
+                    <div id="oldDeviceDetails" style="display: none; background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-bottom: 15px; color: #374151; font-size: 16px;">
+                            <i class="fas fa-info-circle"></i> Customer Details (Auto-fetched)
+                        </h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                            <div>
+                                <strong>Order ID:</strong><br/>
+                                <span id="replacementOrderId" style="color: #6b7280;">-</span>
+                            </div>
+                            <div>
+                                <strong>Customer Name:</strong><br/>
+                                <span id="replacementCustomerName" style="color: #6b7280;">-</span>
+                            </div>
+                            <div>
+                                <strong>Mobile Number:</strong><br/>
+                                <span id="replacementMobile" style="color: #6b7280;">-</span>
+                            </div>
+                            <div>
+                                <strong>Company:</strong><br/>
+                                <span id="replacementCompany" style="color: #6b7280;">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Replacement Reason *</label>
+                        <textarea id="replacementReason" required rows="3"
+                            placeholder="Enter reason for replacement (e.g., Defective, Upgrade, Customer Request)"
+                            style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;"></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 15px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                        <button type="button" onclick="closeReplacementModal()" class="btn-secondary" style="flex: 1;">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn-primary" style="flex: 2; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 16px;">
+                            <i class="fas fa-exchange-alt"></i> Replace Device
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -13155,6 +13489,104 @@ Prices are subject to change without prior notice.</textarea>
                 scannedDevices = [];
             }
             
+            // Toggle dropdown menu
+            function toggleCreateDropdown() {
+                const dropdown = document.getElementById('createDropdownMenu');
+                dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            }
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(event) {
+                const dropdownContainer = document.querySelector('.dropdown-container');
+                const dropdown = document.getElementById('createDropdownMenu');
+                if (dropdown && dropdownContainer && !dropdownContainer.contains(event.target)) {
+                    dropdown.style.display = 'none';
+                }
+            });
+            
+            // Open Replacement Modal
+            function openReplacementModal() {
+                document.getElementById('replacementModal').classList.add('show');
+                // Reset form
+                document.getElementById('oldDeviceSerialNo').value = '';
+                document.getElementById('newDeviceSerialNo').value = '';
+                document.getElementById('replacementReason').value = '';
+                document.getElementById('oldDeviceDetails').style.display = 'none';
+            }
+            
+            // Close Replacement Modal
+            function closeReplacementModal() {
+                document.getElementById('replacementModal').classList.remove('show');
+            }
+            
+            // Fetch old device details when user enters old device serial number
+            async function fetchOldDeviceDetails() {
+                const serialNo = document.getElementById('oldDeviceSerialNo').value.trim();
+                if (!serialNo) return;
+                
+                try {
+                    const response = await axios.get(\`/api/inventory/search?serial=\${serialNo}\`);
+                    if (response.data.success && response.data.data.length > 0) {
+                        const device = response.data.data[0];
+                        
+                        // Show details section
+                        document.getElementById('oldDeviceDetails').style.display = 'block';
+                        
+                        // Populate details
+                        document.getElementById('replacementOrderId').textContent = device.order_id || '-';
+                        document.getElementById('replacementCustomerName').textContent = device.customer_name || '-';
+                        document.getElementById('replacementMobile').textContent = device.cust_mobile || '-';
+                        document.getElementById('replacementCompany').textContent = device.cust_code || '-';
+                    } else {
+                        alert('❌ Old device not found. Please check the serial number.');
+                        document.getElementById('oldDeviceDetails').style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Error fetching device details:', error);
+                    alert('Error fetching device details');
+                    document.getElementById('oldDeviceDetails').style.display = 'none';
+                }
+            }
+            
+            // Submit Replacement
+            async function submitReplacement(event) {
+                event.preventDefault();
+                
+                const oldSerialNo = document.getElementById('oldDeviceSerialNo').value.trim();
+                const newSerialNo = document.getElementById('newDeviceSerialNo').value.trim();
+                const reason = document.getElementById('replacementReason').value.trim();
+                
+                if (!oldSerialNo || !newSerialNo || !reason) {
+                    alert('❌ Please fill in all required fields');
+                    return;
+                }
+                
+                if (confirm(\`Are you sure you want to replace device \\n\${oldSerialNo}\\nwith\\n\${newSerialNo}?\`)) {
+                    try {
+                        const response = await axios.post('/api/inventory/replacement', {
+                            old_device_serial_no: oldSerialNo,
+                            new_device_serial_no: newSerialNo,
+                            replacement_reason: reason,
+                            replaced_by: currentUser.employeeName || currentUser.fullName
+                        });
+                        
+                        if (response.data.success) {
+                            alert('✅ ' + response.data.message);
+                            closeReplacementModal();
+                            
+                            // Reload dispatch and inventory data
+                            if (currentPage === 'inventory-dispatch') {
+                                loadDispatchData();
+                            } else if (currentPage === 'inventory-stock') {
+                                loadInventory();
+                            }
+                        }
+                    } catch (error) {
+                        alert('❌ Error: ' + (error.response?.data?.error || error.message));
+                    }
+                }
+            }
+            
             // Search Orders
             function searchOrders() {
                 const searchTerm = document.getElementById('orderSearchInput').value.toLowerCase();
@@ -14453,24 +14885,30 @@ Prices are subject to change without prior notice.</textarea>
                 }
                 
                 tbody.innerHTML = filteredRecords.map((record, index) => {
-                    // Parse test_results JSON if available
-                    let testResults = {};
-                    try {
-                        if (record.test_results) {
-                            testResults = JSON.parse(record.test_results);
+                    // Display model_name from inventory JOIN
+                    const deviceType = record.model_name || 'N/A';
+                    
+                    // Get QC parameter values from record columns (prioritize column values over test_results JSON)
+                    const getQCValue = (value) => {
+                        if (!value || value === '' || value === null) return '-';
+                        // Display the actual status
+                        if (value.toLowerCase().includes('not applicable') || value.toLowerCase().includes('n/a')) {
+                            return '<span style="color: #9ca3af; font-style: italic;">N/A</span>';
                         }
-                    } catch (e) {
-                        console.error('Error parsing test results:', e);
-                    }
+                        if (value.toLowerCase().includes('pass') || value.toLowerCase().includes('ok')) {
+                            return '<span style="color: #10b981; font-weight: 600;">✓ ' + value + '</span>';
+                        }
+                        if (value.toLowerCase().includes('fail')) {
+                            return '<span style="color: #ef4444; font-weight: 600;">✗ ' + value + '</span>';
+                        }
+                        return value;
+                    };
                     
-                    // Determine status badge color
-                    const status = (record.pass_fail || 'Pending').trim();
+                    // Determine final status badge color
+                    const finalStatus = record.final_status || record.pass_fail || 'Pending';
                     let statusColor = '#f59e0b'; // Pending/Unknown - yellow
-                    if (status.toLowerCase().includes('pass')) statusColor = '#10b981'; // Pass - green
-                    if (status.toLowerCase().includes('fail')) statusColor = '#ef4444'; // Fail - red
-                    
-                    // Display model_name from inventory JOIN or product_name from test_results
-                    const deviceType = record.model_name || testResults.product_name || testResults.product_type || 'N/A';
+                    if (finalStatus.toLowerCase().includes('pass')) statusColor = '#10b981'; // Pass - green
+                    if (finalStatus.toLowerCase().includes('fail')) statusColor = '#ef4444'; // Fail - red
                     
                     return \`
                         <tr>
@@ -14478,16 +14916,16 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${record.check_date || 'N/A'}</td>
                             <td><strong>\${record.device_serial_no}</strong></td>
                             <td>\${deviceType}</td>
-                            <td>\${testResults.sd_connectivity || '-'}</td>
-                            <td>\${testResults.all_channels || '-'}</td>
-                            <td>\${testResults.network_connectivity || '-'}</td>
-                            <td>\${testResults.gps_connectivity || '-'}</td>
-                            <td>\${testResults.sim_card_slot || '-'}</td>
-                            <td>\${testResults.online_status || '-'}</td>
-                            <td>\${testResults.camera_quality || '-'}</td>
-                            <td>\${testResults.monitor_status || '-'}</td>
-                            <td><span style="background: \${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">\${status}</span></td>
-                            <td>\${testResults.ip_address || '-'}</td>
+                            <td>\${getQCValue(record.sd_connect)}</td>
+                            <td>\${getQCValue(record.all_ch_status)}</td>
+                            <td>\${getQCValue(record.network)}</td>
+                            <td>\${getQCValue(record.gps)}</td>
+                            <td>\${getQCValue(record.sim_slot)}</td>
+                            <td>\${getQCValue(record.online)}</td>
+                            <td>\${getQCValue(record.camera_quality)}</td>
+                            <td>\${getQCValue(record.monitor)}</td>
+                            <td><span style="background: \${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">\${finalStatus}</span></td>
+                            <td>\${record.ip_address || '-'}</td>
                         </tr>
                     \`;
                 }).join('');
