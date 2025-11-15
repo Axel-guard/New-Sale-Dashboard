@@ -1,40 +1,88 @@
-# ✅ Login Credentials - Working and Verified
+# AxelGuard Login Credentials
 
-## 🔐 Login Information
+## 🔐 Available User Accounts
 
-### Admin Account:
-- **Username**: `admin`
-- **Password**: `admin123`
-- **Role**: Administrator
-- **Full Name**: Administrator
+### Admin Account
+- **Username:** `admin`
+- **Password:** `admin123`
+- **Role:** Administrator
+- **Access:** Full system access
 
-### Employee Accounts:
-1. **Akash Parashar**
-   - Username: `akash`
-   - Password: `employee123`
-   - Role: Employee
+### Employee Accounts
 
-2. **Mandeep Samal**
-   - Username: `mandeep`
-   - Password: `employee123`
-   - Role: Employee
+#### Akash Parashar
+- **Username:** `akash`
+- **Password:** `employee123`
+- **Role:** Employee
+- **Access:** Employee dashboard
 
-3. **Smruti Ranjan Nayak**
-   - Username: `smruti`
-   - Password: `employee123`
-   - Role: Employee
+#### Mandeep Samal
+- **Username:** `mandeep`
+- **Password:** `employee123`
+- **Role:** Employee
+- **Access:** Employee dashboard
+
+#### Smruti Ranjan Nayak
+- **Username:** `smruti`
+- **Password:** `employee123`
+- **Role:** Employee
+- **Access:** Employee dashboard
 
 ---
 
-## ✅ Login Verification
+## 🌐 Access URLs
 
-### API Test Successful:
+### Local Development
+- **URL:** http://localhost:3000
+- **Status:** ✅ Active
+
+### Sandbox (Public Access)
+- **URL:** https://3000-id7zgaopnm7accybu066c-b32ec7bb.sandbox.novita.ai
+- **Status:** ✅ Active
+- **Valid For:** 1 hour (auto-extended on use)
+
+---
+
+## ✅ What Was Fixed
+
+### Problem
+The login system was changed to a **hardcoded authentication** that only accepted `admin/admin123` in JavaScript code. This meant:
+- Database credentials were completely ignored
+- No one could login with employee accounts
+- The API endpoint existed but wasn't being used
+
+### Solution
+Restored **database-based authentication**:
+1. Login now uses `/api/auth/login` API endpoint
+2. Credentials are verified against the `users` table in D1 database
+3. All user accounts work correctly
+4. Passwords are stored as base64-encoded strings in database
+
+### How It Works Now
+```
+User enters credentials
+    ↓
+JavaScript calls /api/auth/login
+    ↓
+API queries users table with username + base64(password)
+    ↓
+If match found: Login successful ✅
+If no match: Error message ❌
+```
+
+---
+
+## 🧪 Testing
+
+### Test Admin Login
 ```bash
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
+```
 
-Response:
+**Expected Response:**
+```json
 {
   "success": true,
   "data": {
@@ -47,110 +95,73 @@ Response:
 }
 ```
 
-**Status**: ✅ API is working correctly!
-
----
-
-## 🌐 Access URLs
-
-- **Development**: https://3000-id7zgaopnm7accybu066c-b32ec7bb.sandbox.novita.ai
-- **Local**: http://localhost:3000
-
----
-
-## 🔧 How to Login
-
-1. Open the webapp URL in your browser
-2. You should see the login screen with:
-   - AxelGuard logo
-   - Username field
-   - Password field
-   - Sign In button
-
-3. Enter credentials:
-   - **Username**: `admin`
-   - **Password**: `admin123`
-
-4. Click "Sign In" button
-
-5. You should be redirected to the dashboard
-
----
-
-## 🐛 If Login Still Doesn't Work
-
-### Check Browser Console:
-1. Open browser (Chrome/Firefox/Safari)
-2. Press F12 to open Developer Tools
-3. Go to Console tab
-4. Try logging in
-5. Check if there are any error messages
-
-### Common Issues:
-
-1. **Cached Session**:
-   - Clear browser cache
-   - Try in Incognito/Private mode
-   - Clear sessionStorage: Open Console and type `sessionStorage.clear()`
-
-2. **Browser Compatibility**:
-   - Use latest Chrome, Firefox, or Edge
-   - Disable browser extensions
-   - Check if JavaScript is enabled
-
-3. **Network Issues**:
-   - Check if you can access the URL
-   - Check browser Network tab (F12 → Network)
-   - Look for failed API requests
-
----
-
-## 📊 Database Information
-
-The users table contains 4 active accounts with base64 encoded passwords:
-
-| ID | Username | Password (Plain) | Password (Base64) | Role     | Full Name            |
-|----|----------|------------------|-------------------|----------|---------------------|
-| 1  | admin    | admin123         | YWRtaW4xMjM=      | admin    | Administrator       |
-| 2  | akash    | employee123      | ZW1wbG95ZWUxMjM=  | employee | Akash Parashar      |
-| 3  | mandeep  | employee123      | ZW1wbG95ZWUxMjM=  | employee | Mandeep Samal       |
-| 4  | smruti   | employee123      | ZW1wbG95ZWUxMjM=  | employee | Smruti Ranjan Nayak |
-
----
-
-## 🔐 Password Encoding
-
-The system uses **Base64 encoding** for passwords (NOT secure for production, but used for demo):
-
-```javascript
-// Login process:
-const encodedPassword = btoa(password); // Encode to base64
-// Compare with stored base64 password in database
+### Test Employee Login
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"akash","password":"employee123"}'
 ```
 
-**For Production**: Should use proper password hashing (bcrypt, argon2, etc.)
+**Expected Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 2,
+    "username": "akash",
+    "fullName": "Akash Parashar",
+    "role": "employee",
+    "employeeName": "Akash Parashar"
+  }
+}
+```
 
 ---
 
-## ✅ Verification Status
+## 🔧 Technical Details
 
-- ✅ Database contains correct user records
-- ✅ Passwords are properly encoded
-- ✅ API endpoint `/api/auth/login` is working
-- ✅ API returns correct user data on successful login
-- ✅ Service is running and accessible
-- ✅ No errors in server logs for login attempts
+### Database Table: `users`
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,  -- base64 encoded
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  employee_name TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  email TEXT
+);
+```
 
-**Conclusion**: Login system is working correctly. If you're having issues, it's likely a browser/cache issue.
+### Password Encoding
+Passwords are stored as **base64-encoded strings**:
+- `admin123` → `YWRtaW4xMjM=`
+- `employee123` → `ZW1wbG95ZWUxMjM=`
+
+**Note:** This is for demonstration purposes. Production systems should use proper password hashing (bcrypt, argon2, etc.).
 
 ---
 
-## 🆘 Still Having Issues?
+## 📝 Notes
 
-Please provide:
-1. Browser you're using (Chrome/Firefox/Safari/Edge)
-2. Any error messages from browser console (F12)
-3. Screenshot of the login screen
-4. What happens when you click "Sign In" button
+1. **Session Storage:** User data is stored in `sessionStorage` after successful login
+2. **Logout:** Clears `sessionStorage` and returns to login screen
+3. **Auto-login:** If `sessionStorage` has user data, automatically shows dashboard on page load
+4. **Security:** Current implementation uses base64 encoding (suitable for demo/internal use)
 
-This will help diagnose the specific issue you're facing.
+---
+
+## 🚀 Deployment Status
+
+- ✅ Local development server running
+- ✅ Database migrations applied
+- ✅ All user accounts active
+- ✅ Login API endpoint working
+- ✅ Frontend form properly connected
+- ✅ Session management working
+
+**Last Updated:** 2025-11-15
+**Commit:** ccc3f62 - Fix login: Restore database-based authentication
