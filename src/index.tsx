@@ -5624,8 +5624,8 @@ app.get('/', (c) => {
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>S. No</th>
-                                    <th>Device Serial No</th>
+                                    <th style="position: sticky; left: 0; z-index: 11; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">S. No</th>
+                                    <th style="position: sticky; left: 60px; z-index: 11; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">Device Serial No</th>
                                     <th>Model Name</th>
                                     <th>Status</th>
                                     <th>In Date</th>
@@ -5872,6 +5872,26 @@ app.get('/', (c) => {
             
             <!-- Quality Check Page -->
             <div class="page-content" id="inventory-qc-page">
+                <!-- Header with Buttons -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0;">Quality Check Reports</h1>
+                    </div>
+                    <div style="position: relative; display: inline-block;">
+                        <button onclick="toggleQCActionsDropdown()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 24px;">
+                            <i class="fas fa-ellipsis-v"></i> Actions <i class="fas fa-chevron-down" style="margin-left: 8px; font-size: 12px;"></i>
+                        </button>
+                        <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 5px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); min-width: 200px; z-index: 1000;">
+                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                                <i class="fas fa-file-excel" style="color: #059669; width: 20px;"></i> Export Excel
+                            </button>
+                            <button onclick="openNewQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                                <i class="fas fa-plus-circle" style="color: #667eea; width: 20px;"></i> New Quality Check
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- QC Summary Cards -->
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
                     <div onclick="filterQCReport('Pass')" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
@@ -5888,15 +5908,7 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
-                <!-- New Quality Check Button -->
-                <div style="text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px;">
-                    <button onclick="exportQCToExcel()" class="btn-primary" style="padding: 15px 30px; font-size: 16px; background: linear-gradient(135deg, #059669 0%, #047857 100%);">
-                        <i class="fas fa-file-excel"></i> Export Excel
-                    </button>
-                    <button onclick="openNewQCModal()" class="btn-primary" style="padding: 15px 40px; font-size: 18px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                        <i class="fas fa-plus-circle"></i> New Quality Check
-                    </button>
-                </div>
+
 
                 <!-- QC Reports Card -->
                 <div class="card">
@@ -12205,8 +12217,8 @@ Prices are subject to change without prior notice.</textarea>
                         
                         return \`
                             <tr>
-                                <td>\${item.serial_number || item.id}</td>
-                                <td><strong>\${item.device_serial_no}</strong></td>
+                                <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">\${item.serial_number || item.id}</td>
+                                <td style="position: sticky; left: 60px; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);"><strong>\${item.device_serial_no}</strong></td>
                                 <td>\${item.model_name}</td>
                                 <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[item.status] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
                                 <td>\${formatDate(item.in_date)}</td>
@@ -13692,12 +13704,25 @@ Prices are subject to change without prior notice.</textarea>
                 dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
             }
             
-            // Close dropdown when clicking outside
+            // Toggle QC Actions Dropdown
+            function toggleQCActionsDropdown() {
+                const dropdown = document.getElementById('qcActionsDropdownMenu');
+                dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            }
+            
+            // Close dropdowns when clicking outside
             document.addEventListener('click', function(event) {
+                // Close Create Dispatch dropdown
                 const dropdownContainer = document.querySelector('.dropdown-container');
                 const dropdown = document.getElementById('createDropdownMenu');
                 if (dropdown && dropdownContainer && !dropdownContainer.contains(event.target)) {
                     dropdown.style.display = 'none';
+                }
+                
+                // Close QC Actions dropdown
+                const qcDropdown = document.getElementById('qcActionsDropdownMenu');
+                if (qcDropdown && !event.target.closest('#qcActionsDropdownMenu') && !event.target.closest('button[onclick*="toggleQCActionsDropdown"]')) {
+                    qcDropdown.style.display = 'none';
                 }
             });
             
@@ -15121,7 +15146,7 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${getQCValue(record.online)}</td>
                             <td>\${getQCValue(record.camera_quality)}</td>
                             <td>\${getQCValue(record.monitor)}</td>
-                            <td><span style="background: \${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">\${finalStatus}</span></td>
+                            <td><span style="background: \${statusColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">\${finalStatus}</span></td>
                             <td>\${record.ip_address || '-'}</td>
                         </tr>
                     \`;
