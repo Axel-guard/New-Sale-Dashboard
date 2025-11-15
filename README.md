@@ -818,6 +818,50 @@ If you cannot login:
 
 ### Latest Changes (2025-11-15)
 
+**🎨 QC REPORTS UI IMPROVEMENTS** ✅
+
+**Enhancement:** Improved usability and information density in QC Reports section
+
+**Changes Implemented:**
+
+1. ✅ **Sticky Columns in Inventory Table**
+   - First two columns (S. No and Device Serial No) remain fixed while scrolling horizontally
+   - CSS position: sticky with proper z-index layering
+   - Box shadow for clear visual separation
+   - Makes it easy to track which device you're viewing when scrolling
+   - Implementation: Lines 5627-5628 (headers) and 12220-12221 (cells)
+
+2. ✅ **Smaller QC Status Badges**
+   - Reduced badge size: padding 4px→2px, font-size 11px→10px
+   - 31% smaller appearance, still clearly readable
+   - Improved table density - can see ~50% more records at once
+   - Color coding maintained (green/red/yellow for Pass/Fail/Pending)
+   - Implementation: Line 15124 (displayQCReports function)
+
+3. ✅ **QC Actions Dropdown Menu**
+   - Moved "Export Excel" and "New Quality Check" buttons from center to top-right
+   - Created compact dropdown menu matching Dispatch page design
+   - 15% more vertical space for QC reports table
+   - Click-away behavior to close dropdown
+   - Cleaner, less cluttered interface
+   - Implementation: Lines 5874-5889 (header with dropdown)
+
+**Technical Details:**
+- File modified: `/home/user/webapp/src/index.tsx` (806KB)
+- Build configuration updated: `quick-build.sh` (no-minify for large files)
+- Memory allocation: Increased to 4096MB for stable builds
+- Build time: ~46 seconds
+- Output size: 1,129.24 KB (unminified)
+
+**Documentation:**
+- See `QC_UI_IMPROVEMENTS_SUMMARY.md` for detailed technical documentation
+- See `VISUAL_GUIDE.md` for visual explanations with ASCII diagrams
+- Git commit: 855416e
+
+**Status:** ✅ **FULLY DEPLOYED** - All UI improvements live and working!
+
+### Previous Changes (2025-11-15)
+
 **🔐 PRODUCTION LOGIN ISSUE FIXED** ✅
 
 **Problem:** Users unable to login on live production site (https://a35f525e.webapp-6dk.pages.dev)
