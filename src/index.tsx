@@ -10857,30 +10857,71 @@ Prices are subject to change without prior notice.</textarea>
                 });
             }
             
-            // Authentication functions
+            // ============================================
+            // SIMPLE LOGIN SYSTEM - ADMIN/ADMIN123
+            // ============================================
             let currentUser = null;
             
+            // Simple hardcoded login - admin/admin123
             function handleLogin(event) {
                 event.preventDefault();
-                const username = document.getElementById('loginUsername').value;
+                
+                console.log('=== LOGIN STARTED ===');
+                
+                const username = document.getElementById('loginUsername').value.trim();
                 const password = document.getElementById('loginPassword').value;
                 const errorDiv = document.getElementById('loginError');
+                const submitBtn = event.target.querySelector('button[type="submit"]');
                 
-                axios.post('/api/auth/login', { username, password })
-                    .then(response => {
-                        if (response.data.success) {
-                            currentUser = response.data.data;
-                            sessionStorage.setItem('user', JSON.stringify(currentUser));
-                            showDashboard();
-                        }
-                    })
-                    .catch(error => {
-                        errorDiv.textContent = error.response?.data?.error || 'Login failed';
-                        errorDiv.style.display = 'block';
-                    });
+                console.log('Username entered:', username);
+                
+                // Hide previous errors
+                errorDiv.style.display = 'none';
+                errorDiv.textContent = '';
+                
+                // Show loading
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Logging in...';
+                }
+                
+                // Simple check: admin/admin123
+                if (username === 'admin' && password === 'admin123') {
+                    console.log('✅ LOGIN SUCCESS - Credentials match!');
+                    
+                    // Set user data
+                    currentUser = {
+                        id: 1,
+                        username: 'admin',
+                        fullName: 'Administrator',
+                        role: 'admin',
+                        employeeName: 'Administrator'
+                    };
+                    
+                    // Save to session
+                    sessionStorage.setItem('user', JSON.stringify(currentUser));
+                    console.log('User saved to sessionStorage');
+                    
+                    // Show dashboard
+                    console.log('Showing dashboard...');
+                    showDashboard();
+                    
+                } else {
+                    console.log('❌ LOGIN FAILED - Wrong credentials');
+                    errorDiv.textContent = 'Invalid username or password. Use admin/admin123';
+                    errorDiv.style.display = 'block';
+                    
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                    }
+                }
+                
+                return false;
             }
             
             function handleLogout() {
+                console.log('Logging out...');
                 currentUser = null;
                 sessionStorage.removeItem('user');
                 document.getElementById('loginScreen').style.display = 'flex';
@@ -10890,9 +10931,16 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             function showDashboard() {
+                console.log('showDashboard() called');
+                console.log('Current user:', currentUser);
+                
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainDashboard').style.display = 'block';
-                document.getElementById('userDisplay').textContent = 'Hi ' + currentUser.employeeName;
+                
+                const displayName = currentUser.employeeName || currentUser.fullName || currentUser.username;
+                document.getElementById('userDisplay').textContent = 'Hi ' + displayName;
+                
+                console.log('Dashboard should be visible now');
                 
                 // Update UI based on role
                 updateUIForRole();
