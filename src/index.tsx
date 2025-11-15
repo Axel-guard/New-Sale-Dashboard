@@ -7204,6 +7204,14 @@ Prices are subject to change without prior notice.</textarea>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+            // Check if axios is loaded
+            if (typeof axios === 'undefined') {
+                console.error('CRITICAL: axios is not loaded!');
+                alert('Error: Required library not loaded. Please refresh the page.');
+            } else {
+                console.log('✓ axios loaded successfully, version:', axios.VERSION || 'unknown');
+            }
+            
             let currentPage = 'dashboard'; // Track current page
             let paymentChart = null;
             let employeeChart = null;
@@ -10891,21 +10899,52 @@ Prices are subject to change without prior notice.</textarea>
             
             function handleLogin(event) {
                 event.preventDefault();
+                console.log('Login attempt started');
+                
                 const username = document.getElementById('loginUsername').value;
                 const password = document.getElementById('loginPassword').value;
                 const errorDiv = document.getElementById('loginError');
                 
+                console.log('Username:', username);
+                console.log('Attempting login...');
+                
+                // Clear previous errors
+                errorDiv.style.display = 'none';
+                errorDiv.textContent = '';
+                
+                // Disable submit button during login
+                const submitBtn = event.target.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+                }
+                
                 axios.post('/api/auth/login', { username, password })
                     .then(response => {
+                        console.log('Login response:', response);
                         if (response.data.success) {
+                            console.log('Login successful!', response.data.data);
                             currentUser = response.data.data;
                             sessionStorage.setItem('user', JSON.stringify(currentUser));
                             showDashboard();
+                        } else {
+                            console.error('Login failed:', response.data);
+                            errorDiv.textContent = response.data.error || 'Login failed';
+                            errorDiv.style.display = 'block';
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                            }
                         }
                     })
                     .catch(error => {
-                        errorDiv.textContent = error.response?.data?.error || 'Login failed';
+                        console.error('Login error:', error);
+                        errorDiv.textContent = error.response?.data?.error || 'Login failed. Please check your credentials.';
                         errorDiv.style.display = 'block';
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                        }
                     });
             }
             
