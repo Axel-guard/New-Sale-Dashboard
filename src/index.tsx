@@ -32,7 +32,7 @@ app.post('/api/auth/login', async (c) => {
     console.log('[LOGIN] Encoded password:', encodedPassword);
     
     const user = await env.DB.prepare(`
-      SELECT id, username, full_name, role, employee_name, is_active 
+      SELECT id, username, full_name, role, employee_name, is_active, can_edit, can_delete, can_view 
       FROM users 
       WHERE username = ? AND password = ? AND is_active = 1
     `).bind(username, encodedPassword).first();
@@ -52,7 +52,12 @@ app.post('/api/auth/login', async (c) => {
         username: user.username,
         fullName: user.full_name,
         role: user.role,
-        employeeName: user.employee_name
+        employeeName: user.employee_name,
+        permissions: {
+          canEdit: user.can_edit === 1,
+          canDelete: user.can_delete === 1,
+          canView: user.can_view === 1
+        }
       }
     });
   } catch (error) {
@@ -67,27 +72,17 @@ app.get('/api/auth/verify', async (c) => {
   return c.json({ success: true });
 });
 
-// Change password endpoint
+// Change password endpoint (Admin can change without current password)
 app.post('/api/auth/change-password', async (c) => {
   const { env } = c;
   
   try {
     const body = await c.req.json();
-    const { userId, currentPassword, newPassword } = body;
+    const { userId, newPassword } = body;
     
-    const encodedCurrentPassword = btoa(currentPassword);
     const encodedNewPassword = btoa(newPassword);
     
-    // Verify current password
-    const user = await env.DB.prepare(`
-      SELECT id FROM users WHERE id = ? AND password = ?
-    `).bind(userId, encodedCurrentPassword).first();
-    
-    if (!user) {
-      return c.json({ success: false, error: 'Current password is incorrect' }, 401);
-    }
-    
-    // Update password
+    // Update password (no current password check - admin privilege)
     await env.DB.prepare(`
       UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).bind(encodedNewPassword, userId).run();
@@ -104,7 +99,7 @@ app.get('/api/users', async (c) => {
   
   try {
     const users = await env.DB.prepare(`
-      SELECT id, username, full_name, role, employee_name, is_active, created_at
+      SELECT id, username, full_name, role, employee_name, is_active, can_edit, can_delete, can_view, created_at
       FROM users
       ORDER BY created_at DESC
     `).all();
@@ -133,10 +128,15 @@ app.post('/api/users', async (c) => {
     
     const encodedPassword = btoa(password);
     
+    // Set default permissions based on role
+    const can_edit = role === 'admin' ? 1 : 0;
+    const can_delete = role === 'admin' ? 1 : 0;
+    const can_view = 1;
+    
     const result = await env.DB.prepare(`
-      INSERT INTO users (username, password, full_name, role, employee_name, is_active)
-      VALUES (?, ?, ?, ?, ?, 1)
-    `).bind(username, encodedPassword, full_name, role, employee_name || null).run();
+      INSERT INTO users (username, password, full_name, role, employee_name, is_active, can_edit, can_delete, can_view)
+      VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+    `).bind(username, encodedPassword, full_name, role, employee_name || null, can_edit, can_delete, can_view).run();
     
     return c.json({ success: true, data: { id: result.meta.last_row_id }, message: 'User created successfully' });
   } catch (error) {
@@ -150,22 +150,22 @@ app.put('/api/users/:id', async (c) => {
   try {
     const userId = c.req.param('id');
     const body = await c.req.json();
-    const { full_name, role, employee_name, is_active, new_password } = body;
+    const { full_name, role, employee_name, is_active, can_edit, can_delete, can_view, new_password } = body;
     
-    // Update user information
+    // Update user information including permissions
     if (new_password && new_password.length > 0) {
       const encodedPassword = btoa(new_password);
       await env.DB.prepare(`
         UPDATE users 
-        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, password = ?, updated_at = CURRENT_TIMESTAMP
+        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, can_edit = ?, can_delete = ?, can_view = ?, password = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(full_name, role, employee_name || null, is_active, encodedPassword, userId).run();
+      `).bind(full_name, role, employee_name || null, is_active, can_edit || 0, can_delete || 0, can_view || 1, encodedPassword, userId).run();
     } else {
       await env.DB.prepare(`
         UPDATE users 
-        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        SET full_name = ?, role = ?, employee_name = ?, is_active = ?, can_edit = ?, can_delete = ?, can_view = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).bind(full_name, role, employee_name || null, is_active, userId).run();
+      `).bind(full_name, role, employee_name || null, is_active, can_edit || 0, can_delete || 0, can_view || 1, userId).run();
     }
     
     return c.json({ success: true, message: 'User updated successfully' });
@@ -6564,11 +6564,6 @@ app.get('/', (c) => {
                     
                     <form id="changePasswordForm" onsubmit="changePassword(event)">
                         <div class="form-group">
-                            <label>Current Password *</label>
-                            <input type="password" id="currentPassword" required placeholder="Enter current password">
-                        </div>
-                        
-                        <div class="form-group">
                             <label>New Password *</label>
                             <input type="password" id="newPassword" required minlength="6" placeholder="Enter new password (min 6 characters)">
                         </div>
@@ -6608,13 +6603,14 @@ app.get('/', (c) => {
                                     <th>Full Name</th>
                                     <th>Role</th>
                                     <th>Employee Name</th>
+                                    <th>Permissions</th>
                                     <th>Status</th>
                                     <th>Created</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="8" class="loading">Loading...</td></tr>
+                                <tr><td colspan="9" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -7125,6 +7121,27 @@ app.get('/', (c) => {
                             <option value="1">Active</option>
                             <option value="0">Inactive</option>
                         </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Permissions *</label>
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: not-allowed; opacity: 0.6;">
+                                <input type="checkbox" checked disabled style="cursor: not-allowed;">
+                                <span style="font-weight: 500;">View</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <input type="checkbox" id="editUserCanEdit" name="can_edit" value="1">
+                                <span style="font-weight: 500;">Edit</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <input type="checkbox" id="editUserCanDelete" name="can_delete" value="1">
+                                <span style="font-weight: 500;">Delete</span>
+                            </label>
+                        </div>
+                        <small style="color: #6b7280; display: block; margin-top: 5px;">
+                            <i class="fas fa-info-circle"></i> View permission is always enabled. Grant Edit and Delete permissions as needed.
+                        </small>
                     </div>
                     
                     <div class="form-group">
@@ -11518,18 +11535,46 @@ Prices are subject to change without prior notice.</textarea>
             
             function updateUIForRole() {
                 const isAdmin = currentUser.role === 'admin';
+                const hasEditPermission = isAdmin || (currentUser.permissions && currentUser.permissions.canEdit);
+                const hasDeletePermission = isAdmin || (currentUser.permissions && currentUser.permissions.canDelete);
+                
+                console.log('📊 Permissions:', {
+                    role: currentUser.role,
+                    isAdmin: isAdmin,
+                    hasEditPermission: hasEditPermission,
+                    hasDeletePermission: hasDeletePermission,
+                    permissions: currentUser.permissions
+                });
                 
                 // Hide/show Edit buttons in Sale Database
                 document.querySelectorAll('.btn-edit-sale').forEach(btn => {
-                    btn.style.display = isAdmin ? 'inline-block' : 'none';
+                    btn.style.display = hasEditPermission ? 'inline-block' : 'none';
+                });
+                
+                // Hide/show Delete buttons in Sale Database
+                document.querySelectorAll('.btn-delete-sale').forEach(btn => {
+                    btn.style.display = hasDeletePermission ? 'inline-block' : 'none';
                 });
                 
                 // Hide/show Edit buttons in Leads Database
                 document.querySelectorAll('.btn-edit-lead').forEach(btn => {
-                    btn.style.display = isAdmin ? 'inline-block' : 'none';
+                    btn.style.display = hasEditPermission ? 'inline-block' : 'none';
                 });
                 
-                // Hide/show Excel Upload sidebar item
+                // Hide/show Delete buttons in Leads Database
+                document.querySelectorAll('.btn-delete-lead').forEach(btn => {
+                    btn.style.display = hasDeletePermission ? 'inline-block' : 'none';
+                });
+                
+                // Hide/show all generic edit/delete buttons
+                document.querySelectorAll('.btn-edit').forEach(btn => {
+                    btn.style.display = hasEditPermission ? 'inline-block' : 'none';
+                });
+                document.querySelectorAll('.btn-delete').forEach(btn => {
+                    btn.style.display = hasDeletePermission ? 'inline-block' : 'none';
+                });
+                
+                // Hide/show Excel Upload sidebar item (admin only)
                 const uploadItem = document.querySelector('[onclick="showPage(\\'excel-upload\\')"]');
                 if (uploadItem) {
                     uploadItem.style.display = isAdmin ? 'block' : 'none';
@@ -11539,6 +11584,11 @@ Prices are subject to change without prior notice.</textarea>
                 const userManagementItem = document.getElementById('userManagementMenuItem');
                 if (userManagementItem) {
                     userManagementItem.style.display = isAdmin ? 'block' : 'none';
+                }
+                
+                // If no edit permission, show view-only message
+                if (!hasEditPermission) {
+                    console.log('⚠️ User has VIEW-ONLY access');
                 }
             }
             
@@ -11943,30 +11993,16 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // ============================================
-            // CHANGE PASSWORD - WORKS WITH HARDCODED LOGIN
+            // CHANGE PASSWORD - API-BASED (NO CURRENT PASSWORD REQUIRED)
             // ============================================
-            function changePassword(event) {
+            async function changePassword(event) {
                 event.preventDefault();
                 
                 console.log('=== CHANGE PASSWORD STARTED ===');
                 
-                const currentPassword = document.getElementById('currentPassword').value;
                 const newPassword = document.getElementById('newPassword').value;
                 const confirmPassword = document.getElementById('confirmPassword').value;
                 const statusDiv = document.getElementById('passwordChangeStatus');
-                
-                // Get stored password (default is 'admin123')
-                const storedPassword = localStorage.getItem('adminPassword') || 'admin123';
-                console.log('Checking current password...');
-                
-                // Validate current password
-                if (currentPassword !== storedPassword) {
-                    console.log('❌ Current password incorrect');
-                    statusDiv.className = 'alert-error';
-                    statusDiv.textContent = 'Current password is incorrect!';
-                    statusDiv.style.display = 'block';
-                    return;
-                }
                 
                 // Validate new passwords match
                 if (newPassword !== confirmPassword) {
@@ -11986,21 +12022,38 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
-                // Save new password to localStorage
-                localStorage.setItem('adminPassword', newPassword);
-                console.log('✅ Password changed successfully');
+                // Get current user from session
+                const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+                if (!user.id) {
+                    statusDiv.className = 'alert-error';
+                    statusDiv.textContent = 'User session not found. Please login again.';
+                    statusDiv.style.display = 'block';
+                    return;
+                }
                 
-                statusDiv.className = 'alert-success';
-                statusDiv.textContent = 'Password changed successfully! Please use your new password next time you login.';
-                statusDiv.style.display = 'block';
-                
-                // Clear form
-                document.getElementById('changePasswordForm').reset();
-                
-                // Hide success message after 5 seconds
-                setTimeout(() => {
-                    statusDiv.style.display = 'none';
-                }, 5000);
+                try {
+                    const response = await axios.post('/api/auth/change-password', {
+                        userId: user.id,
+                        newPassword: newPassword
+                    });
+                    
+                    if (response.data.success) {
+                        console.log('✅ Password changed successfully');
+                        statusDiv.className = 'alert-success';
+                        statusDiv.textContent = 'Password changed successfully!';
+                        statusDiv.style.display = 'block';
+                        document.getElementById('changePasswordForm').reset();
+                    } else {
+                        statusDiv.className = 'alert-error';
+                        statusDiv.textContent = response.data.error || 'Failed to change password';
+                        statusDiv.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Error changing password:', error);
+                    statusDiv.className = 'alert-error';
+                    statusDiv.textContent = 'Failed to change password: ' + (error.response?.data?.error || error.message);
+                    statusDiv.style.display = 'block';
+                }
             }
             
             // User Management Functions
@@ -12011,7 +12064,7 @@ Prices are subject to change without prior notice.</textarea>
                     
                     const tbody = document.getElementById('usersTableBody');
                     if (!users || users.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #6b7280;">No users found</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #6b7280;">No users found</td></tr>';
                         return;
                     }
                     
@@ -12022,6 +12075,14 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${user.full_name}</td>
                             <td><span class="badge \${user.role === 'admin' ? 'badge-error' : 'badge-success'}">\${user.role}</span></td>
                             <td>\${user.employee_name || '-'}</td>
+                            <td>
+                                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                    \${user.can_view ? '<span class="badge badge-info" style="font-size: 10px; padding: 3px 6px;">View</span>' : ''}
+                                    \${user.can_edit ? '<span class="badge badge-success" style="font-size: 10px; padding: 3px 6px;">Edit</span>' : ''}
+                                    \${user.can_delete ? '<span class="badge badge-error" style="font-size: 10px; padding: 3px 6px;">Delete</span>' : ''}
+                                    \${(!user.can_edit && !user.can_delete && user.can_view) ? '<span class="badge badge-warning" style="font-size: 10px; padding: 3px 6px;">View Only</span>' : ''}
+                                </div>
+                            </td>
                             <td><span class="badge \${user.is_active ? 'badge-success' : 'badge-warning'}">\${user.is_active ? 'Active' : 'Inactive'}</span></td>
                             <td><small>\${new Date(user.created_at).toLocaleDateString()}</small></td>
                             <td>
@@ -12034,7 +12095,7 @@ Prices are subject to change without prior notice.</textarea>
                 } catch (error) {
                     console.error('Error loading users:', error);
                     const tbody = document.getElementById('usersTableBody');
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #dc2626;">Error loading users</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #dc2626;">Error loading users</td></tr>';
                 }
             }
             
@@ -12106,6 +12167,10 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('editUserStatus').value = user.is_active;
                     document.getElementById('editUserPassword').value = '';
                     
+                    // Set permission checkboxes
+                    document.getElementById('editUserCanEdit').checked = user.can_edit === 1;
+                    document.getElementById('editUserCanDelete').checked = user.can_delete === 1;
+                    
                     // Show/hide employee name field
                     const editEmployeeNameGroup = document.getElementById('editEmployeeNameGroup');
                     if (user.role === 'employee') {
@@ -12146,6 +12211,9 @@ Prices are subject to change without prior notice.</textarea>
                     role: formData.get('role'),
                     employee_name: formData.get('employee_name'),
                     is_active: parseInt(formData.get('is_active')),
+                    can_edit: document.getElementById('editUserCanEdit').checked ? 1 : 0,
+                    can_delete: document.getElementById('editUserCanDelete').checked ? 1 : 0,
+                    can_view: 1,  // Always 1
                     new_password: formData.get('new_password')
                 };
                 
