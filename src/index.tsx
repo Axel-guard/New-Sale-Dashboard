@@ -3716,6 +3716,111 @@ app.get('/api/dispatch/summary', async (c) => {
   }
 });
 
+// Get renewal tracking data - customer-wise renewal status for 4G devices
+app.get('/api/renewals', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Get all dispatched 4G MDVRs and Dashcams
+    const devices = await env.DB.prepare(`
+      SELECT 
+        device_serial_no,
+        model_name,
+        customer_name,
+        cust_code,
+        order_id,
+        dispatch_date,
+        status
+      FROM inventory 
+      WHERE status = 'Dispatched'
+        AND dispatch_date IS NOT NULL
+        AND (
+          model_name LIKE '%4G%MDVR%' OR 
+          model_name LIKE '%4g%mdvr%' OR
+          model_name LIKE '%4G%Dashcam%' OR
+          model_name LIKE '%4g%dashcam%'
+        )
+      ORDER BY customer_name, dispatch_date
+    `).all();
+
+    if (!devices.results || devices.results.length === 0) {
+      return c.json({ success: true, data: [] });
+    }
+
+    // Calculate renewal periods for each device
+    const today = new Date();
+    const deviceList = devices.results;
+    
+    // Group by customer
+    const customerMap = new Map();
+    
+    deviceList.forEach(device => {
+      const custCode = device.cust_code || 'Unknown';
+      const customerName = device.customer_name || 'Unknown Customer';
+      
+      if (!customerMap.has(custCode)) {
+        customerMap.set(custCode, {
+          cust_code: custCode,
+          customer_name: customerName,
+          cmr: [],
+          c1: [],
+          c2: [],
+          c3: [],
+          total: 0
+        });
+      }
+      
+      const customer = customerMap.get(custCode);
+      
+      // Calculate CMR date (dispatch_date + 12 months)
+      const dispatchDate = new Date(device.dispatch_date);
+      const cmrDate = new Date(dispatchDate);
+      cmrDate.setMonth(cmrDate.getMonth() + 12);
+      
+      // Calculate difference in months from CMR date to today
+      const monthsDiff = (cmrDate.getFullYear() - today.getFullYear()) * 12 + 
+                        (cmrDate.getMonth() - today.getMonth());
+      
+      // Categorize device based on renewal period
+      const deviceData = {
+        device_serial_no: device.device_serial_no,
+        model_name: device.model_name,
+        dispatch_date: device.dispatch_date,
+        cmr_date: cmrDate.toISOString().split('T')[0],
+        order_id: device.order_id
+      };
+      
+      // CMR: Due now or overdue (0 months or less)
+      if (monthsDiff <= 0) {
+        customer.cmr.push(deviceData);
+      }
+      // C+1: Due in 1 month (between 0 and 1 month)
+      else if (monthsDiff <= 1) {
+        customer.c1.push(deviceData);
+      }
+      // C+2: Due in 2 months (between 1 and 2 months)
+      else if (monthsDiff <= 2) {
+        customer.c2.push(deviceData);
+      }
+      // C+3: Due in 3 months (between 2 and 3 months)
+      else if (monthsDiff <= 3) {
+        customer.c3.push(deviceData);
+      }
+      
+      customer.total++;
+    });
+    
+    // Convert map to array and sort by total devices (descending)
+    const customerList = Array.from(customerMap.values())
+      .sort((a, b) => b.total - a.total);
+    
+    return c.json({ success: true, data: customerList });
+  } catch (error) {
+    console.error('Renewals error:', error);
+    return c.json({ success: false, error: 'Failed to fetch renewal data: ' + error.message }, 500);
+  }
+});
+
 // Get single device by serial number (for barcode scanning) - MUST BE LAST
 app.get('/api/inventory/:serialNo', async (c) => {
   const { env } = c;
@@ -4913,6 +5018,10 @@ app.get('/', (c) => {
                     <i class="fas fa-file-invoice"></i>
                     <span>Quotations</span>
                 </div>
+                <div class="sidebar-child" onclick="showPage('renewal')">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Renewal</span>
+                </div>
             </div>
             
             <!-- Leads Database (standalone) -->
@@ -5305,6 +5414,62 @@ app.get('/', (c) => {
                             </thead>
                             <tbody id="quotationsTableBody">
                                 <tr><td colspan="7" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Renewal Page -->
+            <div class="page-content" id="renewal-page">
+                <div style="margin-bottom: 20px;">
+                    <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin-bottom: 5px;">
+                        <i class="fas fa-sync-alt" style="color: #3b82f6;"></i> Renewal Tracking
+                    </h1>
+                    <p style="color: #6b7280; font-size: 14px; margin: 0;">
+                        Track device renewal status for 4G MDVRs and 4G Dashcams
+                    </p>
+                </div>
+
+                <!-- Tabs for renewal periods -->
+                <div style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+                    <div style="display: flex; gap: 0;">
+                        <button id="cmrTab" onclick="switchRenewalTab('cmr')" 
+                            style="padding: 12px 24px; border: none; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid #2563eb;">
+                            <i class="fas fa-calendar-check"></i> CMR (Due Now)
+                        </button>
+                        <button id="c1Tab" onclick="switchRenewalTab('c1')" 
+                            style="padding: 12px 24px; border: none; background: #f3f4f6; color: #6b7280; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s;">
+                            <i class="fas fa-calendar-plus"></i> C+1 (1 Month)
+                        </button>
+                        <button id="c2Tab" onclick="switchRenewalTab('c2')" 
+                            style="padding: 12px 24px; border: none; background: #f3f4f6; color: #6b7280; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s;">
+                            <i class="fas fa-calendar"></i> C+2 (2 Months)
+                        </button>
+                        <button id="c3Tab" onclick="switchRenewalTab('c3')" 
+                            style="padding: 12px 24px; border: none; background: #f3f4f6; color: #6b7280; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s;">
+                            <i class="fas fa-calendar-alt"></i> C+3 (3 Months)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>S. No</th>
+                                    <th>Cust Code</th>
+                                    <th>Customer Name</th>
+                                    <th style="cursor: pointer; background: #dbeafe;">CMR</th>
+                                    <th style="cursor: pointer; background: #fef3c7;">C+1</th>
+                                    <th style="cursor: pointer; background: #d1fae5;">C+2</th>
+                                    <th style="cursor: pointer; background: #e0e7ff;">C+3</th>
+                                    <th style="font-weight: 700; background: #f3f4f6;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="renewalTableBody">
+                                <tr><td colspan="8" class="loading">Loading renewal data...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -7804,6 +7969,9 @@ Prices are subject to change without prior notice.</textarea>
                         break;
                     case 'inventory-reports':
                         loadInventoryReports();
+                        break;
+                    case 'renewal':
+                        loadRenewalData();
                         break;
                 }
             }
@@ -15751,6 +15919,194 @@ Prices are subject to change without prior notice.</textarea>
             
             // ===================================================================
             // END OF EXPORT FUNCTIONS
+            // ===================================================================
+            
+            // ===================================================================
+            // RENEWAL TRACKING FUNCTIONS
+            // ===================================================================
+            
+            let currentRenewalTab = 'cmr';
+            let renewalData = [];
+            
+            // Switch renewal tab
+            function switchRenewalTab(tab) {
+                currentRenewalTab = tab;
+                
+                // Update tab styles
+                const tabs = ['cmr', 'c1', 'c2', 'c3'];
+                tabs.forEach(t => {
+                    const btn = document.getElementById(t + 'Tab');
+                    if (t === tab) {
+                        btn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+                        btn.style.color = 'white';
+                        btn.style.borderBottom = '3px solid #2563eb';
+                    } else {
+                        btn.style.background = '#f3f4f6';
+                        btn.style.color = '#6b7280';
+                        btn.style.borderBottom = 'none';
+                    }
+                });
+                
+                // Reload data
+                displayRenewalData();
+            }
+            
+            // Load renewal data
+            async function loadRenewalData() {
+                try {
+                    const response = await axios.get('/api/renewals');
+                    
+                    if (!response.data.success) {
+                        throw new Error(response.data.error || 'Failed to load renewal data');
+                    }
+                    
+                    renewalData = response.data.data;
+                    displayRenewalData();
+                } catch (error) {
+                    console.error('Load renewal error:', error);
+                    document.getElementById('renewalTableBody').innerHTML = 
+                        '<tr><td colspan="8" style="text-align: center; color: #ef4444;">Error loading renewal data: ' + error.message + '</td></tr>';
+                }
+            }
+            
+            // Display renewal data
+            function displayRenewalData() {
+                const tbody = document.getElementById('renewalTableBody');
+                
+                if (!renewalData || renewalData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #9ca3af;">No renewal data available</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = renewalData.map((customer, index) => {
+                    const cmrCount = customer.cmr.length;
+                    const c1Count = customer.c1.length;
+                    const c2Count = customer.c2.length;
+                    const c3Count = customer.c3.length;
+                    const total = customer.total;
+                    
+                    return \`
+                        <tr>
+                            <td>\${index + 1}</td>
+                            <td><strong>\${customer.cust_code}</strong></td>
+                            <td>\${customer.customer_name}</td>
+                            <td style="text-align: center; cursor: pointer; background: #dbeafe;" 
+                                onclick="showRenewalDevices('\${customer.cust_code}', 'cmr', '\${customer.customer_name}')">
+                                <span style="font-weight: 700; color: #1e40af; font-size: 16px;">
+                                    \${cmrCount > 0 ? cmrCount : '-'}
+                                </span>
+                            </td>
+                            <td style="text-align: center; cursor: pointer; background: #fef3c7;" 
+                                onclick="showRenewalDevices('\${customer.cust_code}', 'c1', '\${customer.customer_name}')">
+                                <span style="font-weight: 700; color: #92400e; font-size: 16px;">
+                                    \${c1Count > 0 ? c1Count : '-'}
+                                </span>
+                            </td>
+                            <td style="text-align: center; cursor: pointer; background: #d1fae5;" 
+                                onclick="showRenewalDevices('\${customer.cust_code}', 'c2', '\${customer.customer_name}')">
+                                <span style="font-weight: 700; color: #065f46; font-size: 16px;">
+                                    \${c2Count > 0 ? c2Count : '-'}
+                                </span>
+                            </td>
+                            <td style="text-align: center; cursor: pointer; background: #e0e7ff;" 
+                                onclick="showRenewalDevices('\${customer.cust_code}', 'c3', '\${customer.customer_name}')">
+                                <span style="font-weight: 700; color: #3730a3; font-size: 16px;">
+                                    \${c3Count > 0 ? c3Count : '-'}
+                                </span>
+                            </td>
+                            <td style="text-align: center; background: #f3f4f6;">
+                                <strong style="font-size: 16px;">\${total}</strong>
+                            </td>
+                        </tr>
+                    \`;
+                }).join('');
+            }
+            
+            // Show device details modal for renewal period
+            function showRenewalDevices(custCode, period, customerName) {
+                const customer = renewalData.find(c => c.cust_code === custCode);
+                if (!customer) return;
+                
+                const devices = customer[period];
+                if (!devices || devices.length === 0) {
+                    alert('No devices in this period');
+                    return;
+                }
+                
+                const periodNames = {
+                    cmr: 'CMR (Due Now)',
+                    c1: 'C+1 (1 Month Away)',
+                    c2: 'C+2 (2 Months Away)',
+                    c3: 'C+3 (3 Months Away)'
+                };
+                
+                const modalHTML = \`
+                    <div id="renewalDevicesModal" class="modal" style="display: flex;">
+                        <div class="modal-content" style="max-width: 900px; max-height: 80vh; overflow-y: auto;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <div>
+                                    <h2 style="font-size: 20px; font-weight: 700; color: #1f2937; margin-bottom: 5px;">
+                                        <i class="fas fa-list"></i> Renewal Devices - \${periodNames[period]}
+                                    </h2>
+                                    <p style="color: #6b7280; font-size: 14px; margin: 0;">
+                                        Customer: <strong>\${customerName}</strong> (Code: \${custCode})
+                                    </p>
+                                </div>
+                                <button onclick="closeRenewalDevicesModal()" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">
+                                    <i class="fas fa-times"></i> Close
+                                </button>
+                            </div>
+                            
+                            <div class="table-container">
+                                <table style="width: 100%;">
+                                    <thead>
+                                        <tr>
+                                            <th>S. No</th>
+                                            <th>Device Serial No</th>
+                                            <th>Model Name</th>
+                                            <th>Dispatch Date</th>
+                                            <th>CMR Date</th>
+                                            <th>Order ID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        \${devices.map((device, index) => \`
+                                            <tr>
+                                                <td>\${index + 1}</td>
+                                                <td><strong>\${device.device_serial_no}</strong></td>
+                                                <td>\${device.model_name}</td>
+                                                <td>\${device.dispatch_date}</td>
+                                                <td style="font-weight: 600; color: #ef4444;">\${device.cmr_date}</td>
+                                                <td>\${device.order_id || '-'}</td>
+                                            </tr>
+                                        \`).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div style="margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+                                <strong>Total Devices: \${devices.length}</strong>
+                            </div>
+                        </div>
+                    </div>
+                \`;
+                
+                // Remove existing modal if any
+                const existingModal = document.getElementById('renewalDevicesModal');
+                if (existingModal) existingModal.remove();
+                
+                // Add modal to body
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+            }
+            
+            // Close renewal devices modal
+            function closeRenewalDevicesModal() {
+                const modal = document.getElementById('renewalDevicesModal');
+                if (modal) modal.remove();
+            }
+            
+            // ===================================================================
+            // END OF RENEWAL TRACKING FUNCTIONS
             // ===================================================================
             
             // ===================================================================
