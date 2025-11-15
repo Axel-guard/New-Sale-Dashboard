@@ -3526,14 +3526,24 @@ app.get('/api/orders', async (c) => {
   const { env } = c;
   
   try {
+    // Get orders from sales table with item count
     const orders = await env.DB.prepare(`
-      SELECT order_id, customer_name, company_name, order_date, total_items, dispatch_status
-      FROM orders 
-      ORDER BY order_id DESC
+      SELECT 
+        s.order_id,
+        s.customer_name,
+        s.company_name,
+        s.sale_date as order_date,
+        COUNT(si.id) as total_items,
+        'Pending' as dispatch_status
+      FROM sales s
+      LEFT JOIN sale_items si ON s.order_id = si.order_id
+      GROUP BY s.order_id, s.customer_name, s.company_name, s.sale_date
+      ORDER BY s.order_id DESC
     `).all();
     
     return c.json({ success: true, data: orders.results || [] });
   } catch (error) {
+    console.error('Error fetching orders:', error);
     return c.json({ success: false, error: 'Failed to fetch orders' }, 500);
   }
 });
@@ -3544,18 +3554,38 @@ app.get('/api/orders/:orderId', async (c) => {
   const orderId = c.req.param('orderId');
   
   try {
-    // Get order header
+    // Get order header from sales table
     const order = await env.DB.prepare(`
-      SELECT * FROM orders WHERE order_id = ?
+      SELECT 
+        order_id,
+        customer_name,
+        company_name,
+        customer_code,
+        customer_contact,
+        sale_date as order_date,
+        total_amount,
+        subtotal,
+        gst_amount,
+        courier_cost,
+        sale_type,
+        employee_name
+      FROM sales 
+      WHERE order_id = ?
     `).bind(orderId).first();
     
     if (!order) {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
     
-    // Get order items (products)
+    // Get order items (products) from sale_items table
     const items = await env.DB.prepare(`
-      SELECT * FROM order_items WHERE order_id = ?
+      SELECT 
+        product_name,
+        quantity,
+        unit_price,
+        total_price
+      FROM sale_items 
+      WHERE order_id = ?
     `).bind(orderId).all();
     
     return c.json({ 
@@ -3566,6 +3596,7 @@ app.get('/api/orders/:orderId', async (c) => {
       }
     });
   } catch (error) {
+    console.error('Error fetching order details:', error);
     return c.json({ success: false, error: 'Failed to fetch order details' }, 500);
   }
 });
