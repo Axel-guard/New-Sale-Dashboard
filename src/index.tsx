@@ -5677,20 +5677,20 @@ app.get('/', (c) => {
                         </div>
                     </div>
                     
-                    <div style="overflow-x: auto;">
+                    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
                         <table class="data-table">
-                            <thead>
+                            <thead style="position: sticky; top: 0; z-index: 10;">
                                 <tr>
-                                    <th style="position: sticky; left: 0; z-index: 11; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">S. No</th>
-                                    <th style="position: sticky; left: 60px; z-index: 11; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">Device Serial No</th>
-                                    <th>Model Name</th>
-                                    <th>Status</th>
-                                    <th>In Date</th>
-                                    <th>Customer</th>
-                                    <th>Dispatch Date</th>
-                                    <th>Cust Code</th>
-                                    <th>Order ID</th>
-                                    <th>Actions</th>
+                                    <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">S. No</th>
+                                    <th style="position: sticky; left: 60px; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">Device Serial No</th>
+                                    <th style="background: #f9fafb;">Model Name</th>
+                                    <th style="background: #f9fafb;">Status</th>
+                                    <th style="background: #f9fafb;">In Date</th>
+                                    <th style="background: #f9fafb;">Customer</th>
+                                    <th style="background: #f9fafb;">Dispatch Date</th>
+                                    <th style="background: #f9fafb;">Cust Code</th>
+                                    <th style="background: #f9fafb;">Order ID</th>
+                                    <th style="background: #f9fafb;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
