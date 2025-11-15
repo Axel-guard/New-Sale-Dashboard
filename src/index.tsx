@@ -2416,13 +2416,9 @@ app.get('/api/inventory', async (c) => {
     const search = c.req.query('search') || '';
     const status = c.req.query('status') || '';
     
-    // Join with dispatch_records to get the actual order_id from dispatches
     let query = `
-      SELECT 
-        i.*,
-        d.order_id as dispatch_order_id
+      SELECT i.*
       FROM inventory i
-      LEFT JOIN dispatch_records d ON i.device_serial_no = d.device_serial_no
       WHERE 1=1
     `;
     const params = [];
