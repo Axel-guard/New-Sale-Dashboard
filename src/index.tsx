@@ -5282,34 +5282,38 @@ app.get('/', (c) => {
                 <!-- Tracking Details Tab Content -->
                 <div id="trackingDetailsContent" style="display: none;">
                     <!-- Tracking Details Form and Report -->
-                    <div style="display: grid; grid-template-columns: 40% 60%; gap: 20px;">
-                        <!-- Left Side - Form (40%) -->
-                        <div style="border-right: 2px solid #e5e7eb; padding-right: 20px;">
-                            <div class="card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; margin-bottom: 20px;">
-                                <h3 style="color: white; margin-bottom: 15px;">
+                    <div style="display: grid; grid-template-columns: 38% 62%; gap: 25px; align-items: start;">
+                        <!-- Left Side - Form (38%) -->
+                        <div style="border-right: 3px solid #e5e7eb; padding-right: 25px;">
+                            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);">
+                                <h3 style="color: white; margin-bottom: 12px; font-size: 20px; font-weight: 700;">
                                     <i class="fas fa-plus-circle"></i> Add Tracking Details
                                 </h3>
-                                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
+                                <p style="color: rgba(255,255,255,0.95); font-size: 14px; margin: 0; line-height: 1.5;">
                                     Enter order tracking information to link with sales data
                                 </p>
                             </div>
 
-                            <form onsubmit="submitTrackingDetails(event)" style="margin-top: 20px;">
-                                <div class="form-group">
-                                    <label>Order ID *</label>
+                            <form onsubmit="submitTrackingDetails(event)" style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                                <div class="form-group" style="margin-bottom: 20px;">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Order ID *</label>
                                     <input type="text" id="trackingOrderIdTab" 
                                         placeholder="Enter Order ID from Sales" 
                                         required
-                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
-                                    <small style="color: #6b7280; display: block; margin-top: 5px;">
+                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none;"
+                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
+                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
+                                    <small style="color: #6b7280; display: block; margin-top: 6px; font-size: 12px;">
                                         <i class="fas fa-info-circle"></i> Must match an existing Order ID in sales
                                     </small>
                                 </div>
 
-                                <div class="form-group">
-                                    <label>Courier Partner *</label>
+                                <div class="form-group" style="margin-bottom: 20px;">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Courier Partner *</label>
                                     <select id="trackingCourierPartnerTab" required
-                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none; background: white;"
+                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
+                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
                                         <option value="">-- Select Courier Partner --</option>
                                         <option value="Trackon">Trackon</option>
                                         <option value="DTDC">DTDC</option>
@@ -5319,10 +5323,12 @@ app.get('/', (c) => {
                                     </select>
                                 </div>
 
-                                <div class="form-group">
-                                    <label>Courier Mode *</label>
+                                <div class="form-group" style="margin-bottom: 20px;">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Courier Mode *</label>
                                     <select id="trackingCourierModeTab" required
-                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none; background: white;"
+                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
+                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
                                         <option value="">-- Select Mode --</option>
                                         <option value="Air">Air</option>
                                         <option value="Surface">Surface</option>
@@ -5333,62 +5339,68 @@ app.get('/', (c) => {
                                     </select>
                                 </div>
 
-                                <div class="form-group">
-                                    <label>Tracking ID *</label>
+                                <div class="form-group" style="margin-bottom: 25px;">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Tracking ID *</label>
                                     <input type="text" id="trackingTrackingIdTab" 
                                         placeholder="e.g., TRACK123456789" 
                                         required
-                                        style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
-                                    <small style="color: #6b7280; display: block; margin-top: 5px;">
+                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none;"
+                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
+                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
+                                    <small style="color: #6b7280; display: block; margin-top: 6px; font-size: 12px;">
                                         <i class="fas fa-info-circle"></i> Weight will be auto-calculated from dispatch records
                                     </small>
                                 </div>
 
                                 <button type="submit" class="btn-primary" 
-                                    style="width: 100%; padding: 15px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 16px; font-weight: 700; margin-top: 10px;">
+                                    style="width: 100%; padding: 16px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);"
+                                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(139, 92, 246, 0.5)'"
+                                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.4)'">
                                     <i class="fas fa-save"></i> Save Tracking Details
                                 </button>
                             </form>
 
                             <!-- Form Status -->
-                            <div id="trackingFormStatusTab" style="margin-top: 15px; padding: 12px; border-radius: 8px; display: none;"></div>
+                            <div id="trackingFormStatusTab" style="margin-top: 20px; padding: 15px; border-radius: 10px; display: none; font-size: 14px;"></div>
                         </div>
 
-                        <!-- Right Side - Report (60%) -->
-                        <div style="padding-left: 20px;">
-                            <div class="card" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; margin-bottom: 20px;">
-                                <h3 style="color: white; margin-bottom: 10px;">
+                        <!-- Right Side - Report (62%) -->
+                        <div style="padding-left: 25px;">
+                            <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);">
+                                <h3 style="color: white; margin-bottom: 12px; font-size: 20px; font-weight: 700;">
                                     <i class="fas fa-chart-bar"></i> Tracking Records Report
                                 </h3>
-                                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
+                                <p style="color: rgba(255,255,255,0.95); font-size: 14px; margin: 0; line-height: 1.5;">
                                     All tracking records with invoice pricing
                                 </p>
                             </div>
 
                             <!-- Search Bar and Month Filter -->
-                            <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                            <div style="margin-bottom: 20px; display: flex; gap: 12px;">
                                 <input type="text" id="trackingReportSearchTab" 
-                                    placeholder="Search by Order ID, Courier, Tracking ID..." 
+                                    placeholder="🔍 Search by Order ID, Courier, Tracking ID..." 
                                     oninput="filterTrackingReportTab()"
-                                    style="flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                    style="flex: 1; padding: 13px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none;"
+                                    onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
+                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
                                 <select id="trackingMonthFilterTab" onchange="filterTrackingReportTab()"
-                                    style="width: 200px; padding: 10px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px; font-weight: 600; color: #7c3aed;">
-                                    <option value="">All Months</option>
+                                    style="min-width: 180px; padding: 13px 16px; border: 2px solid #8b5cf6; border-radius: 10px; font-size: 14px; font-weight: 600; color: #7c3aed; background: white; cursor: pointer; transition: all 0.3s;">
+                                    <option value="">📅 All Months</option>
                                 </select>
                             </div>
 
                             <!-- Report Table -->
-                            <div style="max-height: 600px; overflow-y: auto; overflow-x: auto;">
-                                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                                    <thead style="position: sticky; top: 0; background: white; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Order ID</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Courier Partner</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Mode</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 700;">Tracking ID</th>
-                                            <th style="padding: 12px; text-align: right; font-weight: 700;">Weight (items)</th>
-                                            <th style="padding: 12px; text-align: right; font-weight: 700;">Actual Price</th>
-                                            <th style="padding: 12px; text-align: center; font-weight: 700;">Actions</th>
+                            <div style="max-height: 620px; overflow-y: auto; overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                                    <thead style="position: sticky; top: 0; z-index: 10;">
+                                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">📦 Order ID</th>
+                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🚚 Courier Partner</th>
+                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">✈️ Mode</th>
+                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🔢 Tracking ID</th>
+                                            <th style="padding: 16px 14px; text-align: right; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">⚖️ Weight</th>
+                                            <th style="padding: 16px 14px; text-align: right; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">💰 Price</th>
+                                            <th style="padding: 16px 14px; text-align: center; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🔧 Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="trackingReportBodyTab">
@@ -5635,39 +5647,35 @@ app.get('/', (c) => {
                     <h2 class="card-title">Inventory Reports & Statistics</h2>
                     
                     <!-- Summary Cards -->
-                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 30px;">
-                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white;">
-                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Total Devices</div>
-                            <div style="font-size: 32px; font-weight: bold;" id="statTotal">0</div>
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; margin-bottom: 35px;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px; border-radius: 14px; color: white; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="font-size: 13px; opacity: 0.9; margin-bottom: 8px; font-weight: 500;">📊 Total Devices</div>
+                            <div style="font-size: 36px; font-weight: 700;" id="statTotal">0</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white;">
-                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">In Stock</div>
-                            <div style="font-size: 32px; font-weight: bold;" id="statInStock">0</div>
+                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 24px; border-radius: 14px; color: white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="font-size: 13px; opacity: 0.9; margin-bottom: 8px; font-weight: 500;">📦 In Stock</div>
+                            <div style="font-size: 36px; font-weight: 700;" id="statInStock">0</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 20px; border-radius: 12px; color: white;">
-                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Dispatched</div>
-                            <div style="font-size: 32px; font-weight: bold;" id="statDispatched">0</div>
+                        <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 24px; border-radius: 14px; color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="font-size: 13px; opacity: 0.9; margin-bottom: 8px; font-weight: 500;">🚀 Dispatched</div>
+                            <div style="font-size: 36px; font-weight: 700;" id="statDispatched">0</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white;">
-                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">QC Pass</div>
-                            <div style="font-size: 32px; font-weight: bold;" id="statQCPass">0</div>
+                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 24px; border-radius: 14px; color: white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="font-size: 13px; opacity: 0.9; margin-bottom: 8px; font-weight: 500;">✅ QC Pass</div>
+                            <div style="font-size: 36px; font-weight: 700;" id="statQCPass">0</div>
                         </div>
-                        <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 12px; color: white;">
-                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">QC Fail</div>
-                            <div style="font-size: 32px; font-weight: bold;" id="statQCFail">0</div>
+                        <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 24px; border-radius: 14px; color: white; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="font-size: 13px; opacity: 0.9; margin-bottom: 8px; font-weight: 500;">❌ QC Fail</div>
+                            <div style="font-size: 36px; font-weight: 700;" id="statQCFail">0</div>
                         </div>
                     </div>
                     
-                    <!-- Chart -->
-                    <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                        <h3 style="margin-bottom: 15px;">Status Distribution</h3>
-                        <canvas id="inventoryChart" style="max-height: 300px;"></canvas>
-                    </div>
+
                     
                     <!-- Model-Wise Inventory Report -->
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #667eea;">
-                            <i class="fas fa-box"></i> Model-Wise Inventory Report
+                    <div style="margin-bottom: 35px; padding: 25px; background: white; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.05);">
+                        <h3 style="margin-bottom: 20px; font-size: 20px; font-weight: 700; color: #667eea; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px; border-radius: 10px; font-size: 16px;"></i> Model-Wise Inventory Report
                         </h3>
                         <div style="overflow-x: auto;">
                             <table class="data-table">
@@ -5691,36 +5699,32 @@ app.get('/', (c) => {
                     </div>
                     
                     <!-- Dispatch Summary Report -->
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #1f2937;">
-                            <i class="fas fa-shipping-fast"></i> Dispatch Summary Report
+                    <div style="margin-bottom: 35px; padding: 25px; background: white; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.05);">
+                        <h3 style="margin-bottom: 20px; font-size: 20px; font-weight: 700; color: #1f2937; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-shipping-fast" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 10px; border-radius: 10px; font-size: 16px;"></i> Dispatch Summary Report
                         </h3>
                         
                         <!-- Dispatch Stats Cards -->
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
-                            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); padding: 15px; border-radius: 10px; color: white;">
-                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Total Orders</div>
-                                <div style="font-size: 28px; font-weight: bold;" id="statTotalOrders">0</div>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 25px;">
+                            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">📋 Total Orders</div>
+                                <div style="font-size: 32px; font-weight: 700;" id="statTotalOrders">0</div>
                             </div>
-                            <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 15px; border-radius: 10px; color: white;">
-                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Devices Dispatched</div>
-                                <div style="font-size: 28px; font-weight: bold;" id="statTotalDispatched">0</div>
+                            <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">📦 Devices Dispatched</div>
+                                <div style="font-size: 32px; font-weight: 700;" id="statTotalDispatched">0</div>
                             </div>
-                            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 15px; border-radius: 10px; color: white;">
-                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Completed Dispatch</div>
-                                <div style="font-size: 28px; font-weight: bold;" id="statCompletedOrders">0</div>
+                            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">✅ Completed</div>
+                                <div style="font-size: 32px; font-weight: 700;" id="statCompletedOrders">0</div>
                             </div>
-                            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 15px; border-radius: 10px; color: white;">
-                                <div style="font-size: 12px; opacity: 0.9; margin-bottom: 3px;">Pending Dispatch</div>
-                                <div style="font-size: 28px; font-weight: bold;" id="statPendingOrders">0</div>
+                            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">⏳ Pending</div>
+                                <div style="font-size: 32px; font-weight: 700;" id="statPendingOrders">0</div>
                             </div>
                         </div>
                         
-                        <!-- Dispatch Status Pie Chart -->
-                        <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; max-width: 400px; margin-left: auto; margin-right: auto;">
-                            <h4 style="margin-bottom: 15px; text-align: center; color: #1f2937;">Dispatch Status Distribution</h4>
-                            <canvas id="dispatchChart" style="max-height: 250px;"></canvas>
-                        </div>
+
                         
                         <div style="overflow-x: auto;">
                             <table class="data-table">
@@ -5744,9 +5748,9 @@ app.get('/', (c) => {
                     </div>
                     
                     <!-- Activity History -->
-                    <div>
-                        <h3 style="margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #1f2937;">
-                            <i class="fas fa-history"></i> Recent Activity
+                    <div style="padding: 25px; background: white; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.05);">
+                        <h3 style="margin-bottom: 20px; font-size: 20px; font-weight: 700; color: #1f2937; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-history" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 10px; border-radius: 10px; font-size: 16px;"></i> Recent Activity
                         </h3>
                         <div style="overflow-x: auto;">
                             <table class="data-table">
