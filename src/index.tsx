@@ -6789,50 +6789,40 @@ app.get('/', (c) => {
                         <i class="fas fa-plus"></i> Add Item
                     </button>
                     
-                    <!-- Courier Section -->
+                    <!-- Courier and Bill Type -->
                     <div class="form-row" style="margin-top: 20px;">
-                        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" id="quotationIncludeCourier" checked onchange="toggleCourierSection()" style="width: auto; margin: 0;">
-                            <label style="margin: 0; cursor: pointer;" for="quotationIncludeCourier">Include Courier Charges in Quotation</label>
+                        <div class="form-group">
+                            <label>Courier Partner</label>
+                            <select id="quotationCourierPartner" name="courier_partner" onchange="loadDeliveryMethods()">
+                                <option value="">Select Courier Partner</option>
+                                <option value="DTDC">DTDC</option>
+                                <option value="Blue Dart">Blue Dart</option>
+                                <option value="Delhivery">Delhivery</option>
+                                <option value="Professional Courier">Professional Courier</option>
+                                <option value="Self Pickup">Self Pickup</option>
+                                <option value="Hand Delivery">Hand Delivery</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Delivery Method</label>
+                            <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateCourierCharges()">
+                                <option value="">Select Delivery Method</option>
+                            </select>
                         </div>
                     </div>
                     
-                    <div id="quotationCourierSection">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Courier Partner</label>
-                                <select id="quotationCourierPartner" name="courier_partner" onchange="loadDeliveryMethods()">
-                                    <option value="">Select Courier Partner</option>
-                                    <option value="Trackon">Trackon</option>
-                                    <option value="DTDC">DTDC</option>
-                                    <option value="Porter">Porter</option>
-                                    <option value="Self Pick">Self Pick</option>
-                                    <option value="By Bus">By Bus</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Delivery Method</label>
-                                <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateCourierCharges()">
-                                    <option value="">Select Delivery Method</option>
-                                </select>
-                            </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Estimated Weight (kg)</label>
+                            <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="1" onchange="calculateCourierCharges()" placeholder="Package weight">
                         </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Estimated Weight (kg)</label>
-                                <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="1" onchange="calculateCourierCharges()" placeholder="Package weight">
-                            </div>
-                            <div class="form-group">
-                                <label>Courier Charges (Auto-calculated)</label>
-                                <input type="number" id="quotationCourierCost" name="courier_cost" min="0" step="0.01" value="0" readonly style="background: #f3f4f6;">
-                            </div>
+                        <div class="form-group">
+                            <label>Courier Charges (Auto-calculated)</label>
+                            <input type="number" id="quotationCourierCost" name="courier_cost" min="0" step="0.01" value="0" readonly style="background: #f3f4f6;">
                         </div>
                     </div>
                     
-                    <!-- Bill Type -->
-                    <div class="form-row" style="margin-top: 20px;">
-                    
+                    <div class="form-row">
                         <div class="form-group">
                             <label>Bill Type</label>
                             <select id="quotationBillType" name="bill_type" onchange="calculateQuotationTotal()">
@@ -7204,14 +7194,6 @@ Prices are subject to change without prior notice.</textarea>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
-            // Check if axios is loaded
-            if (typeof axios === 'undefined') {
-                console.error('CRITICAL: axios is not loaded!');
-                alert('Error: Required library not loaded. Please refresh the page.');
-            } else {
-                console.log('✓ axios loaded successfully, version:', axios.VERSION || 'unknown');
-            }
-            
             let currentPage = 'dashboard'; // Track current page
             let paymentChart = null;
             let employeeChart = null;
@@ -10121,22 +10103,6 @@ Prices are subject to change without prior notice.</textarea>
                 calculateQuotationTotal();
             }
             
-            // Toggle courier section visibility
-            function toggleCourierSection() {
-                const includeCourier = document.getElementById('quotationIncludeCourier').checked;
-                const courierSection = document.getElementById('quotationCourierSection');
-                
-                if (includeCourier) {
-                    courierSection.style.display = 'block';
-                } else {
-                    courierSection.style.display = 'none';
-                    // Reset courier charges when unchecked
-                    document.getElementById('quotationCourierCost').value = 0;
-                }
-                
-                calculateQuotationTotal();
-            }
-            
             // Load delivery methods based on courier partner
             function loadDeliveryMethods() {
                 const partner = document.getElementById('quotationCourierPartner').value;
@@ -10151,12 +10117,11 @@ Prices are subject to change without prior notice.</textarea>
                 }
                 
                 // Load delivery methods based on partner
-                if (partner === 'Self Pick') {
-                    methodSelect.innerHTML += '<option value="Self Pick">Self Pick</option>';
-                } else if (partner === 'Porter') {
-                    methodSelect.innerHTML += '<option value="Porter">Porter</option>';
+                if (partner === 'Self Pickup') {
+                    methodSelect.innerHTML += '<option value="Self Pickup">Self Pickup</option>';
+                } else if (partner === 'Hand Delivery') {
+                    methodSelect.innerHTML += '<option value="Hand Delivery">Hand Delivery</option>';
                 } else {
-                    // Trackon, DTDC, By Bus get Surface/Express options
                     methodSelect.innerHTML += '<option value="Surface">Surface</option>';
                     methodSelect.innerHTML += '<option value="Express">Express</option>';
                 }
@@ -10200,9 +10165,7 @@ Prices are subject to change without prior notice.</textarea>
                     subtotal += quantity * price;
                 });
                 
-                // Only include courier cost if checkbox is checked
-                const includeCourier = document.getElementById('quotationIncludeCourier').checked;
-                const courierCost = includeCourier ? (parseFloat(document.getElementById('quotationCourierCost').value) || 0) : 0;
+                const courierCost = parseFloat(document.getElementById('quotationCourierCost').value) || 0;
                 const billType = document.getElementById('quotationBillType').value;
                 const gst = billType === 'with' ? (subtotal + courierCost) * 0.18 : 0;
                 const total = subtotal + courierCost + gst;
@@ -10897,94 +10860,25 @@ Prices are subject to change without prior notice.</textarea>
             // Authentication functions
             let currentUser = null;
             
-            // Make handleLogin globally accessible
-            window.handleLogin = function(event) {
+            function handleLogin(event) {
                 event.preventDefault();
-                console.log('=== LOGIN ATTEMPT STARTED ===');
-                console.log('Event:', event);
-                console.log('Event type:', event.type);
-                console.log('Form element:', event.target);
-                
                 const username = document.getElementById('loginUsername').value;
                 const password = document.getElementById('loginPassword').value;
                 const errorDiv = document.getElementById('loginError');
                 
-                console.log('Username:', username);
-                console.log('Password length:', password ? password.length : 0);
-                console.log('Attempting login...');
-                
-                // Validate inputs
-                if (!username || !password) {
-                    console.error('ERROR: Username or password is empty!');
-                    errorDiv.textContent = 'Please enter both username and password';
-                    errorDiv.style.display = 'block';
-                    return false;
-                }
-                
-                // Clear previous errors
-                errorDiv.style.display = 'none';
-                errorDiv.textContent = '';
-                
-                // Disable submit button during login
-                const submitBtn = event.target.querySelector('button[type="submit"]');
-                console.log('Submit button:', submitBtn);
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
-                }
-                
-                console.log('Sending POST request to /api/auth/login...');
-                console.log('Request data:', { username, password: '***' });
-                
                 axios.post('/api/auth/login', { username, password })
                     .then(response => {
-                        console.log('=== LOGIN RESPONSE RECEIVED ===');
-                        console.log('Status:', response.status);
-                        console.log('Response:', response);
-                        console.log('Response data:', response.data);
-                        
                         if (response.data.success) {
-                            console.log('✅ LOGIN SUCCESSFUL!');
-                            console.log('User data:', response.data.data);
                             currentUser = response.data.data;
                             sessionStorage.setItem('user', JSON.stringify(currentUser));
-                            console.log('User saved to sessionStorage');
-                            console.log('Calling showDashboard()...');
                             showDashboard();
-                        } else {
-                            console.error('❌ LOGIN FAILED - Response success=false');
-                            console.error('Error:', response.data.error);
-                            errorDiv.textContent = response.data.error || 'Login failed';
-                            errorDiv.style.display = 'block';
-                            if (submitBtn) {
-                                submitBtn.disabled = false;
-                                submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
-                            }
                         }
                     })
                     .catch(error => {
-                        console.error('=== LOGIN ERROR CAUGHT ===');
-                        console.error('Error object:', error);
-                        console.error('Error response:', error.response);
-                        console.error('Error message:', error.message);
-                        
-                        errorDiv.textContent = error.response?.data?.error || 'Login failed. Please check your credentials.';
+                        errorDiv.textContent = error.response?.data?.error || 'Login failed';
                         errorDiv.style.display = 'block';
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
-                        }
                     });
-                
-                return false; // Prevent default form submission
-            };
-            
-            // Also create a regular function for compatibility
-            function handleLogin(event) {
-                return window.handleLogin(event);
             }
-            
-            console.log('✓ handleLogin function defined and attached to window');
             
             function handleLogout() {
                 currentUser = null;
