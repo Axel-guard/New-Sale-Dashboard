@@ -10482,9 +10482,44 @@ Prices are subject to change without prior notice.</textarea>
                 
                 customerSearchTimeout = setTimeout(async () => {
                     try {
-                        const response = await axios.get('/api/leads?search=' + encodeURIComponent(searchTerm));
-                        const leads = response.data.data;
-                        displayCustomerAutocomplete(leads);
+                        // Search in both leads and sales tables
+                        const leadsResponse = await axios.get('/api/leads?search=' + encodeURIComponent(searchTerm));
+                        const leads = leadsResponse.data.data || [];
+                        
+                        // Also search in sales table for existing customers
+                        const salesResponse = await axios.get('/api/sales');
+                        const allSales = salesResponse.data.data || [];
+                        
+                        // Find unique customers from sales that match the search term
+                        const salesCustomers = [];
+                        const seenCustomers = new Set();
+                        
+                        allSales.forEach(sale => {
+                            const matchesSearch = 
+                                (sale.customer_code && sale.customer_code.toString().includes(searchTerm)) ||
+                                (sale.customer_contact && sale.customer_contact.toString().includes(searchTerm)) ||
+                                (sale.customer_name && sale.customer_name.toLowerCase().includes(searchTerm.toLowerCase()));
+                            
+                            const uniqueKey = sale.customer_code + '-' + sale.customer_contact;
+                            
+                            if (matchesSearch && !seenCustomers.has(uniqueKey)) {
+                                seenCustomers.add(uniqueKey);
+                                salesCustomers.push({
+                                    customer_name: sale.customer_name,
+                                    customer_code: sale.customer_code,
+                                    mobile_number: sale.customer_contact,
+                                    company_name: sale.company_name || '',
+                                    source: 'sales'
+                                });
+                            }
+                        });
+                        
+                        // Mark leads as from leads table
+                        const leadsWithSource = leads.map(lead => ({...lead, source: 'leads'}));
+                        
+                        // Combine both results
+                        const allResults = [...leadsWithSource, ...salesCustomers];
+                        displayCustomerAutocomplete(allResults);
                     } catch (error) {
                         console.error('Error searching customers:', error);
                     }
@@ -10497,31 +10532,44 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
-            function displayCustomerAutocomplete(leads) {
+            function displayCustomerAutocomplete(customers) {
                 const dropdown = document.getElementById('customerSearchDropdown');
                 
-                if (!leads || leads.length === 0) {
+                if (!customers || customers.length === 0) {
                     dropdown.innerHTML = '<div class="autocomplete-no-results">No customers found</div>';
                     dropdown.style.display = 'block';
                     return;
                 }
                 
-                allLeadsForSearch = leads;
-                dropdown.innerHTML = leads.slice(0, 10).map(lead => \`
-                    <div class="autocomplete-item" onclick="selectCustomer('\${lead.customer_code}', '\${lead.mobile_number}')">
-                        <div class="autocomplete-item-title">\${lead.customer_name}</div>
-                        <div class="autocomplete-item-subtitle">
-                            Code: \${lead.customer_code} | Mobile: \${lead.mobile_number} | Company: \${lead.company_name || 'N/A'}
+                allLeadsForSearch = customers;
+                dropdown.innerHTML = customers.slice(0, 10).map(customer => {
+                    const isFromLeads = customer.source === 'leads';
+                    const displayCode = isFromLeads ? customer.mobile_number : customer.customer_code;
+                    const badge = isFromLeads ? 
+                        '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Lead</span>' : 
+                        '<span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Customer</span>';
+                    
+                    return \`
+                        <div class="autocomplete-item" onclick="selectCustomer('\${displayCode}', '\${customer.mobile_number}', '\${customer.source}')">
+                            <div class="autocomplete-item-title">
+                                \${customer.customer_name}
+                                \${badge}
+                            </div>
+                            <div class="autocomplete-item-subtitle">
+                                \${isFromLeads ? 'Mobile' : 'Code'}: \${displayCode} | Mobile: \${customer.mobile_number} | Company: \${customer.company_name || 'N/A'}
+                            </div>
                         </div>
-                    </div>
-                \`).join('');
+                    \`;
+                }).join('');
                 dropdown.style.display = 'block';
             }
             
-            function selectCustomer(customerCode, mobileNumber) {
-                document.getElementById('customerSearchInput').value = customerCode;
+            function selectCustomer(customerCode, mobileNumber, source) {
+                // Use mobile number for leads, customer code for sales
+                const searchQuery = source === 'leads' ? mobileNumber : customerCode;
+                document.getElementById('customerSearchInput').value = searchQuery;
                 document.getElementById('customerSearchDropdown').style.display = 'none';
-                searchCustomerByCode(customerCode);
+                searchCustomerByCode(searchQuery);
             }
             
             // Store currently selected customer
