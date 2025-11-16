@@ -5562,15 +5562,28 @@ app.get('/', (c) => {
 
             <div class="page-content" id="order-details-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Search Order by ID</h2>
-                    <div class="form-group">
-                        <label>Enter Order ID</label>
-                        <input type="text" id="searchOrderId" placeholder="e.g., ORD001">
+                    <h2 class="card-title" style="margin-bottom: 20px;">
+                        <i class="fas fa-search"></i> Search Order by ID
+                    </h2>
+                    
+                    <!-- Search Bar -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 30px;">
+                        <div class="form-group" style="flex: 1; margin: 0;">
+                            <input 
+                                type="text" 
+                                id="searchOrderId" 
+                                placeholder="Enter Order ID (e.g., 2019908)" 
+                                style="width: 100%; padding: 12px 16px; font-size: 16px; border: 2px solid #e5e7eb; border-radius: 8px;"
+                                onkeypress="if(event.key==='Enter') searchOrder()"
+                            >
+                        </div>
+                        <button class="btn-primary" onclick="searchOrder()" style="padding: 12px 32px; font-size: 16px; border-radius: 8px;">
+                            <i class="fas fa-search"></i> Search
+                        </button>
                     </div>
-                    <button class="btn-primary" onclick="searchOrder()">
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                    <div id="orderResult" style="margin-top: 20px;"></div>
+                    
+                    <!-- Results Container -->
+                    <div id="orderResult"></div>
                 </div>
             </div>
 
@@ -9782,82 +9795,212 @@ Prices are subject to change without prior notice.</textarea>
 
             async function searchOrder() {
                 const orderId = document.getElementById('searchOrderId').value.trim();
+                const resultContainer = document.getElementById('orderResult');
+                
                 if (!orderId) {
-                    alert('Please enter an Order ID');
+                    resultContainer.innerHTML = \`
+                        <div style="text-align: center; padding: 40px; color: #9ca3af;">
+                            <i class="fas fa-search" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                            <p style="font-size: 16px;">Enter an Order ID to search</p>
+                        </div>
+                    \`;
                     return;
                 }
+                
+                // Show loading state
+                resultContainer.innerHTML = \`
+                    <div style="text-align: center; padding: 40px;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: #667eea;"></i>
+                        <p style="margin-top: 15px; color: #6b7280;">Searching for order...</p>
+                    </div>
+                \`;
                 
                 try {
                     const response = await axios.get(\`/api/sales/order/\${orderId}\`);
                     const sale = response.data.data;
                     
-                    const products = sale.items.map(item => \`
-                        <tr>
-                            <td>\${item.product_name}</td>
-                            <td>\${item.quantity}</td>
-                            <td>₹\${item.unit_price.toLocaleString()}</td>
-                            <td>₹\${item.total_price.toLocaleString()}</td>
+                    // Format customer details
+                    const customerName = sale.customer_name || 'N/A';
+                    const customerCode = sale.customer_code || 'N/A';
+                    const customerContact = sale.customer_contact || 'N/A';
+                    const companyName = sale.company_name || 'N/A';
+                    
+                    // Products table
+                    const products = sale.items.map((item, idx) => \`
+                        <tr style="background: \${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+                            <td style="padding: 12px; font-weight: 600;">\${item.product_name}</td>
+                            <td style="padding: 12px; text-align: center;">\${item.quantity}</td>
+                            <td style="padding: 12px; text-align: right;">₹\${item.unit_price.toLocaleString()}</td>
+                            <td style="padding: 12px; text-align: right; font-weight: 700; color: #059669;">₹\${item.total_price.toLocaleString()}</td>
                         </tr>
                     \`).join('');
                     
-                    const payments = sale.payments.map(p => \`
-                        <tr>
-                            <td>\${new Date(p.payment_date).toLocaleDateString()}</td>
-                            <td>₹\${p.amount.toLocaleString()}</td>
-                            <td>\${p.payment_reference || 'N/A'}</td>
+                    // Payment history table
+                    const payments = sale.payments && sale.payments.length > 0 ? sale.payments.map((p, idx) => \`
+                        <tr style="background: \${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+                            <td style="padding: 12px;">\${new Date(p.payment_date).toLocaleDateString('en-IN')}</td>
+                            <td style="padding: 12px; font-weight: 700; color: #059669;">₹\${p.amount.toLocaleString()}</td>
+                            <td style="padding: 12px;">\${p.payment_reference || '-'}</td>
                         </tr>
-                    \`).join('');
+                    \`).join('') : '<tr><td colspan="3" style="text-align: center; padding: 20px; color: #9ca3af;">No payment history</td></tr>';
                     
-                    document.getElementById('orderResult').innerHTML = \`
-                        <div class="card" style="background: #f9fafb;">
-                            <h3 style="margin-bottom: 15px; color: #1f2937;">Order Details</h3>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                                <div><strong>Order ID:</strong> \${sale.order_id}</div>
-                                <div><strong>Date:</strong> \${new Date(sale.sale_date).toLocaleDateString()}</div>
-                                <div><strong>Customer:</strong> \${sale.customer_code}</div>
-                                <div><strong>Contact:</strong> \${sale.customer_contact || 'N/A'}</div>
-                                <div><strong>Employee:</strong> \${sale.employee_name}</div>
-                                <div><strong>Sale Type:</strong> \${sale.sale_type} GST</div>
-                                <div><strong>Subtotal:</strong> ₹\${sale.subtotal.toLocaleString()}</div>
-                                <div><strong>Courier:</strong> ₹\${sale.courier_cost.toLocaleString()}</div>
-                                <div><strong>GST:</strong> ₹\${sale.gst_amount.toLocaleString()}</div>
-                                <div><strong>Total:</strong> ₹\${sale.total_amount.toLocaleString()}</div>
-                                <div><strong>Received:</strong> ₹\${sale.amount_received.toLocaleString()}</div>
-                                <div><strong>Balance:</strong> ₹\${sale.balance_amount.toLocaleString()}</div>
-                                <div><strong>Account:</strong> \${sale.account_received || 'N/A'}</div>
-                                <div><strong>Remarks:</strong> \${sale.remarks || 'N/A'}</div>
+                    resultContainer.innerHTML = \`
+                        <!-- Order Header -->
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px 12px 0 0; margin-bottom: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">Order Details</h2>
+                                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">Complete order information and breakdown</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Order ID</div>
+                                    <div style="font-size: 32px; font-weight: 700;">\${sale.order_id}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Customer Details Card -->
+                        <div style="background: white; border: 2px solid #e5e7eb; border-top: none; padding: 25px; margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 20px 0; color: #1f2937; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-user" style="color: #667eea;"></i> Customer Details
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                                <div style="padding: 15px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #667eea;">
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">Customer Name</div>
+                                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">\${customerName}</div>
+                                </div>
+                                <div style="padding: 15px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #10b981;">
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">Customer Code</div>
+                                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">\${customerCode}</div>
+                                </div>
+                                <div style="padding: 15px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">Contact Number</div>
+                                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">\${customerContact}</div>
+                                </div>
+                                <div style="padding: 15px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">Company Name</div>
+                                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">\${companyName}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Order Information -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                            <!-- Order Info Card -->
+                            <div class="card" style="border: 2px solid #e5e7eb;">
+                                <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fas fa-info-circle" style="color: #667eea;"></i> Order Information
+                                </h4>
+                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <span style="color: #6b7280;">Date:</span>
+                                        <span style="font-weight: 600; color: #1f2937;">\${new Date(sale.sale_date).toLocaleDateString('en-IN')}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <span style="color: #6b7280;">Employee:</span>
+                                        <span style="font-weight: 600; color: #1f2937;">\${sale.employee_name}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <span style="color: #6b7280;">Sale Type:</span>
+                                        <span style="font-weight: 600; color: #1f2937;">\${sale.sale_type}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                                        <span style="color: #6b7280;">Courier Cost:</span>
+                                        <span style="font-weight: 600; color: #1f2937;">₹\${sale.courier_cost.toLocaleString()}</span>
+                                    </div>
+                                </div>
                             </div>
                             
-                            <h4 style="margin: 15px 0 10px; color: #374151;">Products</h4>
-                            <table style="width: 100%; margin-bottom: 20px;">
-                                <thead>
-                                    <tr>
-                                        <th>Product</th>
-                                        <th>Quantity</th>
-                                        <th>Unit Price</th>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>\${products}</tbody>
-                            </table>
-                            
-                            <h4 style="margin: 15px 0 10px; color: #374151;">Payment History</h4>
-                            <table style="width: 100%;">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Amount</th>
-                                        <th>Reference</th>
-                                    </tr>
-                                </thead>
-                                <tbody>\${payments}</tbody>
-                            </table>
+                            <!-- Financial Summary Card -->
+                            <div class="card" style="border: 2px solid #e5e7eb;">
+                                <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fas fa-calculator" style="color: #10b981;"></i> Financial Summary
+                                </h4>
+                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <span style="color: #6b7280;">Subtotal:</span>
+                                        <span style="font-weight: 600; color: #1f2937;">₹\${sale.subtotal.toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <span style="color: #6b7280;">GST:</span>
+                                        <span style="font-weight: 600; color: #1f2937;">₹\${sale.gst_amount.toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 2px solid #667eea; background: #f0f4ff; margin: 0 -15px; padding-left: 15px; padding-right: 15px;">
+                                        <span style="font-weight: 700; color: #1f2937;">Total Amount:</span>
+                                        <span style="font-weight: 700; font-size: 18px; color: #667eea;">₹\${sale.total_amount.toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <span style="color: #6b7280;">Received:</span>
+                                        <span style="font-weight: 600; color: #059669;">₹\${sale.amount_received.toLocaleString()}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                                        <span style="font-weight: 600; color: #6b7280;">Balance:</span>
+                                        <span style="font-weight: 700; font-size: 18px; color: \${sale.balance_amount > 0 ? '#dc2626' : '#059669'};">₹\${sale.balance_amount.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                        
+                        <!-- Products Table -->
+                        <div class="card" style="border: 2px solid #e5e7eb; margin-bottom: 20px;">
+                            <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-box" style="color: #3b82f6;"></i> Products (\${sale.items.length})
+                            </h4>
+                            <div style="overflow-x: auto;">
+                                <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151;">Product</th>
+                                            <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151;">Quantity</th>
+                                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151;">Unit Price</th>
+                                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151;">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        \${products}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment History -->
+                        <div class="card" style="border: 2px solid #e5e7eb;">
+                            <h4 style="margin: 0 0 15px 0; color: #1f2937; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-history" style="color: #ec4899;"></i> Payment History
+                            </h4>
+                            <div style="overflow-x: auto;">
+                                <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151;">Date</th>
+                                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151;">Amount</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151;">Reference</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        \${payments}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        \${sale.remarks && sale.remarks !== 'N/A' ? \`
+                        <!-- Remarks -->
+                        <div class="card" style="border: 2px solid #e5e7eb; margin-top: 20px; background: #fffbeb;">
+                            <h4 style="margin: 0 0 10px 0; color: #1f2937; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-comment" style="color: #f59e0b;"></i> Remarks
+                            </h4>
+                            <p style="margin: 0; color: #374151; line-height: 1.6;">\${sale.remarks}</p>
+                        </div>
+                        \` : ''}
                     \`;
                 } catch (error) {
-                    document.getElementById('orderResult').innerHTML = \`
-                        <div class="card" style="background: #fee2e2; color: #991b1b;">
-                            <strong>Error:</strong> Order not found
+                    resultContainer.innerHTML = \`
+                        <div style="text-align: center; padding: 60px 20px; background: #fee2e2; border: 2px solid #fca5a5; border-radius: 12px;">
+                            <i class="fas fa-exclamation-circle" style="font-size: 64px; color: #dc2626; margin-bottom: 20px;"></i>
+                            <h3 style="margin: 0 0 10px 0; color: #991b1b; font-size: 24px;">Order Not Found</h3>
+                            <p style="margin: 0; color: #7f1d1d; font-size: 16px;">No order found with ID: <strong>\${orderId}</strong></p>
+                            <p style="margin: 15px 0 0 0; color: #991b1b; font-size: 14px;">Please check the Order ID and try again</p>
                         </div>
                     \`;
                 }
