@@ -1535,21 +1535,25 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
   const query = c.req.param('query');
   
   try {
-    // Get customer info first from leads
+    // Get customer info first from leads table
+    // IMPORTANT: leads table uses mobile_number as primary identifier, NOT customer_code
     let customer = await env.DB.prepare(`
-      SELECT customer_code, mobile_number, customer_name FROM leads WHERE customer_code = ? LIMIT 1
-    `).bind(query).first();
-    
-    if (!customer) {
-      customer = await env.DB.prepare(`
-        SELECT customer_code, mobile_number, customer_name FROM leads WHERE mobile_number = ? LIMIT 1
-      `).bind(query).first();
-    }
+      SELECT 
+        mobile_number, 
+        customer_name,
+        mobile_number as customer_code
+      FROM leads 
+      WHERE mobile_number = ? OR alternate_mobile = ?
+      LIMIT 1
+    `).bind(query, query).first();
     
     // Fallback to sales table if not in leads
     if (!customer) {
       const sale = await env.DB.prepare(`
-        SELECT DISTINCT customer_code, customer_contact as mobile_number, customer_name 
+        SELECT DISTINCT 
+          customer_code, 
+          customer_contact as mobile_number, 
+          customer_name 
         FROM sales 
         WHERE customer_code = ? OR customer_contact = ?
         LIMIT 1
@@ -1564,13 +1568,17 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
       return c.json({ success: false, error: 'Customer not found' }, 404);
     }
     
+    // Use both customer_code and mobile_number for searching
+    const searchCode = customer.customer_code || customer.mobile_number;
+    const searchMobile = customer.mobile_number;
+    
     // Get all sales for this customer to calculate total due
     const sales = await env.DB.prepare(`
       SELECT order_id, sale_date, total_amount, balance_amount, amount_received
       FROM sales 
       WHERE customer_code = ? OR customer_contact = ?
       ORDER BY sale_date ASC
-    `).bind(customer.customer_code, customer.mobile_number).all();
+    `).bind(searchCode, searchMobile).all();
     
     // Get all payments
     const payments = await env.DB.prepare(`
@@ -1579,7 +1587,7 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
       LEFT JOIN sales s ON ph.order_id = s.order_id
       WHERE s.customer_code = ? OR s.customer_contact = ?
       ORDER BY ph.payment_date ASC
-    `).bind(customer.customer_code, customer.mobile_number).all();
+    `).bind(searchCode, searchMobile).all();
     
     // Build ledger entries (combination of sales and payments)
     const ledgerEntries = [];
