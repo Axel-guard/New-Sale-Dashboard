@@ -529,6 +529,151 @@ app.get('/api/reports/customer-analysis', async (c) => {
   }
 });
 
+// Balance Payment Reports
+app.get('/api/reports/balance-payment-summary', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    
+    // Current Month Balance
+    const currentMonth = await env.DB.prepare(`
+      SELECT 
+        SUM(balance_amount) as total_balance,
+        COUNT(*) as pending_count
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      AND balance_amount > 0
+    `).bind(currentMonthStart.toISOString()).first();
+    
+    // Quarterly Balance
+    const quarterly = await env.DB.prepare(`
+      SELECT 
+        SUM(balance_amount) as total_balance,
+        COUNT(*) as pending_count
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      AND balance_amount > 0
+    `).bind(quarterStart.toISOString()).first();
+    
+    // YTD Balance
+    const ytd = await env.DB.prepare(`
+      SELECT 
+        SUM(balance_amount) as total_balance,
+        COUNT(*) as pending_count
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      AND balance_amount > 0
+    `).bind(yearStart.toISOString()).first();
+    
+    return c.json({
+      success: true,
+      data: {
+        currentMonth: {
+          balance: currentMonth?.total_balance || 0,
+          count: currentMonth?.pending_count || 0
+        },
+        quarterly: {
+          balance: quarterly?.total_balance || 0,
+          count: quarterly?.pending_count || 0
+        },
+        ytd: {
+          balance: ytd?.total_balance || 0,
+          count: ytd?.pending_count || 0
+        }
+      }
+    });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch balance payment summary' }, 500);
+  }
+});
+
+// Balance Payment by Employee
+app.get('/api/reports/balance-payment-employee', async (c) => {
+  const { env } = c;
+  
+  try {
+    const { period } = c.req.query();
+    const now = new Date();
+    let startDate;
+    
+    switch(period) {
+      case 'quarter':
+        startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+        break;
+      case 'ytd':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      default: // current month
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    
+    const employeeBalances = await env.DB.prepare(`
+      SELECT 
+        employee_name,
+        COUNT(*) as pending_orders,
+        SUM(balance_amount) as total_balance,
+        SUM(total_amount) as total_sales,
+        SUM(amount_received) as total_received
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      AND balance_amount > 0
+      GROUP BY employee_name
+      ORDER BY total_balance DESC
+    `).bind(startDate.toISOString()).all();
+    
+    return c.json({ success: true, data: employeeBalances.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch employee balance data' }, 500);
+  }
+});
+
+// Balance Payment Details (for pie chart click)
+app.get('/api/reports/balance-payment-details', async (c) => {
+  const { env } = c;
+  
+  try {
+    const { period } = c.req.query();
+    const now = new Date();
+    let startDate;
+    
+    switch(period) {
+      case 'quarter':
+        startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+        break;
+      case 'ytd':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      default: // current month
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    
+    const details = await env.DB.prepare(`
+      SELECT 
+        order_id,
+        customer_name,
+        company_name,
+        employee_name,
+        sale_date,
+        total_amount,
+        amount_received,
+        balance_amount,
+        customer_contact
+      FROM sales
+      WHERE DATE(sale_date) >= DATE(?)
+      AND balance_amount > 0
+      ORDER BY balance_amount DESC
+    `).bind(startDate.toISOString()).all();
+    
+    return c.json({ success: true, data: details.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch balance payment details' }, 500);
+  }
+});
+
 // Get dashboard summary data
 app.get('/api/dashboard/summary', async (c) => {
   const { env } = c;
@@ -5005,8 +5150,23 @@ app.get('/', (c) => {
                         AxelGuard
                     </h1>
                 </div>
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <span id="userDisplay" style="font-size: 14px; color: white; font-weight: 500;"></span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button onclick="openAddSaleModal()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <i class="fas fa-plus-circle"></i> Add New
+                    </button>
+                    <button onclick="openAddInventoryModal()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <i class="fas fa-box"></i> Add Inventory
+                    </button>
+                    <button onclick="showPage('qc-reports')" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                        <i class="fas fa-clipboard-check"></i> QC
+                    </button>
+                    <button onclick="showPage('dispatch-management')" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                        <i class="fas fa-shipping-fast"></i> Dispatch
+                    </button>
+                    <button onclick="openBalancePaymentReportModal()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
+                        <i class="fas fa-chart-pie"></i> Balance Report
+                    </button>
+                    <span id="userDisplay" style="font-size: 14px; color: white; font-weight: 500; margin-left: 10px;"></span>
                     <button onclick="handleLogout()" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </button>
@@ -5543,7 +5703,12 @@ app.get('/', (c) => {
 
             <div class="page-content" id="balance-payment-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Balance Payments</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="card-title" style="margin: 0;">Balance Payments</h2>
+                        <button onclick="openBalancePaymentReportModal()" class="btn-primary" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
+                            <i class="fas fa-chart-pie"></i> View Balance Report
+                        </button>
+                    </div>
                     
                     <!-- Tabs -->
                     <div class="tabs" style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
@@ -6464,6 +6629,52 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 
+                <!-- Balance Payment Summary Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div class="card" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%); color: white;">
+                        <div style="padding: 10px;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                <i class="fas fa-money-bill-wave"></i> Current Month Balance
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700;" id="reportBalanceCurrentMonth">₹0</div>
+                            <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;" id="reportBalanceCurrentMonthCount">0 pending orders</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
+                        <div style="padding: 10px;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                <i class="fas fa-calendar-alt"></i> Quarterly Balance
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700;" id="reportBalanceQuarterly">₹0</div>
+                            <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;" id="reportBalanceQuarterlyCount">0 pending orders</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white;">
+                        <div style="padding: 10px;">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">
+                                <i class="fas fa-chart-line"></i> YTD Balance
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700;" id="reportBalanceYTD">₹0</div>
+                            <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;" id="reportBalanceYTDCount">0 pending orders</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Current Month Balance Payment Pie Chart -->
+                <div class="card" style="margin-bottom: 30px; cursor: pointer;" onclick="openBalancePaymentReportModal()">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title">Current Month Balance Payment Status</h3>
+                        <span style="color: #6b7280; font-size: 14px;"><i class="fas fa-info-circle"></i> Click chart to view detailed report</span>
+                    </div>
+                    <div style="max-height: 350px; padding: 20px; display: flex; justify-content: center; align-items: center;">
+                        <div style="width: 300px; height: 300px;">
+                            <canvas id="balancePaymentPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Month Comparison Chart -->
                 <div class="card" style="margin-bottom: 30px;">
                     <div class="card-header">
@@ -6844,6 +7055,163 @@ app.get('/', (c) => {
                         <i class="fas fa-save"></i> Update Payment
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Balance Payment Report Modal -->
+        <div class="modal" id="balancePaymentReportModal">
+            <div class="modal-content" style="max-width: 1200px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;"><i class="fas fa-chart-pie"></i> Balance Payment Report</h2>
+                    <span class="close" onclick="document.getElementById('balancePaymentReportModal').classList.remove('show')">&times;</span>
+                </div>
+                
+                <!-- Report Tabs -->
+                <div class="tabs" style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+                    <button class="tab-btn active" onclick="switchBalanceReportTab('current-month')" id="report-current-month-tab">
+                        <i class="fas fa-calendar-alt"></i> Current Month
+                    </button>
+                    <button class="tab-btn" onclick="switchBalanceReportTab('quarter')" id="report-quarter-tab">
+                        <i class="fas fa-calendar-check"></i> Quarter
+                    </button>
+                    <button class="tab-btn" onclick="switchBalanceReportTab('ytd')" id="report-ytd-tab">
+                        <i class="fas fa-chart-line"></i> YTD
+                    </button>
+                    <button class="tab-btn" onclick="switchBalanceReportTab('employee')" id="report-employee-tab">
+                        <i class="fas fa-users"></i> Employee-wise
+                    </button>
+                </div>
+                
+                <!-- Current Month Content -->
+                <div id="report-current-month-content" class="tab-content">
+                    <div style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="padding: 15px; background: linear-gradient(135deg, #ec4899 0%, #db2777 100%); color: white; border-radius: 8px;">
+                            <div style="font-size: 13px; opacity: 0.9;">Total Balance</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="currentMonthBalanceTotal">₹0</div>
+                        </div>
+                        <div style="padding: 15px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 8px;">
+                            <div style="font-size: 13px; opacity: 0.9;">Pending Orders</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="currentMonthPendingCount">0</div>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 400px;">
+                        <table class="data-table">
+                            <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10;">
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Company</th>
+                                    <th>Employee</th>
+                                    <th>Sale Date</th>
+                                    <th>Total Amount</th>
+                                    <th>Received</th>
+                                    <th>Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="currentMonthBalanceTable">
+                                <tr><td colspan="8" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Quarter Content -->
+                <div id="report-quarter-content" class="tab-content" style="display: none;">
+                    <div style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="padding: 15px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 8px;">
+                            <div style="font-size: 13px; opacity: 0.9;">Total Balance</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="quarterBalanceTotal">₹0</div>
+                        </div>
+                        <div style="padding: 15px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 8px;">
+                            <div style="font-size: 13px; opacity: 0.9;">Pending Orders</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="quarterPendingCount">0</div>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 400px;">
+                        <table class="data-table">
+                            <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10;">
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Company</th>
+                                    <th>Employee</th>
+                                    <th>Sale Date</th>
+                                    <th>Total Amount</th>
+                                    <th>Received</th>
+                                    <th>Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quarterBalanceTable">
+                                <tr><td colspan="8" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- YTD Content -->
+                <div id="report-ytd-content" class="tab-content" style="display: none;">
+                    <div style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="padding: 15px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border-radius: 8px;">
+                            <div style="font-size: 13px; opacity: 0.9;">Total Balance</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="ytdBalanceTotal">₹0</div>
+                        </div>
+                        <div style="padding: 15px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 8px;">
+                            <div style="font-size: 13px; opacity: 0.9;">Pending Orders</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="ytdPendingCount">0</div>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 400px;">
+                        <table class="data-table">
+                            <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10;">
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Company</th>
+                                    <th>Employee</th>
+                                    <th>Sale Date</th>
+                                    <th>Total Amount</th>
+                                    <th>Received</th>
+                                    <th>Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ytdBalanceTable">
+                                <tr><td colspan="8" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Employee-wise Content -->
+                <div id="report-employee-content" class="tab-content" style="display: none;">
+                    <div class="tabs" style="margin-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                        <button class="tab-btn active" onclick="loadEmployeeBalanceReport('current-month')" id="employee-current-month-tab">
+                            Current Month
+                        </button>
+                        <button class="tab-btn" onclick="loadEmployeeBalanceReport('quarter')" id="employee-quarter-tab">
+                            Quarter
+                        </button>
+                        <button class="tab-btn" onclick="loadEmployeeBalanceReport('ytd')" id="employee-ytd-tab">
+                            YTD
+                        </button>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 400px;">
+                        <table class="data-table">
+                            <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10;">
+                                <tr>
+                                    <th>Employee Name</th>
+                                    <th>Pending Orders</th>
+                                    <th>Total Balance</th>
+                                    <th>Total Sales</th>
+                                    <th>Total Received</th>
+                                    <th>Collection %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeBalanceTable">
+                                <tr><td colspan="6" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -11837,6 +12205,9 @@ Prices are subject to change without prior notice.</textarea>
                     // Load product and customer analysis
                     loadProductAnalysis();
                     loadCustomerAnalysis();
+                    
+                    // Load balance payment summary
+                    loadBalancePaymentSummary();
                 } catch (error) {
                     console.error('Error loading reports:', error);
                 }
@@ -12112,6 +12483,242 @@ Prices are subject to change without prior notice.</textarea>
                 } catch (error) {
                     console.error('Error loading customer analysis:', error);
                     const tbody = document.getElementById('customerReportTableBody');
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #dc2626;">Error loading data</td></tr>';
+                }
+            }
+            
+            // Balance Payment Report Functions
+            let balancePaymentPieChart = null;
+            
+            async function loadBalancePaymentSummary() {
+                try {
+                    const response = await axios.get('/api/reports/balance-payment-summary');
+                    const data = response.data.data;
+                    
+                    // Update summary cards
+                    document.getElementById('reportBalanceCurrentMonth').textContent = '₹' + data.currentMonth.balance.toLocaleString();
+                    document.getElementById('reportBalanceCurrentMonthCount').textContent = data.currentMonth.count + ' pending orders';
+                    
+                    document.getElementById('reportBalanceQuarterly').textContent = '₹' + data.quarterly.balance.toLocaleString();
+                    document.getElementById('reportBalanceQuarterlyCount').textContent = data.quarterly.count + ' pending orders';
+                    
+                    document.getElementById('reportBalanceYTD').textContent = '₹' + data.ytd.balance.toLocaleString();
+                    document.getElementById('reportBalanceYTDCount').textContent = data.ytd.count + ' pending orders';
+                    
+                    // Render pie chart
+                    renderBalancePaymentPieChart(data.currentMonth.balance, data.currentMonth.count);
+                } catch (error) {
+                    console.error('Error loading balance payment summary:', error);
+                }
+            }
+            
+            function renderBalancePaymentPieChart(balance, count) {
+                const ctx = document.getElementById('balancePaymentPieChart');
+                if (!ctx) return;
+                
+                const context = ctx.getContext('2d');
+                
+                if (balancePaymentPieChart) {
+                    balancePaymentPieChart.destroy();
+                }
+                
+                // Create simple visual representation
+                const totalBalance = balance;
+                const pending = totalBalance;
+                
+                balancePaymentPieChart = new Chart(context, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Pending Balance', 'Collected'],
+                        datasets: [{
+                            data: [pending, 0], // We only show pending in this chart
+                            backgroundColor: [
+                                'rgba(236, 72, 153, 0.8)',
+                                'rgba(16, 185, 129, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(236, 72, 153, 1)',
+                                'rgba(16, 185, 129, 1)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        if (context.dataIndex === 0) {
+                                            return 'Pending: ₹' + pending.toLocaleString() + ' (' + count + ' orders)';
+                                        }
+                                        return 'Collected';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function openBalancePaymentReportModal() {
+                document.getElementById('balancePaymentReportModal').classList.add('show');
+                switchBalanceReportTab('current-month');
+            }
+            
+            function switchBalanceReportTab(tab) {
+                // Update tab buttons
+                ['current-month', 'quarter', 'ytd', 'employee'].forEach(t => {
+                    const btn = document.getElementById('report-' + t + '-tab');
+                    const content = document.getElementById('report-' + t + '-content');
+                    if (t === tab) {
+                        btn.classList.add('active');
+                        content.style.display = 'block';
+                    } else {
+                        btn.classList.remove('active');
+                        content.style.display = 'none';
+                    }
+                });
+                
+                // Load data based on tab
+                if (tab === 'current-month') {
+                    loadBalancePaymentDetails('current-month');
+                } else if (tab === 'quarter') {
+                    loadBalancePaymentDetails('quarter');
+                } else if (tab === 'ytd') {
+                    loadBalancePaymentDetails('ytd');
+                } else if (tab === 'employee') {
+                    loadEmployeeBalanceReport('current-month');
+                }
+            }
+            
+            async function loadBalancePaymentDetails(period) {
+                try {
+                    const response = await axios.get(\`/api/reports/balance-payment-details?period=\${period}\`);
+                    const details = response.data.data;
+                    
+                    let tableId, totalId, countId;
+                    if (period === 'current-month') {
+                        tableId = 'currentMonthBalanceTable';
+                        totalId = 'currentMonthBalanceTotal';
+                        countId = 'currentMonthPendingCount';
+                    } else if (period === 'quarter') {
+                        tableId = 'quarterBalanceTable';
+                        totalId = 'quarterBalanceTotal';
+                        countId = 'quarterPendingCount';
+                    } else {
+                        tableId = 'ytdBalanceTable';
+                        totalId = 'ytdBalanceTotal';
+                        countId = 'ytdPendingCount';
+                    }
+                    
+                    const tbody = document.getElementById(tableId);
+                    
+                    if (!details || details.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #6b7280;">No pending balance payments</td></tr>';
+                        document.getElementById(totalId).textContent = '₹0';
+                        document.getElementById(countId).textContent = '0';
+                        return;
+                    }
+                    
+                    // Calculate totals
+                    const totalBalance = details.reduce((sum, d) => sum + d.balance_amount, 0);
+                    document.getElementById(totalId).textContent = '₹' + totalBalance.toLocaleString();
+                    document.getElementById(countId).textContent = details.length;
+                    
+                    tbody.innerHTML = details.map(d => \`
+                        <tr>
+                            <td><strong>\${d.order_id}</strong></td>
+                            <td>\${d.customer_name}</td>
+                            <td>\${d.company_name || '-'}</td>
+                            <td>\${d.employee_name}</td>
+                            <td>\${new Date(d.sale_date).toLocaleDateString()}</td>
+                            <td>₹\${d.total_amount.toLocaleString()}</td>
+                            <td>₹\${d.amount_received.toLocaleString()}</td>
+                            <td style="color: #dc2626; font-weight: 600;">₹\${d.balance_amount.toLocaleString()}</td>
+                        </tr>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading balance payment details:', error);
+                }
+            }
+            
+            let currentEmployeePeriod = 'current-month';
+            
+            async function loadEmployeeBalanceReport(period) {
+                currentEmployeePeriod = period;
+                
+                // Update employee tab buttons
+                ['current-month', 'quarter', 'ytd'].forEach(p => {
+                    const btn = document.getElementById('employee-' + p + '-tab');
+                    if (p === period) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+                
+                try {
+                    const response = await axios.get(\`/api/reports/balance-payment-employee?period=\${period}\`);
+                    const employees = response.data.data;
+                    
+                    const tbody = document.getElementById('employeeBalanceTable');
+                    
+                    if (!employees || employees.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No data available</td></tr>';
+                        return;
+                    }
+                    
+                    // Calculate totals
+                    const totalPending = employees.reduce((sum, e) => sum + e.pending_orders, 0);
+                    const totalBalance = employees.reduce((sum, e) => sum + e.total_balance, 0);
+                    const totalSales = employees.reduce((sum, e) => sum + e.total_sales, 0);
+                    const totalReceived = employees.reduce((sum, e) => sum + e.total_received, 0);
+                    const overallCollection = totalSales > 0 ? ((totalReceived / totalSales) * 100).toFixed(1) : 0;
+                    
+                    tbody.innerHTML = employees.map(emp => {
+                        const collectionPct = emp.total_sales > 0 ? ((emp.total_received / emp.total_sales) * 100).toFixed(1) : 0;
+                        return \`
+                        <tr>
+                            <td><strong>\${emp.employee_name}</strong></td>
+                            <td>\${emp.pending_orders}</td>
+                            <td style="color: #dc2626; font-weight: 600;">₹\${emp.total_balance.toLocaleString()}</td>
+                            <td>₹\${emp.total_sales.toLocaleString()}</td>
+                            <td>₹\${emp.total_received.toLocaleString()}</td>
+                            <td>
+                                <div style="position: relative; width: 100%; background: #e5e7eb; border-radius: 4px; height: 24px; overflow: hidden;">
+                                    <div style="position: absolute; left: 0; top: 0; height: 100%; background: \${collectionPct >= 80 ? '#10b981' : collectionPct >= 50 ? '#f59e0b' : '#ef4444'}; width: \${collectionPct}%; transition: width 0.3s;"></div>
+                                    <span style="position: absolute; left: 0; right: 0; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; color: #1f2937;">
+                                        \${collectionPct}%
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    \`;
+                    }).join('') + \`
+                        <tr style="background: #f3f4f6; font-weight: 700; border-top: 2px solid #ec4899;">
+                            <td><strong>TOTAL</strong></td>
+                            <td>\${totalPending}</td>
+                            <td style="color: #dc2626;">₹\${totalBalance.toLocaleString()}</td>
+                            <td>₹\${totalSales.toLocaleString()}</td>
+                            <td>₹\${totalReceived.toLocaleString()}</td>
+                            <td>
+                                <div style="position: relative; width: 100%; background: #e5e7eb; border-radius: 4px; height: 24px; overflow: hidden;">
+                                    <div style="position: absolute; left: 0; top: 0; height: 100%; background: \${overallCollection >= 80 ? '#10b981' : overallCollection >= 50 ? '#f59e0b' : '#ef4444'}; width: \${overallCollection}%; transition: width 0.3s;"></div>
+                                    <span style="position: absolute; left: 0; right: 0; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; color: #1f2937;">
+                                        \${overallCollection}%
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    \`;
+                } catch (error) {
+                    console.error('Error loading employee balance report:', error);
+                    const tbody = document.getElementById('employeeBalanceTable');
                     tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #dc2626;">Error loading data</td></tr>';
                 }
             }
