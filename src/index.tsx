@@ -13017,10 +13017,6 @@ Prices are subject to change without prior notice.</textarea>
                     console.error('Error loading grouped dispatches:', error);
                     document.getElementById('groupedDispatchesContainer').innerHTML = 
                         '<div style="text-align: center; padding: 40px; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 15px;"></i><p style="font-size: 16px;">Error loading dispatch orders</p></div>';
-                } catch (error) {
-                    console.error('Error loading grouped dispatches:', error);
-                    document.getElementById('groupedDispatchesContainer').innerHTML = 
-                        '<div style="text-align: center; padding: 40px; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 15px;"></i><p style="font-size: 16px;">Error loading dispatch orders</p></div>';
                 }
             }
             
