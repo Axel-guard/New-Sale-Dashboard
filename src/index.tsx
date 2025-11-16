@@ -12954,28 +12954,28 @@ Prices are subject to change without prior notice.</textarea>
                     
                     const dispatches = response.data.data;
                     
-                    // Group by order_id for counting
-                    const orderIds = new Set(dispatches.map(d => d.order_id).filter(id => id && id !== 'null'));
-                    document.getElementById('totalOrdersCount').textContent = orderIds.size;
+                    // Group by serial_number (which represents order batches)
+                    const serialNumbers = new Set(dispatches.map(d => d.serial_number).filter(id => id));
+                    document.getElementById('totalOrdersCount').textContent = serialNumbers.size;
                     document.getElementById('totalItemsCount').textContent = dispatches.length;
                     
-                    // Group dispatches by order_id
+                    // Group dispatches by serial_number
                     const grouped = {};
                     dispatches.forEach(dispatch => {
-                        const orderId = dispatch.order_id || 'N/A';
-                        if (!grouped[orderId]) {
-                            grouped[orderId] = {
-                                order_id: orderId,
+                        const orderKey = dispatch.serial_number || dispatch.id || 'N/A';
+                        if (!grouped[orderKey]) {
+                            grouped[orderKey] = {
+                                order_id: dispatch.serial_number || dispatch.id,
                                 dispatch_date: dispatch.dispatch_date,
                                 customer_name: dispatch.customer_name,
                                 customer_mobile: dispatch.customer_mobile,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
-                                qc_status: dispatch.qc_status || 'Pending',
+                                qc_status: dispatch.order_id || 'Pending', // order_id actually contains status
                                 items: []
                             };
                         }
-                        grouped[orderId].items.push(dispatch);
+                        grouped[orderKey].items.push(dispatch);
                     });
                     
                     // Render as simple table with sticky headers
@@ -13044,23 +13044,23 @@ Prices are subject to change without prior notice.</textarea>
                     
                     const dispatches = response.data.data;
                     
-                    // Group by order_id
+                    // Group by serial_number (which represents order batches)
                     const grouped = {};
                     dispatches.forEach(dispatch => {
-                        const orderId = dispatch.order_id || 'N/A';
-                        if (!grouped[orderId]) {
-                            grouped[orderId] = {
-                                order_id: orderId,
+                        const orderKey = dispatch.serial_number || dispatch.id || 'N/A';
+                        if (!grouped[orderKey]) {
+                            grouped[orderKey] = {
+                                order_id: dispatch.serial_number || dispatch.id,
                                 dispatch_date: dispatch.dispatch_date,
                                 customer_name: dispatch.customer_name,
                                 customer_mobile: dispatch.customer_mobile,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
-                                qc_status: dispatch.qc_status || 'Pending',
+                                qc_status: dispatch.order_id || 'Pending', // order_id actually contains status
                                 items: []
                             };
                         }
-                        grouped[orderId].items.push(dispatch);
+                        grouped[orderKey].items.push(dispatch);
                     });
                     
                     // Filter grouped orders
