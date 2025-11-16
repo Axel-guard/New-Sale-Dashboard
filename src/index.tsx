@@ -5108,6 +5108,61 @@ app.get('/', (c) => {
                 from { transform: translateY(-50px); opacity: 0; }
                 to { transform: translateY(0); opacity: 1; }
             }
+            
+            /* Dropdown Menu Styles */
+            .dropdown {
+                position: relative;
+                display: inline-block;
+            }
+            
+            .dropdown-content {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                background-color: white;
+                min-width: 220px;
+                box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+                border-radius: 8px;
+                z-index: 10001;
+                margin-top: 8px;
+                padding: 8px 0;
+                animation: fadeIn 0.2s;
+            }
+            
+            .dropdown-content.show {
+                display: block;
+            }
+            
+            .dropdown-item {
+                padding: 12px 20px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                color: #1f2937;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+                border-left: 3px solid transparent;
+            }
+            
+            .dropdown-item:hover {
+                background: #f3f4f6;
+                border-left-color: #667eea;
+                padding-left: 23px;
+            }
+            
+            .dropdown-item i {
+                width: 18px;
+                text-align: center;
+            }
+            
+            .dropdown-divider {
+                height: 1px;
+                background: #e5e7eb;
+                margin: 8px 0;
+            }
         </style>
     </head>
     <body>
@@ -5151,12 +5206,42 @@ app.get('/', (c) => {
                     </h1>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <button onclick="openAddSaleModal()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                        <i class="fas fa-plus-circle"></i> Add New
-                    </button>
-                    <button onclick="openAddInventoryModal()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                        <i class="fas fa-box"></i> Add Inventory
-                    </button>
+                    <div class="dropdown">
+                        <button onclick="toggleAddNewDropdown()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-plus-circle"></i> Add New <i class="fas fa-chevron-down" style="font-size: 11px; margin-left: 5px;"></i>
+                        </button>
+                        <div id="addNewDropdown" class="dropdown-content">
+                            <div class="dropdown-item" onclick="openAddSaleModal(); closeAllDropdowns();">
+                                <i class="fas fa-shopping-cart" style="color: #667eea;"></i>
+                                <span>New Sale</span>
+                            </div>
+                            <div class="dropdown-item" onclick="openNewLeadModal(); closeAllDropdowns();">
+                                <i class="fas fa-user-plus" style="color: #10b981;"></i>
+                                <span>New Lead</span>
+                            </div>
+                            <div class="dropdown-item" onclick="openBalancePaymentModal(); closeAllDropdowns();">
+                                <i class="fas fa-money-bill-wave" style="color: #ec4899;"></i>
+                                <span>Balance Payment</span>
+                            </div>
+                            <div class="dropdown-item" onclick="openQuotationModal(); closeAllDropdowns();">
+                                <i class="fas fa-file-invoice" style="color: #f59e0b;"></i>
+                                <span>Make Quotation</span>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-item" onclick="openAddInventoryModal(); closeAllDropdowns();">
+                                <i class="fas fa-box" style="color: #10b981;"></i>
+                                <span>Add Inventory</span>
+                            </div>
+                            <div class="dropdown-item" onclick="openDispatchModal(); closeAllDropdowns();">
+                                <i class="fas fa-shipping-fast" style="color: #3b82f6;"></i>
+                                <span>New Dispatch</span>
+                            </div>
+                            <div class="dropdown-item" onclick="openQCModal(); closeAllDropdowns();">
+                                <i class="fas fa-clipboard-check" style="color: #f59e0b;"></i>
+                                <span>New QC</span>
+                            </div>
+                        </div>
+                    </div>
                     <button onclick="showPage('qc-reports')" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                         <i class="fas fa-clipboard-check"></i> QC
                     </button>
@@ -5310,25 +5395,6 @@ app.get('/', (c) => {
             <div class="page-content active" id="dashboard-page">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2 style="font-size: 24px; font-weight: 600; color: #1f2937;">Dashboard Overview</h2>
-                    <div style="position: relative;">
-                        <button class="btn-primary" onclick="toggleActionMenu()">
-                            <i class="fas fa-plus"></i> Add New <i class="fas fa-chevron-down" style="margin-left: 5px; font-size: 12px;"></i>
-                        </button>
-                        <div class="action-menu" id="actionMenu">
-                            <div class="action-menu-item" onclick="openNewSaleModal()">
-                                <i class="fas fa-shopping-cart"></i> New Sale
-                            </div>
-                            <div class="action-menu-item" onclick="openNewQuotationModal()">
-                                <i class="fas fa-file-invoice"></i> New Quotation
-                            </div>
-                            <div class="action-menu-item" onclick="openBalancePaymentModal()">
-                                <i class="fas fa-money-check-alt"></i> Balance Payment Update
-                            </div>
-                            <div class="action-menu-item" onclick="openNewLeadModal()">
-                                <i class="fas fa-user-plus"></i> Add New Lead
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Monthly Total Sales Card -->
@@ -8267,6 +8333,54 @@ Prices are subject to change without prior notice.</textarea>
             let employeeChart = null;
             let productCount = 0;
             let editProductCount = 0;
+            
+            // Dropdown menu functions
+            function toggleAddNewDropdown() {
+                const dropdown = document.getElementById('addNewDropdown');
+                closeAllDropdowns();
+                dropdown.classList.toggle('show');
+            }
+            
+            function closeAllDropdowns() {
+                const dropdowns = document.querySelectorAll('.dropdown-content');
+                dropdowns.forEach(dropdown => dropdown.classList.remove('show'));
+            }
+            
+            // Close dropdowns when clicking outside
+            window.onclick = function(event) {
+                if (!event.target.matches('.btn-primary') && !event.target.closest('.dropdown')) {
+                    closeAllDropdowns();
+                }
+            }
+            
+            // Modal opening functions
+            function openAddSaleModal() {
+                document.getElementById('newSaleModal').classList.add('show');
+            }
+            
+            function openNewLeadModal() {
+                document.getElementById('newLeadModal').classList.add('show');
+            }
+            
+            function openBalancePaymentModal() {
+                document.getElementById('balancePaymentModal').classList.add('show');
+            }
+            
+            function openQuotationModal() {
+                document.getElementById('newQuotationModal').classList.add('show');
+            }
+            
+            function openAddInventoryModal() {
+                document.getElementById('addInventoryModal').classList.add('show');
+            }
+            
+            function openDispatchModal() {
+                document.getElementById('createDispatchModal').classList.add('show');
+            }
+            
+            function openQCModal() {
+                document.getElementById('newQCModal').classList.add('show');
+            }
             
             // Product Catalog with Categories
             const productCatalog = {
