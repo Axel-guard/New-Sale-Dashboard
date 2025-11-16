@@ -13020,9 +13020,12 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
-            // Toggle order details expansion (removed - no longer needed for table view)
-            function toggleOrderDetails(orderId) {
-                // Function kept for backward compatibility but not used in new table view
+            // Toggle dispatch details expansion
+            function toggleDispatchDetails(rowId) {
+                const detailsRow = document.getElementById(rowId);
+                if (detailsRow) {
+                    detailsRow.style.display = detailsRow.style.display === 'none' ? 'table-row' : 'none';
+                }
             }
             
             // Search dispatch orders (grouped view)
@@ -13054,9 +13057,11 @@ Prices are subject to change without prior notice.</textarea>
                                 dispatch_date: dispatch.dispatch_date,
                                 customer_name: dispatch.customer_name,
                                 customer_mobile: dispatch.customer_mobile,
+                                customer_code: dispatch.customer_code,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
-                                qc_status: dispatch.order_id || 'Pending', // order_id actually contains status
+                                dispatch_reason: dispatch.dispatch_reason || 'New Sale',
+                                dispatch_method: dispatch.dispatch_method,
                                 items: []
                             };
                         }
@@ -13099,7 +13104,7 @@ Prices are subject to change without prior notice.</textarea>
                                     <tr>
                                         <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb;">Order ID</th>
                                         <th style="background: #f9fafb;">Dispatch Date</th>
-                                        <th style="background: #f9fafb;">Customer</th>
+                                        <th style="background: #f9fafb;">Customer Name</th>
                                         <th style="background: #f9fafb;">Mobile</th>
                                         <th style="background: #f9fafb;">Items</th>
                                         <th style="background: #f9fafb;">Status</th>
@@ -13107,19 +13112,48 @@ Prices are subject to change without prior notice.</textarea>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    \${filteredOrders.map(order => \`
-                                        <tr>
+                                    \${filteredOrders.map((order, idx) => \`
+                                        <tr onclick="toggleDispatchDetails('search_\${idx}')" style="cursor: pointer;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
                                             <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${order.order_id}</td>
                                             <td>\${order.dispatch_date || 'N/A'}</td>
-                                            <td>\${order.customer_name || 'N/A'}</td>
+                                            <td>\${order.customer_name || 'Unknown'}</td>
                                             <td>\${order.customer_mobile || '-'}</td>
                                             <td style="font-weight: 600;">\${order.items.length} Product(s)</td>
                                             <td>
-                                                <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; \${order.qc_status === 'QC Pass' ? 'background: #d1fae5; color: #065f46;' : order.qc_status === 'Pending' ? 'background: #fef3c7; color: #92400e;' : 'background: #e5e7eb; color: #374151;'}">
-                                                    \${order.qc_status}
+                                                <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; \${order.dispatch_reason === 'New Sale' ? 'background: #d1fae5; color: #065f46;' : order.dispatch_reason === 'Replacement' ? 'background: #fef3c7; color: #92400e;' : 'background: #e5e7eb; color: #374151;'}">
+                                                    \${order.dispatch_reason}
                                                 </span>
                                             </td>
                                             <td>\${order.courier_name || '-'}\${order.tracking_number && order.tracking_number !== '-' ? '<br><small style="color: #6b7280;">' + order.tracking_number + '</small>' : ''}</td>
+                                        </tr>
+                                        <tr id="search_\${idx}" style="display: none;">
+                                            <td colspan="7" style="padding: 0; background: #f9fafb;">
+                                                <div style="padding: 20px;">
+                                                    <h4 style="margin: 0 0 15px 0; color: #1f2937;">Dispatched Devices (\${order.items.length})</h4>
+                                                    <div style="overflow-x: auto;">
+                                                        <table class="data-table" style="font-size: 13px;">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Device Serial No</th>
+                                                                    <th>Model Name</th>
+                                                                    <th>Dispatch Method</th>
+                                                                    <th>Company</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                \${order.items.map(item => \`
+                                                                    <tr>
+                                                                        <td><strong>\${item.device_serial_no}</strong></td>
+                                                                        <td>\${item.model_name || 'N/A'}</td>
+                                                                        <td>\${item.dispatch_method || '-'}</td>
+                                                                        <td>\${item.company_name || '-'}</td>
+                                                                    </tr>
+                                                                \`).join('')}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </td>
                                         </tr>
                                     \`).join('')}
                                 </tbody>
