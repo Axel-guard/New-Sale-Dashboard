@@ -10564,7 +10564,8 @@ Prices are subject to change without prior notice.</textarea>
                     }
                     
                     // Store the customer query for later use
-                    currentCustomerQuery = leads[0].customer_code || customerCode;
+                    // IMPORTANT: leads table uses mobile_number as primary identifier, NOT customer_code
+                    currentCustomerQuery = leads[0].mobile_number || customerCode;
                     
                     // Show the 5-button menu
                     document.getElementById('customerActionButtons').style.display = 'block';
@@ -10584,7 +10585,10 @@ Prices are subject to change without prior notice.</textarea>
                 }
                 
                 try {
+                    console.log('Fetching basic info for:', currentCustomerQuery);
                     const response = await axios.get('/api/customer-details/basic/' + encodeURIComponent(currentCustomerQuery));
+                    console.log('Basic info response:', response);
+                    
                     if (!response.data.success) {
                         alert('Customer not found');
                         return;
@@ -10648,7 +10652,8 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('customerDetailsContent').style.display = 'block';
                 } catch (error) {
                     console.error('Error fetching basic info:', error);
-                    alert('Error loading basic information');
+                    console.error('Error details:', error.response ? error.response.data : error.message);
+                    alert('Error loading basic information: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
                 }
             }
             
@@ -10660,7 +10665,10 @@ Prices are subject to change without prior notice.</textarea>
                 }
                 
                 try {
+                    console.log('Fetching history for:', currentCustomerQuery);
                     const response = await axios.get('/api/customer-details/history/' + encodeURIComponent(currentCustomerQuery));
+                    console.log('History response:', response);
+                    
                     if (!response.data.success) {
                         alert('Customer not found');
                         return;
@@ -10833,7 +10841,8 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('customerDetailsContent').style.display = 'block';
                 } catch (error) {
                     console.error('Error fetching history:', error);
-                    alert('Error loading customer history');
+                    console.error('Error details:', error.response ? error.response.data : error.message);
+                    alert('Error loading customer history: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
                 }
             }
             
