@@ -1301,21 +1301,41 @@ app.get('/api/customer-details/basic/:query', async (c) => {
   const query = c.req.param('query');
   
   try {
-    // Search by customer_code or mobile_number in leads table first
+    // Search by mobile_number in leads table first
     let customer = await env.DB.prepare(`
-      SELECT * FROM leads WHERE customer_code = ? LIMIT 1
-    `).bind(query).first();
+      SELECT 
+        id,
+        customer_name,
+        mobile_number,
+        alternate_mobile,
+        location,
+        company_name,
+        gst_number,
+        email,
+        complete_address,
+        status,
+        created_at,
+        mobile_number as customer_code
+      FROM leads 
+      WHERE mobile_number = ? OR alternate_mobile = ?
+      LIMIT 1
+    `).bind(query, query).first();
     
-    if (!customer) {
-      customer = await env.DB.prepare(`
-        SELECT * FROM leads WHERE mobile_number = ? LIMIT 1
-      `).bind(query).first();
-    }
-    
-    // If not found in leads, try sales table
+    // If not found in leads, try sales table with customer_code
     if (!customer) {
       const sale = await env.DB.prepare(`
-        SELECT DISTINCT customer_code, customer_name, customer_contact as mobile_number, company_name, created_at 
+        SELECT DISTINCT 
+          customer_code,
+          customer_name,
+          customer_contact as mobile_number,
+          company_name,
+          created_at,
+          NULL as alternate_mobile,
+          NULL as location,
+          NULL as gst_number,
+          NULL as email,
+          NULL as complete_address,
+          'Existing Customer' as status
         FROM sales 
         WHERE customer_code = ? OR customer_contact = ?
         LIMIT 1
@@ -1332,6 +1352,7 @@ app.get('/api/customer-details/basic/:query', async (c) => {
     
     return c.json({ success: true, data: customer });
   } catch (error) {
+    console.error('Error in customer-details/basic:', error);
     return c.json({ success: false, error: 'Failed to fetch customer basic info' }, 500);
   }
 });
@@ -1342,21 +1363,41 @@ app.get('/api/customer-details/history/:query', async (c) => {
   const query = c.req.param('query');
   
   try {
-    // Get customer info from leads first
+    // Get customer info from leads first by mobile number
     let customer = await env.DB.prepare(`
-      SELECT * FROM leads WHERE customer_code = ? LIMIT 1
-    `).bind(query).first();
-    
-    if (!customer) {
-      customer = await env.DB.prepare(`
-        SELECT * FROM leads WHERE mobile_number = ? LIMIT 1
-      `).bind(query).first();
-    }
+      SELECT 
+        id,
+        customer_name,
+        mobile_number,
+        mobile_number as customer_code,
+        alternate_mobile,
+        location,
+        company_name,
+        gst_number,
+        email,
+        complete_address,
+        status,
+        created_at
+      FROM leads 
+      WHERE mobile_number = ? OR alternate_mobile = ?
+      LIMIT 1
+    `).bind(query, query).first();
     
     // Fallback to sales table if not in leads
     if (!customer) {
       const sale = await env.DB.prepare(`
-        SELECT DISTINCT customer_code, customer_name, customer_contact as mobile_number, company_name, created_at 
+        SELECT DISTINCT 
+          customer_code,
+          customer_name,
+          customer_contact as mobile_number,
+          company_name,
+          created_at,
+          NULL as alternate_mobile,
+          NULL as location,
+          NULL as gst_number,
+          NULL as email,
+          NULL as complete_address,
+          'Existing Customer' as status
         FROM sales 
         WHERE customer_code = ? OR customer_contact = ?
         LIMIT 1
@@ -1371,6 +1412,10 @@ app.get('/api/customer-details/history/:query', async (c) => {
       return c.json({ success: false, error: 'Customer not found' }, 404);
     }
     
+    // Get search params - use customer_code if available, otherwise mobile_number
+    const searchCode = customer.customer_code || customer.mobile_number;
+    const searchMobile = customer.mobile_number;
+    
     // Get all sales for this customer
     const sales = await env.DB.prepare(`
       SELECT s.*, 
@@ -1379,7 +1424,7 @@ app.get('/api/customer-details/history/:query', async (c) => {
       FROM sales s
       WHERE s.customer_code = ? OR s.customer_contact = ?
       ORDER BY s.sale_date DESC
-    `).bind(customer.customer_code, customer.mobile_number).all();
+    `).bind(searchCode, searchMobile).all();
     
     // Get all payments for this customer
     const payments = await env.DB.prepare(`
@@ -1388,7 +1433,7 @@ app.get('/api/customer-details/history/:query', async (c) => {
       LEFT JOIN sales s ON ph.order_id = s.order_id
       WHERE s.customer_code = ? OR s.customer_contact = ?
       ORDER BY ph.payment_date DESC
-    `).bind(customer.customer_code, customer.mobile_number).all();
+    `).bind(searchCode, searchMobile).all();
     
     // Get all quotations for this customer
     const quotations = await env.DB.prepare(`
