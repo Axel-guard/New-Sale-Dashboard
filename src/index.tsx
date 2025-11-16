@@ -1636,7 +1636,13 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
     // Calculate summary
     const totalDebit = allTransactions.reduce((sum, t) => sum + t.debit, 0);
     const totalCredit = allTransactions.reduce((sum, t) => sum + t.credit, 0);
-    const finalBalance = totalDebit - totalCredit;
+    const calculatedBalance = totalDebit - totalCredit;
+    
+    // For product selling business:
+    // - If customer owes money (Debit > Credit), show positive balance
+    // - If customer overpaid (Credit > Debit), show 0 or track as advance
+    const finalBalance = calculatedBalance > 0 ? calculatedBalance : 0;
+    const advancePayment = calculatedBalance < 0 ? Math.abs(calculatedBalance) : 0;
     
     return c.json({
       success: true,
@@ -1646,7 +1652,8 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
         summary: {
           total_debit: totalDebit,
           total_credit: totalCredit,
-          final_balance: finalBalance
+          final_balance: finalBalance,
+          advance_payment: advancePayment
         }
       }
     });
@@ -11032,19 +11039,25 @@ Prices are subject to change without prior notice.</textarea>
                         '</h3>' +
                         
                         // Summary Cards
-                        '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">' +
+                        '<div style="display: grid; grid-template-columns: repeat(' + (summary.advance_payment > 0 ? '4' : '3') + ', 1fr); gap: 15px; margin-bottom: 25px;">' +
                             '<div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Debit (Sales)</div>' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Sales</div>' +
                                 '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_debit || 0).toLocaleString() + '</div>' +
                             '</div>' +
                             '<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Credit (Payments)</div>' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Payments</div>' +
                                 '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_credit || 0).toLocaleString() + '</div>' +
                             '</div>' +
-                            '<div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Final Balance</div>' +
+                            '<div style="background: linear-gradient(135deg, ' + (summary.final_balance > 0 ? '#f59e0b 0%, #d97706 100%' : '#10b981 0%, #059669 100%') + '); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">' + (summary.final_balance > 0 ? 'Outstanding Balance' : 'Balance Paid') + '</div>' +
                                 '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.final_balance || 0).toLocaleString() + '</div>' +
                             '</div>' +
+                            (summary.advance_payment > 0 ? 
+                                '<div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                    '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Advance Payment</div>' +
+                                    '<div style="font-size: 28px; font-weight: 700;">₹' + summary.advance_payment.toLocaleString() + '</div>' +
+                                '</div>' 
+                            : '') +
                         '</div>' +
                         
                         // Ledger Table
@@ -11065,13 +11078,21 @@ Prices are subject to change without prior notice.</textarea>
                             '</tr></thead><tbody>';
                         
                         ledger.forEach(entry => {
+                            const displayBalance = entry.running_balance >= 0 ? entry.running_balance : 0;
+                            const isAdvance = entry.running_balance < 0;
+                            const advanceAmount = isAdvance ? Math.abs(entry.running_balance) : 0;
+                            
                             content += '<tr style="' + (entry.type === 'sale' ? 'background: #fef2f2;' : 'background: #f0fdf4;') + '">' +
                                 '<td>' + new Date(entry.date).toLocaleDateString() + '</td>' +
                                 '<td><strong>' + entry.order_id + '</strong></td>' +
                                 '<td>' + entry.description + (entry.account ? '<br><small style="color: #6b7280;">' + entry.account + '</small>' : '') + '</td>' +
                                 '<td>' + (entry.debit > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + entry.debit.toLocaleString() + '</span>' : '-') + '</td>' +
                                 '<td>' + (entry.credit > 0 ? '<span style="color: #10b981; font-weight: 600;">₹' + entry.credit.toLocaleString() + '</span>' : '-') + '</td>' +
-                                '<td style="font-weight: 600; ' + (entry.running_balance > 0 ? 'color: #f59e0b;' : 'color: #10b981;') + '">₹' + entry.running_balance.toLocaleString() + '</td>' +
+                                '<td style="font-weight: 600; ' + (displayBalance > 0 ? 'color: #f59e0b;' : 'color: #10b981;') + '">' +
+                                    (isAdvance ? 
+                                        '<span style="color: #3b82f6;">Advance: ₹' + advanceAmount.toLocaleString() + '</span>' : 
+                                        '₹' + displayBalance.toLocaleString()) +
+                                '</td>' +
                             '</tr>';
                         });
                         
