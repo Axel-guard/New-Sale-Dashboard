@@ -6076,7 +6076,7 @@ app.get('/', (c) => {
                                 <option value="order">Order ID</option>
                             </select>
                             <select id="sortOrderSelect" onchange="loadGroupedDispatches()" style="padding: 10px 15px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-                                <option value="desc">Newest First</option>
+                                <option value="desc" selected>Newest First</option>
                                 <option value="asc">Oldest First</option>
                             </select>
                         </div>
@@ -13932,6 +13932,21 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Load grouped dispatches by order
+            // Helper function to format date as DD-MMM-YY
+            function formatDispatchDate(dateStr) {
+                if (!dateStr) return 'N/A';
+                try {
+                    const date = new Date(dateStr);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const month = months[date.getMonth()];
+                    const year = String(date.getFullYear()).slice(-2);
+                    return day + '-' + month + '-' + year;
+                } catch (e) {
+                    return dateStr;
+                }
+            }
+            
             async function loadGroupedDispatches() {
                 try {
                     const sortBy = document.getElementById('sortBySelect')?.value || 'date';
@@ -13992,7 +14007,7 @@ Prices are subject to change without prior notice.</textarea>
                                     \${Object.values(grouped).map(order => \`
                                         <tr>
                                             <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${order.order_id}</td>
-                                            <td>\${order.dispatch_date || 'N/A'}</td>
+                                            <td>\${formatDispatchDate(order.dispatch_date)}</td>
                                             <td>\${order.customer_name || 'N/A'}</td>
                                             <td>\${order.customer_mobile || '-'}</td>
                                             <td style="font-weight: 600;">\${order.items.length} Product(s)</td>
@@ -14110,7 +14125,7 @@ Prices are subject to change without prior notice.</textarea>
                                     \${filteredOrders.map((order, idx) => \`
                                         <tr onclick="toggleDispatchDetails('search_\${idx}')" style="cursor: pointer;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
                                             <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${order.order_id}</td>
-                                            <td>\${order.dispatch_date || 'N/A'}</td>
+                                            <td>\${formatDispatchDate(order.dispatch_date)}</td>
                                             <td>\${order.customer_name || 'Unknown'}</td>
                                             <td>\${order.customer_mobile || '-'}</td>
                                             <td style="font-weight: 600;">\${order.items.length} Product(s)</td>
