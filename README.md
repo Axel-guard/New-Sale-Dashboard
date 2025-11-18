@@ -814,9 +814,79 @@ If you cannot login:
 
 ## Last Updated
 
-2025-11-15
+2025-11-18
 
-### Latest Changes (2025-11-15)
+### Latest Changes (2025-11-18)
+
+**🔧 CRITICAL BALANCE PAYMENT FORM FIXES** ✅
+
+**Problems Resolved:** Multiple critical issues affecting daily business operations
+
+**Issues Fixed:**
+
+1. ✅ **Order ID Not Auto-Fetching**
+   - **Problem**: Balance payment form required manual order ID entry when opened from sale details
+   - **Root Cause**: Incorrect DOM selector in `openUpdateBalanceModal()` function (line 9219)
+   - **Solution**: Changed from `.order_id.value` to `querySelector('#balancePaymentForm input[name="order_id"]').value`
+   - **Impact**: Order ID now auto-populates when clicking "Update Balance" button in sales table
+
+2. ✅ **Error Shown Despite Successful Payment**
+   - **Problem**: Form showed error alert but payment actually updated in database
+   - **Root Cause**: Error handling in catch block executed for ALL axios errors, including HTTP 400/500 with success: false
+   - **Solution**: Added `response.data.success` check before showing error - only alert on actual failures
+   - **Impact**: No more confusing "error" messages when payment succeeds
+
+3. ✅ **Payment History Not Showing Today's Entries**
+   - **Problem**: Today's payments didn't appear in "Payment History" tab immediately after submission
+   - **Root Cause**: Date comparison used `.toISOString()` format causing timezone mismatches in SQLite
+   - **Solution**: Changed to `YYYY-MM-DD` format string for consistent SQLite DATE comparison
+   - **Impact**: Today's payments now appear immediately in payment history
+
+4. ✅ **Sale History Not Showing Today's Entry**
+   - **Problem**: Today's payment missing from sale detail view payment history
+   - **Root Cause**: `submitBalancePayment()` didn't refresh sale details or call payment history loader
+   - **Solution**: Added `loadBalancePaymentHistory()` call after successful payment
+   - **Impact**: Sale details now refresh automatically showing latest payment
+
+**Technical Details:**
+
+**File Modified:** `/home/user/webapp/src/index.tsx`
+
+**Changes:**
+1. Line 9219: Fixed `openUpdateBalanceModal()` DOM selector
+2. Lines 9525-9537: Enhanced `submitBalancePayment()` error handling and added history refresh
+3. Lines 1024-1040: Fixed date format in balance payment history API endpoint
+
+**Code Changes:**
+```typescript
+// Before (WRONG):
+document.getElementById('balancePaymentForm').order_id.value = orderId;
+
+// After (CORRECT):
+document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
+
+// Before (WRONG):
+const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+WHERE DATE(p.payment_date) >= DATE(?) 
+.bind(currentMonthStart.toISOString())
+
+// After (CORRECT):
+const monthStartStr = currentMonthStart.toISOString().split('T')[0]; // YYYY-MM-DD
+WHERE DATE(p.payment_date) >= DATE(?)
+.bind(monthStartStr)
+```
+
+**Testing:**
+- ✅ Built successfully (5.41s, 1,193.00 kB)
+- ✅ Development server restarted
+- ✅ Committed to git: `f36d61c`
+- ✅ Deployed to production: https://3e2b8865.webapp-6dk.pages.dev
+
+**Status:** ✅ **FULLY DEPLOYED** - All critical balance payment issues resolved!
+
+---
+
+### Previous Changes (2025-11-15)
 
 **🔧 INVENTORY PRODUCTION DATABASE FIX** ✅
 
