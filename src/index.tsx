@@ -1023,6 +1023,8 @@ app.get('/api/sales/balance-payment-history', async (c) => {
   try {
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Format as YYYY-MM-DD for SQLite DATE comparison
+    const monthStartStr = currentMonthStart.toISOString().split('T')[0];
     
     const paymentHistory = await env.DB.prepare(`
       SELECT 
@@ -1038,7 +1040,7 @@ app.get('/api/sales/balance-payment-history', async (c) => {
       JOIN sales s ON p.order_id = s.order_id
       WHERE DATE(p.payment_date) >= DATE(?)
       ORDER BY p.payment_date DESC
-    `).bind(currentMonthStart.toISOString()).all();
+    `).bind(monthStartStr).all();
     
     return c.json({ success: true, data: paymentHistory.results });
   } catch (error) {
@@ -9216,7 +9218,7 @@ Prices are subject to change without prior notice.</textarea>
             // Open Update Balance Modal with pre-filled Order ID
             function openUpdateBalanceModal(orderId) {
                 openBalancePaymentModal();
-                document.getElementById('balancePaymentForm').order_id.value = orderId;
+                document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
             }
 
             // Courier Calculation Functions
@@ -9528,10 +9530,15 @@ Prices are subject to change without prior notice.</textarea>
                     if (response.data.success) {
                         alert('Payment updated successfully!');
                         document.getElementById('balancePaymentModal').classList.remove('show');
+                        form.reset();
                         loadBalancePayments();
+                        loadBalancePaymentHistory();
                         loadDashboard();
+                    } else {
+                        alert('Error updating payment: ' + (response.data.error || 'Unknown error'));
                     }
                 } catch (error) {
+                    console.error('Balance payment error:', error);
                     alert('Error updating payment: ' + (error.response?.data?.error || error.message));
                 }
             }
