@@ -4271,17 +4271,23 @@ app.get('/api/orders', async (c) => {
   const { env } = c;
   
   try {
-    // Get orders from sales table with item count
+    // Get orders from sales table with item count and dispatch count
     const orders = await env.DB.prepare(`
       SELECT 
         s.order_id,
         s.customer_name,
         s.company_name,
         s.sale_date as order_date,
-        COUNT(si.id) as total_items,
-        'Pending' as dispatch_status
+        COUNT(DISTINCT si.id) as total_items,
+        COUNT(DISTINCT dr.id) as dispatched_items,
+        CASE 
+          WHEN COUNT(DISTINCT dr.id) >= COUNT(DISTINCT si.id) THEN 'Complete'
+          WHEN COUNT(DISTINCT dr.id) > 0 THEN 'Partial'
+          ELSE 'Pending'
+        END as dispatch_status
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
+      LEFT JOIN dispatch_records dr ON dr.order_id = s.order_id
       GROUP BY s.order_id, s.customer_name, s.company_name, s.sale_date
       ORDER BY s.order_id DESC
     `).all();
@@ -15262,41 +15268,52 @@ Prices are subject to change without prior notice.</textarea>
                 const searchTerm = document.getElementById('orderSearchInput').value.toLowerCase();
                 const resultsDiv = document.getElementById('orderSearchResults');
                 
-                const filtered = allOrders.filter(order => 
-                    order.order_id.toString().includes(searchTerm) ||
-                    (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm)) ||
-                    (order.company_name && order.company_name.toLowerCase().includes(searchTerm))
-                );
+                // Filter out completed orders and apply search
+                const filtered = allOrders.filter(order => {
+                    // Hide completed orders
+                    if (order.dispatch_status === 'Complete') return false;
+                    
+                    // Apply search filter
+                    return order.order_id.toString().includes(searchTerm) ||
+                           (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm)) ||
+                           (order.company_name && order.company_name.toLowerCase().includes(searchTerm));
+                });
                 
                 if (filtered.length === 0) {
-                    resultsDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #9ca3af;">No orders found</div>';
+                    resultsDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #9ca3af;">No pending orders found</div>';
                     return;
                 }
                 
-                resultsDiv.innerHTML = filtered.map(order => \`
-                    <div onclick="selectOrder('\${order.order_id}')" 
-                        style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
-                        onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4';"
-                        onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 700; font-size: 16px; color: #1f2937;">
-                                    <i class="fas fa-shopping-cart" style="color: #10b981;"></i> Order #\${order.order_id}
+                resultsDiv.innerHTML = filtered.map(order => {
+                    const remainingItems = order.total_items - (order.dispatched_items || 0);
+                    const statusColor = order.dispatch_status === 'Partial' ? '#f59e0b' : '#10b981';
+                    const statusBg = order.dispatch_status === 'Partial' ? '#fef3c7' : '#d1fae5';
+                    
+                    return \`
+                        <div onclick="selectOrder('\${order.order_id}')" 
+                            style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                            onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4';"
+                            onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 16px; color: #1f2937;">
+                                        <i class="fas fa-shopping-cart" style="color: #10b981;"></i> Order #\${order.order_id}
+                                    </div>
+                                    <div style="color: #6b7280; margin-top: 5px;">
+                                        <i class="fas fa-user"></i> \${order.customer_name}
+                                        \${order.company_name ? \` - \${order.company_name}\` : ''}
+                                    </div>
                                 </div>
-                                <div style="color: #6b7280; margin-top: 5px;">
-                                    <i class="fas fa-user"></i> \${order.customer_name}
-                                    \${order.company_name ? \` - \${order.company_name}\` : ''}
+                                <div style="text-align: right;">
+                                    <div style="background: \${statusBg}; color: \${statusColor}; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-bottom: 5px;">
+                                        \${remainingItems} Remaining
+                                    </div>
+                                    <div style="font-size: 12px; color: #6b7280;">\${order.order_date}</div>
                                 </div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-bottom: 5px;">
-                                    \${order.total_items} Items
-                                </div>
-                                <div style="font-size: 12px; color: #6b7280;">\${order.order_date}</div>
                             </div>
                         </div>
-                    </div>
-                \`).join('');
+                    \`;
+                }).join('');
             }
             
             // Select Order
@@ -15357,6 +15374,7 @@ Prices are subject to change without prior notice.</textarea>
                         d.product_name === item.product_name
                     ).length;
                     const remainingToScan = item.quantity - scannedForThisProduct;
+                    const isComplete = remainingToScan === 0;
                     
                     return \`
                         <div style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -15369,11 +15387,11 @@ Prices are subject to change without prior notice.</textarea>
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="display: flex; flex-direction: column; gap: 5px;">
-                                        <div style="font-size: 24px; font-weight: 700; color: \${remainingToScan === 0 ? '#10b981' : '#f59e0b'};">
+                                        <div style="font-size: 24px; font-weight: 700; color: \${isComplete ? '#10b981' : '#f59e0b'};">
                                             \${scannedForThisProduct} / \${item.quantity}
                                         </div>
-                                        <div style="font-size: 14px; font-weight: 600; color: \${remainingToScan === 0 ? '#10b981' : '#dc2626'}; background: \${remainingToScan === 0 ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
-                                            \${remainingToScan} Remaining
+                                        <div style="font-size: 14px; font-weight: 600; color: \${isComplete ? '#10b981' : '#dc2626'}; background: \${isComplete ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
+                                            \${isComplete ? '✅ Complete' : remainingToScan + ' Remaining'}
                                         </div>
                                     </div>
                                 </div>
