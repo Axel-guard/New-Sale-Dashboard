@@ -14492,21 +14492,18 @@ Prices are subject to change without prior notice.</textarea>
                     
                     const dispatches = response.data.data;
                     
-                    // Group by serial_number (which represents order batches)
+                    // Group dispatches by order_id (same as loadGroupedDispatches)
                     const grouped = {};
                     dispatches.forEach(dispatch => {
-                        const orderKey = dispatch.serial_number || dispatch.id || 'N/A';
+                        const orderKey = dispatch.order_id || 'N/A';
                         if (!grouped[orderKey]) {
                             grouped[orderKey] = {
-                                order_id: dispatch.serial_number || dispatch.id,
+                                order_id: dispatch.order_id || 'N/A',
                                 dispatch_date: dispatch.dispatch_date,
                                 customer_name: dispatch.customer_name,
                                 customer_mobile: dispatch.lead_phone || dispatch.customer_mobile,
-                                customer_code: dispatch.customer_code,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
-                                dispatch_reason: dispatch.dispatch_reason || 'New Sale',
-                                dispatch_method: dispatch.dispatch_method,
                                 items: []
                             };
                         }
@@ -14537,72 +14534,86 @@ Prices are subject to change without prior notice.</textarea>
                     }
                     
                     // Update totals with filtered results
+                    const serialNumbers = new Set();
+                    filteredOrders.forEach(order => {
+                        order.items.forEach(item => {
+                            if (item.serial_number) serialNumbers.add(item.serial_number);
+                        });
+                    });
                     const totalItems = filteredOrders.reduce((sum, order) => sum + order.items.length, 0);
-                    document.getElementById('totalOrdersCount').textContent = filteredOrders.length;
+                    document.getElementById('totalOrdersCount').textContent = serialNumbers.size || filteredOrders.length;
                     document.getElementById('totalItemsCount').textContent = totalItems;
                     
-                    // Render filtered orders in table format
+                    // Render filtered orders in same format as loadGroupedDispatches
                     container.innerHTML = \`
                         <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
                             <table class="data-table" style="width: 100%;">
                                 <thead style="position: sticky; top: 0; z-index: 10; background: #f9fafb;">
                                     <tr>
-                                        <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb;">S.No</th>
+                                        <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb; width: 60px;">S.No</th>
                                         <th style="background: #f9fafb;">Dispatch Date</th>
-                                        <th style="background: #f9fafb;">Customer Name</th>
+                                        <th style="background: #f9fafb;">Customer</th>
                                         <th style="background: #f9fafb;">Mobile</th>
-                                        <th style="background: #f9fafb;">Item Name</th>
+                                        <th style="background: #f9fafb;">Items</th>
                                         <th style="background: #f9fafb;">Order ID</th>
                                         <th style="background: #f9fafb;">Courier</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    \${filteredOrders.map((order, idx) => \`
-                                        <tr onclick="toggleDispatchDetails('search_\${idx}')" style="cursor: pointer;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
-                                            <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${idx + 1}</td>
-                                            <td>\${formatDispatchDate(order.dispatch_date)}</td>
-                                            <td>\${order.customer_name || 'Unknown'}</td>
-                                            <td>\${order.customer_mobile || '-'}</td>
-                                            <td style="font-weight: 600;">\${order.items.map(item => item.model_name || item.device_serial_no).join(', ')}</td>
-                                            <td>\${order.order_id}</td>
-                                            <td>\${order.courier_name || '-'}\${order.tracking_number && order.tracking_number !== '-' ? '<br><small style="color: #6b7280;">' + order.tracking_number + '</small>' : ''}</td>
-                                        </tr>
-                                        <tr id="search_\${idx}" style="display: none;">
-                                            <td colspan="7" style="padding: 0; background: #f9fafb;">
-                                                <div style="padding: 20px;">
-                                                    <h4 style="margin: 0 0 15px 0; color: #1f2937;">Dispatched Devices (\${order.items.length})</h4>
-                                                    <div style="overflow-x: auto;">
-                                                        <table class="data-table" style="font-size: 13px;">
+                                    \${filteredOrders.map((order, index) => {
+                                        const rowId = 'search_' + index;
+                                        return \`
+                                            <tr onclick="toggleDispatchDetails('\${rowId}')" style="cursor: pointer; background: white;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                                                <td style="position: sticky; left: 0; background: inherit; font-weight: 600;">
+                                                    <i class="fas fa-chevron-down" id="icon_\${rowId}" style="color: #10b981; margin-right: 5px;"></i>
+                                                    \${index + 1}
+                                                </td>
+                                                <td>\${formatDispatchDate(order.dispatch_date)}</td>
+                                                <td>\${order.customer_name || 'N/A'}</td>
+                                                <td>\${order.customer_mobile || '-'}</td>
+                                                <td style="font-weight: 600; color: #10b981;">\${order.items.length} Item(s)</td>
+                                                <td style="font-weight: 600;">\${order.order_id}</td>
+                                                <td>\${order.courier_name || '-'}\${order.tracking_number && order.tracking_number !== '-' ? '<br><small style="color: #6b7280;">' + order.tracking_number + '</small>' : ''}</td>
+                                            </tr>
+                                            <tr id="\${rowId}" style="display: none;">
+                                                <td colspan="7" style="padding: 0; background: #f9fafb;">
+                                                    <div style="padding: 15px 20px; margin: 0;">
+                                                        <h4 style="margin: 0 0 10px 0; color: #1f2937; font-size: 14px;">
+                                                            <i class="fas fa-box"></i> Dispatched Items (\${order.items.length})
+                                                        </h4>
+                                                        <table style="width: 100%; border-collapse: collapse;">
                                                             <thead>
-                                                                <tr>
-                                                                    <th>Device Serial No</th>
-                                                                    <th>Model Name</th>
-                                                                    <th>Dispatch Method</th>
-                                                                    <th>Company</th>
+                                                                <tr style="background: #e5e7eb;">
+                                                                    <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Serial No</th>
+                                                                    <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Device Serial Number</th>
+                                                                    <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Product Name</th>
+                                                                    <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Dispatch Date</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                \${order.items.map(item => \`
-                                                                    <tr>
-                                                                        <td><strong>\${item.device_serial_no}</strong></td>
-                                                                        <td>\${item.model_name || 'N/A'}</td>
-                                                                        <td>\${item.dispatch_method || '-'}</td>
-                                                                        <td>\${item.company_name || '-'}</td>
+                                                                \${order.items.map((item, idx) => \`
+                                                                    <tr style="background: white;">
+                                                                        <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db;">\${idx + 1}</td>
+                                                                        <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db; font-weight: 600;">\${item.device_serial_no}</td>
+                                                                        <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db;">\${item.model_name || 'N/A'}</td>
+                                                                        <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db;">\${formatDispatchDate(item.dispatch_date)}</td>
                                                                     </tr>
                                                                 \`).join('')}
                                                             </tbody>
                                                         </table>
                                                     </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    \`).join('')}
+                                                </td>
+                                            </tr>
+                                        \`;
+                                    }).join('')}
                                 </tbody>
                             </table>
                         </div>
                     \`;
                 } catch (error) {
                     console.error('Error searching dispatch orders:', error);
+                    document.getElementById('groupedDispatchesContainer').innerHTML = 
+                        '<div style="text-align: center; padding: 40px; color: #ef4444;"><i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 15px;"></i><p style="font-size: 16px;">Error searching dispatch orders</p></div>';
                 }
             }
             
