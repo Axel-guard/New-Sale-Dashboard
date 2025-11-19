@@ -13866,7 +13866,7 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // View device details - Complete device journey
-            async function viewDevice(serialNo) {
+            window.viewDevice = async function(serialNo) {
                 try {
                     // Fetch device details from inventory
                     const invResponse = await axios.get(\`/api/inventory/search?serial=\${serialNo}\`);
@@ -14041,7 +14041,7 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Close device journey modal
-            function closeDeviceJourneyModal() {
+            window.closeDeviceJourneyModal = function() {
                 const modal = document.getElementById('deviceJourneyModal');
                 if (modal) {
                     modal.remove();
