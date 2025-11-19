@@ -18,8 +18,9 @@ CREATE TABLE tracking_details_new (
 );
 
 -- Step 2: Copy existing data (if any)
-INSERT INTO tracking_details_new (id, order_id, courier_partner, courier_mode, tracking_id, weight, created_at, updated_at)
-SELECT id, order_id, courier_partner, courier_mode, tracking_id, weight, created_at, updated_at
+-- Only copy columns that exist in both old and new tables
+INSERT INTO tracking_details_new (id, order_id, courier_partner, courier_mode, tracking_id, created_at, updated_at)
+SELECT id, order_id, courier_partner, courier_mode, tracking_id, created_at, updated_at
 FROM tracking_details;
 
 -- Step 3: Drop old table
