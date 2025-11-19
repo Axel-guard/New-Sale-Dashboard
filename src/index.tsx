@@ -14193,7 +14193,7 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Display tracking records in tab
-            function displayTrackingRecordsTab(records) {
+            async function displayTrackingRecordsTab(records) {
                 const tbody = document.getElementById('trackingReportBodyTab');
                 
                 if (records.length === 0) {
@@ -14201,16 +14201,51 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
-                tbody.innerHTML = records.map(record => {
+                // Fetch weights for all records
+                const recordsWithWeights = await Promise.all(records.map(async (record) => {
+                    let totalWeight = 0;
+                    
+                    try {
+                        // Fetch sale items for this order
+                        const response = await axios.get('/api/sales/' + record.order_id + '/items');
+                        if (response.data.success && response.data.data) {
+                            const items = response.data.data;
+                            
+                            // Calculate total weight from product catalog
+                            totalWeight = items.reduce((sum, item) => {
+                                let itemWeight = 0;
+                                
+                                // Search for product in catalog
+                                for (const category in productCatalog) {
+                                    const product = productCatalog[category].find(p => 
+                                        p.name === item.product_name
+                                    );
+                                    if (product) {
+                                        itemWeight = product.weight * item.quantity;
+                                        break;
+                                    }
+                                }
+                                
+                                return sum + itemWeight;
+                            }, 0);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching weight for order:', record.order_id, error);
+                    }
+                    
+                    return { ...record, totalWeight };
+                }));
+                
+                tbody.innerHTML = recordsWithWeights.map(record => {
                     const actualPrice = record.courier_cost || record.total_amount || 0;
-                    const weight = record.weight || 0;
+                    const weight = record.totalWeight ? record.totalWeight.toFixed(2) : '0.00';
                     
                     return '<tr style="border-bottom: 1px solid #e5e7eb;">' +
                         '<td style="padding: 12px; font-weight: 600; color: #1f2937;">' + record.order_id + '</td>' +
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_partner + '</td>' +
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_mode + '</td>' +
                         '<td style="padding: 12px; font-family: monospace; color: #7c3aed; font-weight: 600;">' + record.tracking_id + '</td>' +
-                        '<td style="padding: 12px; text-align: right; font-weight: 600; color: #f59e0b;">' + weight + ' items</td>' +
+                        '<td style="padding: 12px; text-align: right; font-weight: 600; color: #f59e0b;">' + weight + ' Kg</td>' +
                         '<td style="padding: 12px; text-align: right; font-weight: 600; color: #059669;">₹' + actualPrice.toLocaleString() + '</td>' +
                         '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecordTab(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;" onmouseover="this.style.background=&#39;#dc2626&#39;" onmouseout="this.style.background=&#39;#ef4444&#39;"><i class="fas fa-trash"></i></button></td>' +
                     '</tr>';
