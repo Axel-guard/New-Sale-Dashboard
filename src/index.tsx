@@ -6522,7 +6522,7 @@ app.get('/', (c) => {
 
                     <form id="updateQCForm" onsubmit="submitUpdateQC(event)">
                         <!-- Row 1: Basic Information -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                             <div class="form-group">
                                 <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">QC Date *</label>
                                 <input type="date" id="update_qc_date" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;" required>
@@ -6531,9 +6531,25 @@ app.get('/', (c) => {
                                 <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Serial Number *</label>
                                 <input type="text" id="update_serial_number" placeholder="Enter device serial number" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;" required>
                             </div>
+                        </div>
+                        
+                        <!-- Row 2: Category and Product Name -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                             <div class="form-group">
-                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Device Type *</label>
-                                <input type="text" id="update_device_type" placeholder="e.g., MDVR, Camera" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;" required>
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Category *</label>
+                                <select id="update_category" onchange="loadUpdateQCProducts()" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px;" required>
+                                    <option value="">-- Select Category --</option>
+                                    <option value="MDVR">MDVR</option>
+                                    <option value="Camera">Camera</option>
+                                    <option value="Monitor">Monitor</option>
+                                    <option value="Accessories">Accessories</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Product Name *</label>
+                                <select id="update_product_name" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px;" required>
+                                    <option value="">-- Select Product --</option>
+                                </select>
                             </div>
                         </div>
 
@@ -16015,23 +16031,51 @@ Prices are subject to change without prior notice.</textarea>
             let currentQCFilter = null;
             let qcProducts = {
                 'MDVR': [
-                    'MDVR 4CH (Without 4G)', 'MDVR 8CH (Without 4G)',
-                    'MDVR 4CH (With 4G)', 'MDVR 8CH (With 4G)',
-                    'MDVR 4CH HD', 'MDVR 8CH HD'
-                ],
-                'Camera': [
-                    'Indoor Camera', 'Outdoor Camera', 
-                    'Dome Camera', 'Bullet Camera',
-                    'PTZ Camera', 'IP Camera'
+                    '4ch 1080p SD Card MDVR (MR9504EC)',
+                    '4ch 1080p HDD MDVR (MR9704C)',
+                    '4ch 1080p SD, 4G, GPS MDVR (MR9504E)',
+                    '4ch 1080p SD, 4G, GPS MDVR (MR9504E-A3)',
+                    '4ch 1080p HDD, 4G, GPS MDVR (MR9704E)',
+                    'TVS 4ch 1080p SD, 4G, GPS MDVR',
+                    '5ch MDVR SD 4g + GPS + LAN + RS232 + RS485',
+                    '5ch MDVR HDD 4g + GPS + LAN + RS232 + RS485',
+                    '4ch 1080p SD, 4G, wifi, GPS MDVR (MA9504ED)',
+                    'AI MDVR with (DSM + ADAS) (SD+ 4g + GPS)',
+                    'AI MDVR with (DSM + ADAS) (SD+HDD+ 4g + GPS)'
                 ],
                 'Monitor': [
-                    '7 inch Monitor', '9 inch Monitor', 
-                    '10.1 inch Monitor', '12 inch Monitor'
+                    '7 " AV Monitor',
+                    '7" VGA Monitor',
+                    '7" HDMI Monitor',
+                    '7 inch Heavy Duty VGA Monitor',
+                    '4k Recording monitor kit 2ch',
+                    '4 inch AV monitor',
+                    '720 2ch Recording Monitor Kit',
+                    '4k Recording monitor kit 4ch'
+                ],
+                'Camera': [
+                    '2 MP IR indoor Dome Camera',
+                    '2 MP IR Outdoor Bullet Camera',
+                    '2 MP Heavy Duty Bullet Camera',
+                    '2 MP Heavy Duty Dome Camera',
+                    'PTZ Camera',
+                    '4k Monitor Camera',
+                    '2 MP IP Camera',
+                    'Replacement Bullet Camera 2mp',
+                    'Replacement Dome Camera 2 mp',
+                    'Replacement Dome Audio Camera',
+                    'Reverse Camera',
+                    '2mp IR Audio Camera',
+                    'DFMS Camera'
                 ],
                 'Accessories': [
-                    'GPS Antenna', 'SIM Card', 
-                    'Power Cable', 'Video Cable',
-                    'Memory Card'
+                    'GPS Antenna', 
+                    'SIM Card', 
+                    'Power Cable', 
+                    'Video Cable',
+                    'Memory Card',
+                    'MDVR Security Box',
+                    'Camera Extension Cable'
                 ]
             };
             
@@ -16462,16 +16506,44 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('updateQCForm').reset();
             }
             
+            // Load Products for Update QC based on Category
+            function loadUpdateQCProducts() {
+                const category = document.getElementById('update_category').value;
+                const productSelect = document.getElementById('update_product_name');
+                
+                // Clear product dropdown
+                productSelect.innerHTML = '<option value="">-- Select Product --</option>';
+                
+                if (!category) {
+                    return;
+                }
+                
+                // Populate products based on category
+                if (qcProducts[category]) {
+                    qcProducts[category].forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product;
+                        option.textContent = product;
+                        productSelect.appendChild(option);
+                    });
+                }
+            }
+            
             // Submit Update QC (Manual Entry)
             async function submitUpdateQC(event) {
                 event.preventDefault();
                 
                 // Collect all form data
+                const category = document.getElementById('update_category').value;
+                const productName = document.getElementById('update_product_name').value;
+                
                 const qcData = {
                     device_serial_no: document.getElementById('update_serial_number').value.trim(),
                     check_date: document.getElementById('update_qc_date').value,
                     checked_by: currentUser.employeeName || currentUser.fullName,
-                    device_type: document.getElementById('update_device_type').value.trim(),
+                    category: category,
+                    product_name: productName,
+                    device_type: category, // Use category as device type
                     camera_quality: document.getElementById('update_camera_quality').value || 'QC Not Applicable',
                     sd_connectivity: document.getElementById('update_sd_connectivity').value || 'QC Not Applicable',
                     all_ch_status: document.getElementById('update_all_ch_status').value || 'QC Not Applicable',
@@ -16486,8 +16558,8 @@ Prices are subject to change without prior notice.</textarea>
                 };
                 
                 // Validate required fields
-                if (!qcData.device_serial_no || !qcData.check_date || !qcData.device_type || !qcData.final_qc_status) {
-                    alert('❌ Please fill all required fields:\\n- QC Date\\n- Serial Number\\n- Device Type\\n- Final QC Status');
+                if (!qcData.device_serial_no || !qcData.check_date || !category || !productName || !qcData.final_qc_status) {
+                    alert('❌ Please fill all required fields:\\n- QC Date\\n- Serial Number\\n- Category\\n- Product Name\\n- Final QC Status');
                     return;
                 }
                 
@@ -16500,7 +16572,7 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.post('/api/inventory/quality-check-manual', qcData);
                     
                     if (response.data.success) {
-                        alert(\`✅ QC Report Saved Successfully!\\n\\nSerial Number: \${qcData.device_serial_no}\\nFinal Status: \${qcData.final_qc_status}\`);
+                        alert(\`✅ QC Report Saved Successfully!\\n\\nSerial Number: \${qcData.device_serial_no}\\nCategory: \${category}\\nProduct: \${productName}\\nFinal Status: \${qcData.final_qc_status}\`);
                         closeUpdateQCModal();
                         loadQCData();
                     } else {
