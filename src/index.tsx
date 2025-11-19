@@ -6400,66 +6400,184 @@ app.get('/', (c) => {
                 </div>
 
                 <!-- QC Summary Cards -->
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
-                    <div onclick="filterQCReport('Pass')" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">QC Pass</div>
-                        <div style="font-size: 32px; font-weight: bold;" id="qcPassCount">0</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 25px;">
+                    <!-- QC Pass Card -->
+                    <div onclick="filterQCReport('Pass')" 
+                        style="background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%); 
+                               padding: 28px 24px; 
+                               border-radius: 16px; 
+                               color: white; 
+                               cursor: pointer; 
+                               transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+                               box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+                               position: relative;
+                               overflow: hidden;"
+                        onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 24px rgba(16, 185, 129, 0.4)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 14px rgba(16, 185, 129, 0.3)'">
+                        <div style="position: absolute; top: -20px; right: -20px; font-size: 120px; opacity: 0.1;">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div style="position: relative; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                <i class="fas fa-check-circle" style="font-size: 20px;"></i>
+                                <span style="font-size: 15px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">QC Pass</span>
+                            </div>
+                            <div style="font-size: 42px; font-weight: 800; line-height: 1;" id="qcPassCount">0</div>
+                            <div style="font-size: 13px; opacity: 0.9; margin-top: 8px;">Devices passed quality check</div>
+                        </div>
                     </div>
-                    <div onclick="filterQCReport('Fail')" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 12px; color: white; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">QC Fail</div>
-                        <div style="font-size: 32px; font-weight: bold;" id="qcFailCount">0</div>
+
+                    <!-- QC Fail Card -->
+                    <div onclick="filterQCReport('Fail')" 
+                        style="background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%); 
+                               padding: 28px 24px; 
+                               border-radius: 16px; 
+                               color: white; 
+                               cursor: pointer; 
+                               transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+                               box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+                               position: relative;
+                               overflow: hidden;"
+                        onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 24px rgba(239, 68, 68, 0.4)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 14px rgba(239, 68, 68, 0.3)'">
+                        <div style="position: absolute; top: -20px; right: -20px; font-size: 120px; opacity: 0.1;">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div style="position: relative; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                <i class="fas fa-times-circle" style="font-size: 20px;"></i>
+                                <span style="font-size: 15px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">QC Fail</span>
+                            </div>
+                            <div style="font-size: 42px; font-weight: 800; line-height: 1;" id="qcFailCount">0</div>
+                            <div style="font-size: 13px; opacity: 0.9; margin-top: 8px;">Devices failed quality check</div>
+                        </div>
                     </div>
-                    <div onclick="filterQCReport('Pending')" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 12px; color: white; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">QC Pending</div>
-                        <div style="font-size: 32px; font-weight: bold;" id="qcPendingCount">0</div>
+
+                    <!-- QC Pending Card -->
+                    <div onclick="filterQCReport('Pending')" 
+                        style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%); 
+                               padding: 28px 24px; 
+                               border-radius: 16px; 
+                               color: white; 
+                               cursor: pointer; 
+                               transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+                               box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+                               position: relative;
+                               overflow: hidden;"
+                        onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 24px rgba(245, 158, 11, 0.4)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 14px rgba(245, 158, 11, 0.3)'">
+                        <div style="position: absolute; top: -20px; right: -20px; font-size: 120px; opacity: 0.1;">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div style="position: relative; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                <i class="fas fa-clock" style="font-size: 20px;"></i>
+                                <span style="font-size: 15px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">QC Pending</span>
+                            </div>
+                            <div style="font-size: 42px; font-weight: 800; line-height: 1;" id="qcPendingCount">0</div>
+                            <div style="font-size: 13px; opacity: 0.9; margin-top: 8px;">Devices awaiting quality check</div>
+                        </div>
                     </div>
                 </div>
 
 
 
                 <!-- QC Reports Card -->
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h2 class="card-title">
-                            <i class="fas fa-list"></i> QC Reports
+                <div class="card" style="box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-radius: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; color: #1f2937; font-size: 22px; font-weight: 700;">
+                            <i class="fas fa-list-alt" style="color: #667eea; margin-right: 10px;"></i> QC Reports
                         </h2>
-                        <button onclick="clearQCFilter()" class="btn-primary" style="background: #6b7280; padding: 8px 16px;">
+                        <button onclick="clearQCFilter()" 
+                            style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); 
+                                   color: white; 
+                                   border: none; 
+                                   padding: 10px 20px; 
+                                   border-radius: 10px; 
+                                   cursor: pointer; 
+                                   font-weight: 600;
+                                   transition: all 0.2s;
+                                   box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);"
+                            onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(107, 114, 128, 0.4)'"
+                            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(107, 114, 128, 0.3)'">
                             <i class="fas fa-times"></i> Clear Filter
                         </button>
                     </div>
 
                     <!-- Search Bar -->
-                    <div class="form-group">
+                    <div style="margin-bottom: 20px; position: relative;">
+                        <i class="fas fa-search" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 16px;"></i>
                         <input type="text" id="qcSearchInput" 
                             placeholder="Search by Device ID, Serial Number, or Product Name..." 
                             oninput="searchQCReports()"
-                            style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                            style="width: 100%; 
+                                   padding: 14px 14px 14px 48px; 
+                                   border: 2px solid #e5e7eb; 
+                                   border-radius: 12px; 
+                                   font-size: 15px;
+                                   transition: all 0.3s;
+                                   outline: none;"
+                            onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 4px rgba(102, 126, 234, 0.1)'"
+                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
                     </div>
 
                     <!-- QC Table -->
-                    <div style="overflow-x: auto; overflow-y: auto; max-height: 600px;">
-                        <table class="data-table" style="font-size: 12px;">
-                            <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10;">
+                    <div style="overflow-x: auto; overflow-y: auto; max-height: 600px; border-radius: 12px; border: 2px solid #e5e7eb;">
+                        <table class="data-table" style="font-size: 13px; width: 100%; border-collapse: collapse;">
+                            <thead style="position: sticky; top: 0; z-index: 10; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
                                 <tr>
-                                    <th style="min-width: 50px;">S. No</th>
-                                    <th style="min-width: 100px;">QC Date</th>
-                                    <th style="min-width: 120px;">Serial Number</th>
-                                    <th style="min-width: 150px;">Device Type</th>
-                                    <th style="min-width: 100px;">SD Connect</th>
-                                    <th style="min-width: 100px;">All Ch Status</th>
-                                    <th style="min-width: 100px;">Network</th>
-                                    <th style="min-width: 100px;">GPS</th>
-                                    <th style="min-width: 100px;">SIM Slot</th>
-                                    <th style="min-width: 100px;">Online</th>
-                                    <th style="min-width: 120px;">Camera Quality</th>
-                                    <th style="min-width: 100px;">Monitor</th>
-                                    <th style="min-width: 120px;">Final Status</th>
-                                    <th style="min-width: 120px;">IP Address</th>
-                                    <th style="min-width: 100px;">Actions</th>
+                                    <th style="min-width: 60px; padding: 16px 12px; text-align: left; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-hashtag" style="margin-right: 4px; opacity: 0.9;"></i>S.No
+                                    </th>
+                                    <th style="min-width: 110px; padding: 16px 12px; text-align: left; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-calendar" style="margin-right: 4px; opacity: 0.9;"></i>QC Date
+                                    </th>
+                                    <th style="min-width: 130px; padding: 16px 12px; text-align: left; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-barcode" style="margin-right: 4px; opacity: 0.9;"></i>Serial No
+                                    </th>
+                                    <th style="min-width: 160px; padding: 16px 12px; text-align: left; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-tv" style="margin-right: 4px; opacity: 0.9;"></i>Device Type
+                                    </th>
+                                    <th style="min-width: 110px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-sd-card" style="margin-right: 4px; opacity: 0.9;"></i>SD
+                                    </th>
+                                    <th style="min-width: 110px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-video" style="margin-right: 4px; opacity: 0.9;"></i>All Ch
+                                    </th>
+                                    <th style="min-width: 110px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-wifi" style="margin-right: 4px; opacity: 0.9;"></i>Network
+                                    </th>
+                                    <th style="min-width: 100px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-map-marker-alt" style="margin-right: 4px; opacity: 0.9;"></i>GPS
+                                    </th>
+                                    <th style="min-width: 100px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-sim-card" style="margin-right: 4px; opacity: 0.9;"></i>SIM
+                                    </th>
+                                    <th style="min-width: 100px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-globe" style="margin-right: 4px; opacity: 0.9;"></i>Online
+                                    </th>
+                                    <th style="min-width: 130px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-camera" style="margin-right: 4px; opacity: 0.9;"></i>Camera
+                                    </th>
+                                    <th style="min-width: 110px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-desktop" style="margin-right: 4px; opacity: 0.9;"></i>Monitor
+                                    </th>
+                                    <th style="min-width: 130px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-flag-checkered" style="margin-right: 4px; opacity: 0.9;"></i>Status
+                                    </th>
+                                    <th style="min-width: 130px; padding: 16px 12px; text-align: left; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-network-wired" style="margin-right: 4px; opacity: 0.9;"></i>IP Address
+                                    </th>
+                                    <th style="min-width: 100px; padding: 16px 12px; text-align: center; color: white; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                        <i class="fas fa-cog" style="margin-right: 4px; opacity: 0.9;"></i>Actions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="qcReportsBody">
-                                <tr><td colspan="15" style="text-align: center; padding: 20px; color: #9ca3af;">Loading...</td></tr>
+                                <tr><td colspan="15" style="text-align: center; padding: 40px; color: #9ca3af; font-size: 15px;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                                    Loading QC reports...
+                                </td></tr>
                             </tbody>
                         </table>
                     </div>
