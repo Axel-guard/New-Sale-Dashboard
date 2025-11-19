@@ -6361,18 +6361,19 @@ app.get('/', (c) => {
                         <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0;">Quality Check Reports</h1>
                     </div>
                     <div style="position: relative; display: inline-block;">
-                        <button onclick="toggleQCActionsDropdown()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 24px;">
-                            <i class="fas fa-ellipsis-v"></i> Actions <i class="fas fa-chevron-down" style="margin-left: 8px; font-size: 12px;"></i>
+                        <button onclick="toggleQCActionsDropdown()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 14px 28px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); border: none; display: flex; align-items: center; gap: 10px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(16, 185, 129, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 14px rgba(16, 185, 129, 0.3)'">
+                            <i class="fas fa-tasks" style="font-size: 16px;"></i> 
+                            <span>Actions</span>
+                            <i class="fas fa-chevron-down" style="font-size: 12px;"></i>
                         </button>
-                        <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 5px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); min-width: 200px; z-index: 1000;">
-                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-file-excel" style="color: #059669; width: 20px;"></i> Export Excel
+                        <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); min-width: 220px; z-index: 1000; overflow: hidden;">
+                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: all 0.2s; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='linear-gradient(90deg, #f0fdf4 0%, #dcfce7 100%)'; this.style.paddingLeft='24px'" onmouseout="this.style.background='none'; this.style.paddingLeft='20px'">
+                                <i class="fas fa-file-excel" style="color: #059669; font-size: 16px; width: 22px; text-align: center;"></i>
+                                <span>Export Excel</span>
                             </button>
-                            <button onclick="openNewQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-plus-circle" style="color: #667eea; width: 20px;"></i> New Quality Check
-                            </button>
-                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-edit" style="color: #f59e0b; width: 20px;"></i> Update QC
+                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onmouseover="this.style.background='linear-gradient(90deg, #fef3c7 0%, #fde68a 100%)'; this.style.paddingLeft='24px'" onmouseout="this.style.background='none'; this.style.paddingLeft='20px'">
+                                <i class="fas fa-edit" style="color: #f59e0b; font-size: 16px; width: 22px; text-align: center;"></i>
+                                <span>Update QC</span>
                             </button>
                         </div>
                     </div>
@@ -6408,11 +6409,19 @@ app.get('/', (c) => {
                     </div>
 
                     <!-- Search Bar -->
-                    <div class="form-group">
+                    <div class="form-group" style="position: relative;">
+                        <i class="fas fa-search" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 16px; pointer-events: none;"></i>
                         <input type="text" id="qcSearchInput" 
                             placeholder="Search by Device ID, Serial Number, or Product Name..." 
                             oninput="searchQCReports()"
-                            style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                            style="width: 100%; padding: 14px 48px 14px 48px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none;"
+                            onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)'"
+                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'"
+                            onkeypress="if(event.key === 'Enter') searchQCByDeviceId()">
+                        <button onclick="searchQCByDeviceId()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-50%) scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(16, 185, 129, 0.4)'" onmouseout="this.style.transform='translateY(-50%) scale(1)'; this.style.boxShadow='0 2px 8px rgba(16, 185, 129, 0.3)'">
+                            <i class="fas fa-search"></i>
+                            <span>Search</span>
+                        </button>
                     </div>
 
                     <!-- QC Table -->
@@ -16857,7 +16866,7 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
-            // Search QC reports
+            // Search QC reports (live search as you type)
             async function searchQCReports() {
                 const searchTerm = document.getElementById('qcSearchInput').value.toLowerCase();
                 
@@ -16891,6 +16900,54 @@ Prices are subject to change without prior notice.</textarea>
                     
                 } catch (error) {
                     console.error('Error searching QC reports:', error);
+                }
+            }
+            
+            // Search by Device ID with Enter key or button click - highlights and scrolls to result
+            async function searchQCByDeviceId() {
+                const searchTerm = document.getElementById('qcSearchInput').value.trim();
+                
+                if (!searchTerm) {
+                    alert('⚠️ Please enter a Device ID or Serial Number to search');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get('/api/inventory/quality-checks');
+                    if (!response.data.success) {
+                        alert('❌ Failed to fetch QC records');
+                        return;
+                    }
+                    
+                    const records = response.data.data;
+                    const searchLower = searchTerm.toLowerCase();
+                    
+                    // Find matching record
+                    const foundRecord = records.find(record => {
+                        const serialNo = (record.device_serial_no || '').toLowerCase();
+                        return serialNo.includes(searchLower);
+                    });
+                    
+                    if (!foundRecord) {
+                        alert(\`❌ No QC record found for Device ID: \${searchTerm}\n\nPlease check the serial number and try again.\`);
+                        return;
+                    }
+                    
+                    // Filter to show only the found record
+                    displayQCReports([foundRecord]);
+                    
+                    // Show success message
+                    alert(\`✅ Found QC Record!\n\nSerial Number: \${foundRecord.device_serial_no}\nQC Date: \${foundRecord.check_date || 'N/A'}\nFinal Status: \${foundRecord.pass_fail || 'Pending'}\`);
+                    
+                    // Scroll to table
+                    const table = document.querySelector('.data-table');
+                    if (table) {
+                        table.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    
+                } catch (error) {
+                    console.error('Error searching by device ID:', error);
+                    alert('❌ Error searching QC records:\n\n' + (error.response?.data?.error || error.message));
                 }
             }
             
