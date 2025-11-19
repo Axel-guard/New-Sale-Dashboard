@@ -14297,28 +14297,24 @@ Prices are subject to change without prior notice.</textarea>
                             <table class="data-table" style="width: 100%;">
                                 <thead style="position: sticky; top: 0; z-index: 10; background: #f9fafb;">
                                     <tr>
-                                        <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb;">Order ID</th>
+                                        <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb;">S.No</th>
                                         <th style="background: #f9fafb;">Dispatch Date</th>
                                         <th style="background: #f9fafb;">Customer</th>
                                         <th style="background: #f9fafb;">Mobile</th>
-                                        <th style="background: #f9fafb;">Items</th>
-                                        <th style="background: #f9fafb;">Status</th>
+                                        <th style="background: #f9fafb;">Item Name</th>
+                                        <th style="background: #f9fafb;">Order ID</th>
                                         <th style="background: #f9fafb;">Courier</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    \${Object.values(grouped).map(order => \`
+                                    \${Object.values(grouped).map((order, index) => \`
                                         <tr>
-                                            <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${order.order_id}</td>
+                                            <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${index + 1}</td>
                                             <td>\${formatDispatchDate(order.dispatch_date)}</td>
                                             <td>\${order.customer_name || 'N/A'}</td>
                                             <td>\${order.customer_mobile || '-'}</td>
-                                            <td style="font-weight: 600;">\${order.items.length} Product(s)</td>
-                                            <td>
-                                                <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; \${order.qc_status === 'QC Pass' ? 'background: #d1fae5; color: #065f46;' : order.qc_status === 'Pending' ? 'background: #fef3c7; color: #92400e;' : 'background: #e5e7eb; color: #374151;'}">
-                                                    \${order.qc_status}
-                                                </span>
-                                            </td>
+                                            <td style="font-weight: 600;">\${order.items.map(item => item.model_name || item.device_serial_no).join(', ')}</td>
+                                            <td>\${order.qc_status}</td>
                                             <td>\${order.courier_name || '-'}\${order.tracking_number && order.tracking_number !== '-' ? '<br><small style="color: #6b7280;">' + order.tracking_number + '</small>' : ''}</td>
                                         </tr>
                                     \`).join('')}
@@ -14415,28 +14411,24 @@ Prices are subject to change without prior notice.</textarea>
                             <table class="data-table" style="width: 100%;">
                                 <thead style="position: sticky; top: 0; z-index: 10; background: #f9fafb;">
                                     <tr>
-                                        <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb;">Order ID</th>
+                                        <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb;">S.No</th>
                                         <th style="background: #f9fafb;">Dispatch Date</th>
                                         <th style="background: #f9fafb;">Customer Name</th>
                                         <th style="background: #f9fafb;">Mobile</th>
-                                        <th style="background: #f9fafb;">Items</th>
-                                        <th style="background: #f9fafb;">Status</th>
+                                        <th style="background: #f9fafb;">Item Name</th>
+                                        <th style="background: #f9fafb;">Order ID</th>
                                         <th style="background: #f9fafb;">Courier</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     \${filteredOrders.map((order, idx) => \`
                                         <tr onclick="toggleDispatchDetails('search_\${idx}')" style="cursor: pointer;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
-                                            <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${order.order_id}</td>
+                                            <td style="position: sticky; left: 0; background: white; font-weight: 600;">\${idx + 1}</td>
                                             <td>\${formatDispatchDate(order.dispatch_date)}</td>
                                             <td>\${order.customer_name || 'Unknown'}</td>
                                             <td>\${order.customer_mobile || '-'}</td>
-                                            <td style="font-weight: 600;">\${order.items.length} Product(s)</td>
-                                            <td>
-                                                <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; \${order.dispatch_reason === 'New Sale' ? 'background: #d1fae5; color: #065f46;' : order.dispatch_reason === 'Replacement' ? 'background: #fef3c7; color: #92400e;' : 'background: #e5e7eb; color: #374151;'}">
-                                                    \${order.dispatch_reason}
-                                                </span>
-                                            </td>
+                                            <td style="font-weight: 600;">\${order.items.map(item => item.model_name || item.device_serial_no).join(', ')}</td>
+                                            <td>\${order.order_id}</td>
                                             <td>\${order.courier_name || '-'}\${order.tracking_number && order.tracking_number !== '-' ? '<br><small style="color: #6b7280;">' + order.tracking_number + '</small>' : ''}</td>
                                         </tr>
                                         <tr id="search_\${idx}" style="display: none;">
