@@ -3341,6 +3341,33 @@ app.get('/api/inventory/quality-checks', async (c) => {
   }
 });
 
+// Delete QC record
+app.delete('/api/inventory/quality-check/:id', async (c) => {
+  const { env } = c;
+  const qcId = c.req.param('id');
+  
+  try {
+    // Check if QC record exists
+    const qcRecord = await env.DB.prepare(`
+      SELECT * FROM quality_check WHERE id = ?
+    `).bind(qcId).first();
+    
+    if (!qcRecord) {
+      return c.json({ success: false, error: 'QC record not found' }, 404);
+    }
+    
+    // Delete the QC record
+    await env.DB.prepare(`
+      DELETE FROM quality_check WHERE id = ?
+    `).bind(qcId).run();
+    
+    return c.json({ success: true, message: 'QC record deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting QC record:', error);
+    return c.json({ success: false, error: 'Failed to delete QC record: ' + error.message }, 500);
+  }
+});
+
 // Upload QC Excel - match devices and create QC records with all parameters
 app.post('/api/inventory/upload-qc', async (c) => {
   const { env } = c;
@@ -6407,10 +6434,11 @@ app.get('/', (c) => {
                                     <th style="min-width: 100px;">Monitor</th>
                                     <th style="min-width: 120px;">Final Status</th>
                                     <th style="min-width: 120px;">IP Address</th>
+                                    <th style="min-width: 100px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="qcReportsBody">
-                                <tr><td colspan="14" style="text-align: center; padding: 20px; color: #9ca3af;">Loading...</td></tr>
+                                <tr><td colspan="15" style="text-align: center; padding: 20px; color: #9ca3af;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -6540,9 +6568,14 @@ app.get('/', (c) => {
                                 <select id="update_category" onchange="loadUpdateQCProducts()" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px;" required>
                                     <option value="">-- Select Category --</option>
                                     <option value="MDVR">MDVR</option>
-                                    <option value="Camera">Camera</option>
-                                    <option value="Monitor">Monitor</option>
-                                    <option value="Accessories">Accessories</option>
+                                    <option value="Monitor & Monitor Kit">Monitor & Monitor Kit</option>
+                                    <option value="Cameras">Cameras</option>
+                                    <option value="Dashcam">Dashcam</option>
+                                    <option value="Storage">Storage</option>
+                                    <option value="RFID Tags">RFID Tags</option>
+                                    <option value="RFID Reader">RFID Reader</option>
+                                    <option value="MDVR Accessories">MDVR Accessories</option>
+                                    <option value="Other product and Accessories">Other product and Accessories</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -16043,7 +16076,7 @@ Prices are subject to change without prior notice.</textarea>
                     'AI MDVR with (DSM + ADAS) (SD+ 4g + GPS)',
                     'AI MDVR with (DSM + ADAS) (SD+HDD+ 4g + GPS)'
                 ],
-                'Monitor': [
+                'Monitor & Monitor Kit': [
                     '7 " AV Monitor',
                     '7" VGA Monitor',
                     '7" HDMI Monitor',
@@ -16053,7 +16086,7 @@ Prices are subject to change without prior notice.</textarea>
                     '720 2ch Recording Monitor Kit',
                     '4k Recording monitor kit 4ch'
                 ],
-                'Camera': [
+                'Cameras': [
                     '2 MP IR indoor Dome Camera',
                     '2 MP IR Outdoor Bullet Camera',
                     '2 MP Heavy Duty Bullet Camera',
@@ -16066,16 +16099,67 @@ Prices are subject to change without prior notice.</textarea>
                     'Replacement Dome Audio Camera',
                     'Reverse Camera',
                     '2mp IR Audio Camera',
-                    'DFMS Camera'
+                    'DFMS Camera',
+                    'ADAS Camera',
+                    'BSD Camera',
+                    '2mp IP Dome Audio Camera'
                 ],
-                'Accessories': [
-                    'GPS Antenna', 
-                    'SIM Card', 
-                    'Power Cable', 
-                    'Video Cable',
-                    'Memory Card',
+                'Dashcam': [
+                    '4 Inch 2 Ch Dashcam',
+                    '10 inch 2 Ch Full Touch Dashcam',
+                    '10 inch 2 Ch 4g, GPS, Android Dashcam',
+                    '4k Dashcam 12 inch',
+                    '2k 12 inch Dashcam',
+                    '2ch 4g Dashcam MT95L',
+                    '3ch AI Dashcam ADAS + DSM (MT95C)',
+                    'wifi Dash Cam',
+                    '4 inch 3 camera Dash Cam',
+                    '4 inch Android Dashcam',
+                    '3ch 4g Dashcam with Rear Camera (MT95L-A3)',
+                    '3ch AI Dashcam ADAS + DSM (MT95C)'
+                ],
+                'Storage': [
+                    'Surveillance Grade 64GB SD Card',
+                    'Surveillance Grade 128GB SD Card',
+                    'Surveillance Grade 256GB SD Card',
+                    'Surveillance Grade 512GB SD Card',
+                    'HDD 1 TB'
+                ],
+                'RFID Tags': [
+                    '2.4G RFID Animal Ear Tag',
+                    '2.4G Active Tag (Card Type) HX607'
+                ],
+                'RFID Reader': [
+                    '2.4 GHZ RFID Active Reader (Bus)',
+                    '2.4 GHZ RFID Active Reader (Campus)',
+                    '2.4G IOT Smart RFID Reader (ZR7901P)'
+                ],
+                'MDVR Accessories': [
                     'MDVR Security Box',
-                    'Camera Extension Cable'
+                    '2 way Communication Device',
+                    'MDVR Maintenance Tool',
+                    'MDVR Remote',
+                    'MDVR Panic Button',
+                    'MDVR Server',
+                    'RS 232 Adaptor',
+                    '1mt Cable',
+                    '3mt Cable',
+                    '5mt Cable',
+                    '10mt Cable',
+                    '15mt Cable',
+                    'Alcohol Tester',
+                    'VGA Cable',
+                    'Ultra Sonic Fuel Sensor',
+                    'Rod Type Fuel Sensor'
+                ],
+                'Other product and Accessories': [
+                    'Leaser Printer',
+                    'D link Wire Bundle',
+                    'Wireless Receiver Transmitter',
+                    'Parking Sensor',
+                    'MDVR Installation',
+                    'GPS Installation',
+                    'Annual Maintenance Charges'
                 ]
             };
             
@@ -16634,7 +16718,7 @@ Prices are subject to change without prior notice.</textarea>
                 const tbody = document.getElementById('qcReportsBody');
                 
                 if (!records || records.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="14" style="text-align: center; color: #9ca3af;">No QC records found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: #9ca3af;">No QC records found</td></tr>';
                     return;
                 }
                 
@@ -16692,6 +16776,11 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${getQCValue(record.monitor)}</td>
                             <td><span style="background: \${statusColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">\${finalStatus}</span></td>
                             <td>\${record.ip_address || '-'}</td>
+                            <td>
+                                <button onclick="deleteQCRecord(\${record.id})" class="btn-primary" style="background: #ef4444; padding: 4px 8px; font-size: 11px;" title="Delete QC Record">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
                         </tr>
                     \`;
                 }).join('');
@@ -16726,6 +16815,27 @@ Prices are subject to change without prior notice.</textarea>
                 });
                 
                 loadQCData();
+            }
+            
+            // Delete QC Record
+            async function deleteQCRecord(qcId) {
+                if (!confirm('⚠️ Are you sure you want to delete this QC record?\\n\\nThis action cannot be undone.')) {
+                    return;
+                }
+                
+                try {
+                    const response = await axios.delete(\`/api/inventory/quality-check/\${qcId}\`);
+                    
+                    if (response.data.success) {
+                        alert('✅ QC record deleted successfully!');
+                        loadQCData(); // Reload the table
+                    } else {
+                        throw new Error(response.data.error || 'Delete failed');
+                    }
+                } catch (error) {
+                    console.error('Error deleting QC record:', error);
+                    alert('❌ Error deleting QC record:\\n\\n' + (error.response?.data?.error || error.message));
+                }
             }
             
             // Search QC reports
