@@ -5430,10 +5430,6 @@ app.get('/', (c) => {
                                 <i class="fas fa-shipping-fast" style="color: #3b82f6;"></i>
                                 <span>New Dispatch</span>
                             </div>
-                            <div class="dropdown-item" onclick="openQCModal(); closeAllDropdowns();">
-                                <i class="fas fa-clipboard-check" style="color: #f59e0b;"></i>
-                                <span>New QC</span>
-                            </div>
                         </div>
                     </div>
                     <button onclick="openBalancePaymentReportModal()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
@@ -8866,8 +8862,15 @@ Prices are subject to change without prior notice.</textarea>
             // Dropdown menu functions
             function toggleAddNewDropdown() {
                 const dropdown = document.getElementById('addNewDropdown');
+                const isCurrentlyOpen = dropdown.classList.contains('show');
+                
+                // Close all dropdowns first
                 closeAllDropdowns();
-                dropdown.classList.toggle('show');
+                
+                // Toggle the current dropdown (open if it was closed, keep closed if it was open)
+                if (!isCurrentlyOpen) {
+                    dropdown.classList.add('show');
+                }
             }
             
             function closeAllDropdowns() {
@@ -8876,11 +8879,15 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Close dropdowns when clicking outside
-            window.onclick = function(event) {
-                if (!event.target.matches('.btn-primary') && !event.target.closest('.dropdown')) {
+            document.addEventListener('click', function(event) {
+                // Check if click is outside dropdown button and dropdown content
+                const dropdown = event.target.closest('.dropdown');
+                const isDropdownButton = event.target.closest('button[onclick*="toggleAddNewDropdown"]');
+                
+                if (!dropdown && !isDropdownButton) {
                     closeAllDropdowns();
                 }
-            }
+            });
             
             // Modal opening functions
             function openAddSaleModal() {
