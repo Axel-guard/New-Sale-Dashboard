@@ -4217,27 +4217,7 @@ app.get('/api/renewals', async (c) => {
 });
 
 // Get single device by serial number (for barcode scanning) - MUST BE LAST
-app.get('/api/inventory/:serialNo', async (c) => {
-  const { env } = c;
-  
-  try {
-    const serialNo = c.req.param('serialNo');
-    
-    const device = await env.DB.prepare(`
-      SELECT * FROM inventory WHERE device_serial_no = ?
-    `).bind(serialNo).first();
-    
-    if (!device) {
-      return c.json({ success: false, error: 'Device not found' }, 404);
-    }
-    
-    return c.json({ success: true, data: device });
-  } catch (error) {
-    return c.json({ success: false, error: 'Failed to fetch device' }, 500);
-  }
-});
-
-// Search inventory by serial number
+// Search inventory by serial number (MUST come before /:serialNo route)
 app.get('/api/inventory/search', async (c) => {
   const { env } = c;
   
@@ -4255,6 +4235,27 @@ app.get('/api/inventory/search', async (c) => {
     return c.json({ success: true, data: devices.results || [] });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to search inventory' }, 500);
+  }
+});
+
+// Get single device by exact serial number
+app.get('/api/inventory/:serialNo', async (c) => {
+  const { env } = c;
+  
+  try {
+    const serialNo = c.req.param('serialNo');
+    
+    const device = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no = ?
+    `).bind(serialNo).first();
+    
+    if (!device) {
+      return c.json({ success: false, error: 'Device not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: device });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch device' }, 500);
   }
 });
 
