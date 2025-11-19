@@ -13808,18 +13808,17 @@ Prices are subject to change without prior notice.</textarea>
                         return;
                     }
                     
-                    // Helper function to format date as DD-MMM-YY
+                    // Helper function to format date as DD/MM/YYYY
                     const formatDate = (dateStr) => {
                         if (!dateStr || dateStr === '-' || dateStr === 'null') return '-';
                         const date = new Date(dateStr);
                         if (isNaN(date.getTime())) return '-';
                         
                         const day = String(date.getDate()).padStart(2, '0');
-                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        const month = months[date.getMonth()];
-                        const year = String(date.getFullYear()).slice(-2);
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const year = date.getFullYear();
                         
-                        return \`\${day}-\${month}-\${year}\`;
+                        return \`\${day}/\${month}/\${year}\`;
                     };
                     
                     tbody.innerHTML = response.data.data.map((item, index) => {
@@ -14494,16 +14493,15 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Load grouped dispatches by order
-            // Helper function to format date as DD-MMM-YY
+            // Helper function to format date as DD/MM/YYYY
             function formatDispatchDate(dateStr) {
                 if (!dateStr) return 'N/A';
                 try {
                     const date = new Date(dateStr);
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     const day = String(date.getDate()).padStart(2, '0');
-                    const month = months[date.getMonth()];
-                    const year = String(date.getFullYear()).slice(-2);
-                    return day + '-' + month + '-' + year;
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const year = date.getFullYear();
+                    return day + '/' + month + '/' + year;
                 } catch (e) {
                     return dateStr;
                 }
