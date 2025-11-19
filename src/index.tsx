@@ -6153,27 +6153,18 @@ app.get('/', (c) => {
                                 <button onclick="openCreateDispatchModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
                                     <i class="fas fa-shipping-fast" style="color: #10b981; width: 20px;"></i> Create Dispatch
                                 </button>
-                                <button onclick="openReplacementModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                                <button onclick="openReplacementModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
                                     <i class="fas fa-exchange-alt" style="color: #f59e0b; width: 20px;"></i> Replacement
+                                </button>
+                                <button onclick="openTrackingModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                                    <i class="fas fa-truck" style="color: #8b5cf6; width: 20px;"></i> Add Tracking Details
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Tabs Navigation -->
-                <div style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
-                    <div style="display: flex; gap: 0;">
-                        <button id="dispatchOrdersTab" onclick="switchDispatchTab('orders')" 
-                            style="padding: 12px 24px; border: none; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid #2563eb;">
-                            <i class="fas fa-box"></i> Dispatch Orders
-                        </button>
-                        <button id="trackingDetailsTab" onclick="switchDispatchTab('tracking')" 
-                            style="padding: 12px 24px; border: none; background: #f3f4f6; color: #6b7280; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid transparent;">
-                            <i class="fas fa-shipping-fast"></i> Tracking Details
-                        </button>
-                    </div>
-                </div>
+                <!-- Tabs Navigation - REMOVED, only showing Dispatch Orders now -->
                 
                 <!-- Dispatch Orders Tab Content -->
                 <div id="dispatchOrdersContent" style="display: block;">
@@ -6222,143 +6213,59 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 
-                <!-- Tracking Details Tab Content -->
+                <!-- Tracking Details Tab Content - Now Full Screen -->
                 <div id="trackingDetailsContent" style="display: none;">
-                    <!-- Tracking Details Form and Report -->
-                    <div style="display: grid; grid-template-columns: 38% 62%; gap: 25px; align-items: start;">
-                        <!-- Left Side - Form (38%) -->
-                        <div style="border-right: 3px solid #e5e7eb; padding-right: 25px;">
-                            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);">
-                                <h3 style="color: white; margin-bottom: 12px; font-size: 20px; font-weight: 700;">
-                                    <i class="fas fa-plus-circle"></i> Add Tracking Details
-                                </h3>
-                                <p style="color: rgba(255,255,255,0.95); font-size: 14px; margin: 0; line-height: 1.5;">
-                                    Enter order tracking information to link with sales data
-                                </p>
-                            </div>
-
-                            <form onsubmit="submitTrackingDetailsTab(event)" style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-                                <div class="form-group" style="margin-bottom: 20px;">
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Order ID *</label>
-                                    <input type="text" id="trackingOrderIdTab" 
-                                        placeholder="Enter Order ID from Sales" 
-                                        required
-                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
-                                    <small style="color: #6b7280; display: block; margin-top: 6px; font-size: 12px;">
-                                        <i class="fas fa-info-circle"></i> Must match an existing Order ID in sales
-                                    </small>
-                                </div>
-
-                                <div class="form-group" style="margin-bottom: 20px;">
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Courier Partner *</label>
-                                    <select id="trackingCourierPartnerTab" required
-                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none; background: white;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
-                                        <option value="">-- Select Courier Partner --</option>
-                                        <option value="Trackon">Trackon</option>
-                                        <option value="DTDC">DTDC</option>
-                                        <option value="Porter">Porter</option>
-                                        <option value="Self Pick">Self Pick</option>
-                                        <option value="By Bus">By Bus</option>
-                                    </select>
-                                </div>
-
-                                <div class="form-group" style="margin-bottom: 20px;">
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Courier Mode *</label>
-                                    <select id="trackingCourierModeTab" required
-                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none; background: white;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
-                                        <option value="">-- Select Mode --</option>
-                                        <option value="Air">Air</option>
-                                        <option value="Surface">Surface</option>
-                                        <option value="Express">Express</option>
-                                        <option value="Standard">Standard</option>
-                                        <option value="Priority">Priority</option>
-                                        <option value="Economy">Economy</option>
-                                    </select>
-                                </div>
-
-                                <div class="form-group" style="margin-bottom: 25px;">
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Tracking ID *</label>
-                                    <input type="text" id="trackingTrackingIdTab" 
-                                        placeholder="e.g., TRACK123456789" 
-                                        required
-                                        style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
-                                    <small style="color: #6b7280; display: block; margin-top: 6px; font-size: 12px;">
-                                        <i class="fas fa-info-circle"></i> Weight will be auto-calculated from dispatch records
-                                    </small>
-                                </div>
-
-                                <button type="submit" class="btn-primary" 
-                                    style="width: 100%; padding: 16px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);"
-                                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(139, 92, 246, 0.5)'"
-                                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.4)'">
-                                    <i class="fas fa-save"></i> Save Tracking Details
-                                </button>
-                            </form>
-
-                            <!-- Form Status -->
-                            <div id="trackingFormStatusTab" style="margin-top: 20px; padding: 15px; border-radius: 10px; display: none; font-size: 14px;"></div>
+                    <!-- Tracking Details Report - Full Screen -->
+                    <div class="card">
+                        <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);">
+                            <h3 style="color: white; margin-bottom: 12px; font-size: 20px; font-weight: 700;">
+                                <i class="fas fa-chart-bar"></i> Tracking Records Report
+                            </h3>
+                            <p style="color: rgba(255,255,255,0.95); font-size: 14px; margin: 0; line-height: 1.5;">
+                                All tracking records with invoice pricing
+                            </p>
                         </div>
 
-                        <!-- Right Side - Report (62%) -->
-                        <div style="padding-left: 25px;">
-                            <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);">
-                                <h3 style="color: white; margin-bottom: 12px; font-size: 20px; font-weight: 700;">
-                                    <i class="fas fa-chart-bar"></i> Tracking Records Report
-                                </h3>
-                                <p style="color: rgba(255,255,255,0.95); font-size: 14px; margin: 0; line-height: 1.5;">
-                                    All tracking records with invoice pricing
-                                </p>
+                        <!-- Search Bar and Month Filter -->
+                        <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                            <div style="flex: 1; position: relative;">
+                                <i class="fas fa-search" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 16px;"></i>
+                                <input type="text" id="trackingReportSearchTab" 
+                                    placeholder="Search by Order ID, Courier, Tracking ID..." 
+                                    oninput="filterTrackingReportTab()"
+                                    style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 15px; transition: all 0.3s; outline: none;"
+                                    onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 4px rgba(139, 92, 246, 0.1)'"
+                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
                             </div>
+                            <div style="position: relative; min-width: 220px;">
+                                <i class="fas fa-calendar-alt" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #8b5cf6; font-size: 16px; z-index: 1;"></i>
+                                <select id="trackingMonthFilterTab" onchange="filterTrackingReportTab()"
+                                    style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #8b5cf6; border-radius: 10px; font-size: 15px; font-weight: 600; color: #7c3aed; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); cursor: pointer; transition: all 0.3s; outline: none; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22%237c3aed%22 d=%22M6 8L0 0h12z%22/></svg>'); background-repeat: no-repeat; background-position: right 14px center;"
+                                    onmouseover="this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.3)'"
+                                    onmouseout="this.style.boxShadow='none'">
+                                    <option value="">All Months</option>
+                                </select>
+                            </div>
+                        </div>
 
-                            <!-- Search Bar and Month Filter -->
-                            <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-                                <div style="flex: 1; position: relative;">
-                                    <i class="fas fa-search" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 16px;"></i>
-                                    <input type="text" id="trackingReportSearchTab" 
-                                        placeholder="Search by Order ID, Courier, Tracking ID..." 
-                                        oninput="filterTrackingReportTab()"
-                                        style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 15px; transition: all 0.3s; outline: none;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 4px rgba(139, 92, 246, 0.1)'"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
-                                </div>
-                                <div style="position: relative; min-width: 220px;">
-                                    <i class="fas fa-calendar-alt" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #8b5cf6; font-size: 16px; z-index: 1;"></i>
-                                    <select id="trackingMonthFilterTab" onchange="filterTrackingReportTab()"
-                                        style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #8b5cf6; border-radius: 10px; font-size: 15px; font-weight: 600; color: #7c3aed; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); cursor: pointer; transition: all 0.3s; outline: none; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22%237c3aed%22 d=%22M6 8L0 0h12z%22/></svg>'); background-repeat: no-repeat; background-position: right 14px center;"
-                                        onmouseover="this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.3)'"
-                                        onmouseout="this.style.boxShadow='none'">
-                                        <option value="">All Months</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Report Table -->
-                            <div style="max-height: 620px; overflow-y: auto; overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-                                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                                    <thead style="position: sticky; top: 0; z-index: 10;">
-                                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
-                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">📦 Order ID</th>
-                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🚚 Courier Partner</th>
-                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">✈️ Mode</th>
-                                            <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🔢 Tracking ID</th>
-                                            <th style="padding: 16px 14px; text-align: right; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">⚖️ Weight</th>
-                                            <th style="padding: 16px 14px; text-align: right; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">💰 Price</th>
-                                            <th style="padding: 16px 14px; text-align: center; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🔧 Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="trackingReportBodyTab">
-                                        <tr><td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">Loading tracking records...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <!-- Report Table - Full Screen -->
+                        <div style="max-height: 700px; overflow-y: auto; overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                                <thead style="position: sticky; top: 0; z-index: 10;">
+                                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                                        <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">📦 Order ID</th>
+                                        <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🚚 Courier Partner</th>
+                                        <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">✈️ Mode</th>
+                                        <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🔢 Tracking ID</th>
+                                        <th style="padding: 16px 14px; text-align: right; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">⚖️ Weight</th>
+                                        <th style="padding: 16px 14px; text-align: right; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">💰 Price</th>
+                                        <th style="padding: 16px 14px; text-align: center; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🔧 Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trackingReportBodyTab">
+                                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">Loading tracking records...</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -15948,6 +15855,11 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Close Tracking Details Modal
+            function openTrackingModal() {
+                document.getElementById('trackingDetailsModal').classList.add('show');
+                loadTrackingReport();
+            }
+            
             function closeTrackingDetailsModal() {
                 document.getElementById('trackingDetailsModal').classList.remove('show');
             }
