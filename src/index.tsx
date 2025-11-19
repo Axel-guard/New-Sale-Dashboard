@@ -13962,7 +13962,7 @@ Prices are subject to change without prior notice.</textarea>
                     // Check if this device was replaced by another device
                     const allInventoryResponse = await axios.get('/api/inventory');
                     if (allInventoryResponse.data.success) {
-                        const replacedBy = allInventoryResponse.data.data.find(d => d.old_serial_no === serialNo);
+                        const replacedBy = allInventoryResponse.data.data.find(item => item.old_serial_no === serialNo);
                         if (replacedBy) {
                             replacementInfo += \`
                                 <div style="background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">
