@@ -8684,22 +8684,41 @@ Prices are subject to change without prior notice.</textarea>
                         </div>
 
                         <!-- Report Table -->
-                        <div style="overflow-x: auto; overflow-y: auto; max-height: 550px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                            <table class="data-table" style="font-size: 13px;">
-                                <thead style="position: sticky; top: 0; background: #f9fafb; z-index: 10;">
+                        <div style="overflow-x: auto; overflow-y: auto; max-height: 550px; border: 2px solid #e5e7eb; border-radius: 12px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                            <table class="data-table" style="font-size: 14px; width: 100%; border-collapse: collapse;">
+                                <thead style="position: sticky; top: 0; z-index: 10; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
                                     <tr>
-                                        <th style="min-width: 100px;">Order ID</th>
-                                        <th style="min-width: 100px;">Weight (Kg)</th>
-                                        <th style="min-width: 120px;">Actual Price (₹)</th>
-                                        <th style="min-width: 120px;">Courier Partner</th>
-                                        <th style="min-width: 100px;">Courier Mode</th>
-                                        <th style="min-width: 150px;">Tracking ID</th>
-                                        <th style="min-width: 100px;">Date Added</th>
-                                        <th style="min-width: 80px;">Actions</th>
+                                        <th style="min-width: 110px; padding: 16px 14px; text-align: left; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-hashtag" style="margin-right: 6px; opacity: 0.9;"></i>Order ID
+                                        </th>
+                                        <th style="min-width: 110px; padding: 16px 14px; text-align: left; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-weight-hanging" style="margin-right: 6px; opacity: 0.9;"></i>Weight
+                                        </th>
+                                        <th style="min-width: 130px; padding: 16px 14px; text-align: left; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-rupee-sign" style="margin-right: 6px; opacity: 0.9;"></i>Price
+                                        </th>
+                                        <th style="min-width: 130px; padding: 16px 14px; text-align: left; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-truck" style="margin-right: 6px; opacity: 0.9;"></i>Courier
+                                        </th>
+                                        <th style="min-width: 110px; padding: 16px 14px; text-align: left; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-plane" style="margin-right: 6px; opacity: 0.9;"></i>Mode
+                                        </th>
+                                        <th style="min-width: 160px; padding: 16px 14px; text-align: left; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-barcode" style="margin-right: 6px; opacity: 0.9;"></i>Tracking ID
+                                        </th>
+                                        <th style="min-width: 110px; padding: 16px 14px; text-align: left; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-calendar" style="margin-right: 6px; opacity: 0.9;"></i>Date
+                                        </th>
+                                        <th style="min-width: 90px; padding: 16px 14px; text-align: center; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                            <i class="fas fa-cog" style="margin-right: 6px; opacity: 0.9;"></i>Actions
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody id="trackingReportTableBody">
-                                    <tr><td colspan="8" style="text-align: center; padding: 20px; color: #9ca3af;">No tracking records found</td></tr>
+                                    <tr><td colspan="8" style="text-align: center; padding: 40px; color: #9ca3af; font-size: 15px;">
+                                        <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                                        No tracking records found
+                                    </td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -15878,7 +15897,7 @@ Prices are subject to change without prior notice.</textarea>
                 const tbody = document.getElementById('trackingReportTableBody');
                 
                 if (records.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #9ca3af;">No tracking records found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #9ca3af; font-size: 15px;"><i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>No tracking records found</td></tr>';
                     return;
                 }
                 
@@ -15917,36 +15936,56 @@ Prices are subject to change without prior notice.</textarea>
                     return { ...record, totalWeight };
                 }));
                 
-                tbody.innerHTML = recordsWithWeights.map(record => {
+                tbody.innerHTML = recordsWithWeights.map((record, index) => {
                     const actualPrice = record.courier_cost || record.total_amount || 0;
                     const dateAdded = new Date(record.created_at).toLocaleDateString('en-IN');
                     const weight = record.totalWeight ? record.totalWeight.toFixed(2) : '0.00';
+                    const rowBg = index % 2 === 0 ? '#ffffff' : '#f9fafb';
                     
                     return \`
-                        <tr>
-                            <td>
+                        <tr style="background: \${rowBg}; transition: all 0.2s; border-bottom: 1px solid #f3f4f6;" 
+                            onmouseover="this.style.background='#f3e8ff'; this.style.transform='scale(1.01)'" 
+                            onmouseout="this.style.background='\${rowBg}'; this.style.transform='scale(1)'">
+                            <td style="padding: 14px; border-right: 1px solid #f3f4f6;">
                                 <a href="javascript:void(0)" 
                                    onclick="viewTrackingSaleDetails('\${record.order_id}')" 
-                                   style="font-weight: 600; color: #667eea; text-decoration: underline; cursor: pointer;"
-                                   title="Click to view sale details">
-                                    \${record.order_id}
+                                   style="font-weight: 700; color: #667eea; text-decoration: none; cursor: pointer; font-size: 14px;"
+                                   title="Click to view sale details"
+                                   onmouseover="this.style.textDecoration='underline'"
+                                   onmouseout="this.style.textDecoration='none'">
+                                    #\${record.order_id}
                                 </a>
                             </td>
-                            <td style="font-weight: 600; color: #1f2937;">\${weight} Kg</td>
-                            <td style="font-weight: 700; color: #059669;">₹\${actualPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td>\${record.courier_partner}</td>
-                            <td>
-                                <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                            <td style="padding: 14px; border-right: 1px solid #f3f4f6;">
+                                <span style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color: #92400e; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 13px; display: inline-block;">
+                                    \${weight} Kg
+                                </span>
+                            </td>
+                            <td style="padding: 14px; border-right: 1px solid #f3f4f6;">
+                                <span style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); color: #065f46; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 13px; display: inline-block;">
+                                    ₹\${actualPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </td>
+                            <td style="padding: 14px; font-weight: 600; color: #374151; font-size: 13px; border-right: 1px solid #f3f4f6;">
+                                \${record.courier_partner}
+                            </td>
+                            <td style="padding: 14px; border-right: 1px solid #f3f4f6;">
+                                <span style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); color: #1e40af; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; display: inline-block;">
                                     \${record.courier_mode}
                                 </span>
                             </td>
-                            <td style="font-family: monospace; font-size: 12px; color: #6b7280;">\${record.tracking_id}</td>
-                            <td style="color: #6b7280; font-size: 12px;">\${dateAdded}</td>
-                            <td style="text-align: center;">
+                            <td style="padding: 14px; font-family: 'Courier New', monospace; font-size: 13px; color: #7c3aed; font-weight: 600; border-right: 1px solid #f3f4f6;">
+                                \${record.tracking_id}
+                            </td>
+                            <td style="padding: 14px; color: #6b7280; font-size: 13px; border-right: 1px solid #f3f4f6;">
+                                \${dateAdded}
+                            </td>
+                            <td style="padding: 14px; text-align: center;">
                                 <button onclick="deleteTrackingRecord(\${record.id})" 
-                                    class="btn-danger" 
-                                    style="padding: 4px 8px; font-size: 12px;"
-                                    title="Delete">
+                                    style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);"
+                                    title="Delete"
+                                    onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 4px 8px rgba(239, 68, 68, 0.5)'"
+                                    onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(239, 68, 68, 0.3)'">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </td>
