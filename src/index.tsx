@@ -13888,6 +13888,43 @@ Prices are subject to change without prior notice.</textarea>
                     const device = invResponse.data.data[0];
                     console.log('Device found:', device);
                     
+                    // Calculate business logic fields
+                    let customerMobile = 'N/A';
+                    let warranty = 'One Year';
+                    let saleDate = device.dispatch_date || 'N/A';
+                    let licenseRenewTime = 'N/A';
+                    let dispatchReason = 'N/A';
+                    
+                    // Determine dispatch reason
+                    if (device.order_id) {
+                        dispatchReason = 'Sale';
+                    } else if (device.old_serial_no) {
+                        dispatchReason = 'Replacement';
+                    }
+                    
+                    // Fetch customer mobile from orders if order_id exists
+                    if (device.order_id) {
+                        try {
+                            const orderResponse = await axios.get('/api/orders/' + device.order_id);
+                            if (orderResponse.data.success && orderResponse.data.data) {
+                                customerMobile = orderResponse.data.data.customer_contact || 'N/A';
+                            }
+                        } catch (e) {
+                            console.error('Error fetching order details:', e);
+                        }
+                    }
+                    
+                    // Calculate license renew time for 4G MDVR models only
+                    if (device.product_name && device.product_name.includes('4G MDVR') && saleDate !== 'N/A') {
+                        try {
+                            const saleDateObj = new Date(saleDate);
+                            saleDateObj.setFullYear(saleDateObj.getFullYear() + 1);
+                            licenseRenewTime = saleDateObj.toISOString().split('T')[0];
+                        } catch (e) {
+                            console.error('Error calculating license renew time:', e);
+                        }
+                    }
+                    
                     // Check if this device is a replacement (has old_serial_no)
                     let replacementInfo = '';
                     if (device.old_serial_no) {
@@ -14020,23 +14057,23 @@ Prices are subject to change without prior notice.</textarea>
                                         </div>
                                         <div>
                                             <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Customer Mobile</div>
-                                            <div style="font-weight: 600;">\${device.cust_mobile || 'N/A'}</div>
+                                            <div style="font-weight: 600;">\${customerMobile}</div>
                                         </div>
                                         <div>
                                             <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Warranty</div>
-                                            <div style="font-weight: 600;">\${device.warranty_provide || 'N/A'}</div>
+                                            <div style="font-weight: 600;">\${warranty}</div>
                                         </div>
                                         <div>
                                             <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">License Renew Time</div>
-                                            <div style="font-weight: 600;">\${device.license_renew_time || 'N/A'}</div>
+                                            <div style="font-weight: 600;">\${licenseRenewTime}</div>
                                         </div>
                                         <div>
                                             <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Sale Date</div>
-                                            <div style="font-weight: 600;">\${device.sale_date || 'N/A'}</div>
+                                            <div style="font-weight: 600;">\${saleDate}</div>
                                         </div>
                                         <div>
                                             <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Dispatch Reason</div>
-                                            <div style="font-weight: 600;">\${device.dispatch_reason || 'N/A'}</div>
+                                            <div style="font-weight: 600;">\${dispatchReason}</div>
                                         </div>
                                     </div>
                                 </div>
