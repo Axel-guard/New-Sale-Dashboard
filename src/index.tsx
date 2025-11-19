@@ -13943,99 +13943,146 @@ Prices are subject to change without prior notice.</textarea>
                     
                     const device = invResponse.data.data[0];
                     
-                    // Fetch dispatch history
-                    let dispatchHTML = '<div style="color: #9ca3af; font-size: 14px;">No dispatch records</div>';
-                    try {
-                        const dispatchResponse = await axios.get('/api/inventory/dispatches');
-                        if (dispatchResponse.data.success) {
-                            const dispatches = dispatchResponse.data.data.filter(d => 
-                                d.device_serial_no && d.device_serial_no.includes(serialNo)
-                            );
-                            
-                            if (dispatches.length > 0) {
-                                dispatchHTML = dispatches.map(d => \`
-                                    <div style="padding: 10px; background: #f3f4f6; border-radius: 6px; margin-bottom: 8px;">
-                                        <div><strong>Date:</strong> \${d.dispatch_date || 'N/A'}</div>
-                                        <div><strong>Order ID:</strong> \${d.order_id || 'N/A'}</div>
-                                        <div><strong>Customer:</strong> \${d.customer_name || 'N/A'}</div>
-                                        <div><strong>Courier:</strong> \${d.courier_name || 'N/A'}</div>
-                                        <div><strong>Tracking:</strong> \${d.tracking_number || 'N/A'}</div>
-                                    </div>
-                                \`).join('');
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error fetching dispatch:', e);
+                    // Check if this device is a replacement (has old_serial_no)
+                    let replacementInfo = '';
+                    if (device.old_serial_no) {
+                        replacementInfo = \`
+                            <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                                <h3 style="color: #92400e; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-exchange-alt"></i> Replacement Device
+                                </h3>
+                                <div style="color: #78350f;">
+                                    <strong>This device replaced:</strong> \${device.old_serial_no}<br/>
+                                    <strong>Reason:</strong> \${device.dispatch_reason || 'N/A'}
+                                </div>
+                            </div>
+                        \`;
                     }
                     
-                    // Fetch QC history
-                    let qcHTML = '<div style="color: #9ca3af; font-size: 14px;">No QC records</div>';
-                    try {
-                        const qcResponse = await axios.get('/api/inventory/quality-checks');
-                        if (qcResponse.data.success) {
-                            const qcRecords = qcResponse.data.data.filter(qc => 
-                                qc.device_serial_no && qc.device_serial_no.includes(serialNo)
-                            );
-                            
-                            if (qcRecords.length > 0) {
-                                qcHTML = qcRecords.map(qc => \`
-                                    <div style="padding: 10px; background: \${qc.pass_fail === 'Pass' ? '#d1fae5' : '#fee2e2'}; border-radius: 6px; margin-bottom: 8px;">
-                                        <div><strong>Date:</strong> \${qc.check_date || 'N/A'}</div>
-                                        <div><strong>Status:</strong> <span style="font-weight: 700; color: \${qc.pass_fail === 'Pass' ? '#065f46' : '#991b1b'};">\${qc.pass_fail}</span></div>
-                                        <div><strong>Checked By:</strong> \${qc.checked_by || 'N/A'}</div>
-                                        <div><strong>Notes:</strong> \${qc.notes || 'N/A'}</div>
+                    // Check if this device was replaced by another device
+                    const allInventoryResponse = await axios.get('/api/inventory');
+                    if (allInventoryResponse.data.success) {
+                        const replacedBy = allInventoryResponse.data.data.find(d => d.old_serial_no === serialNo);
+                        if (replacedBy) {
+                            replacementInfo += \`
+                                <div style="background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">
+                                    <h3 style="color: #5b21b6; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-undo-alt"></i> Device Was Replaced
+                                    </h3>
+                                    <div style="color: #4c1d95;">
+                                        <strong>Replaced by:</strong> \${replacedBy.device_serial_no}<br/>
+                                        <strong>Reason:</strong> \${replacedBy.dispatch_reason || 'N/A'}<br/>
+                                        <strong>Date:</strong> \${replacedBy.dispatch_date || 'N/A'}
                                     </div>
-                                \`).join('');
-                            }
+                                </div>
+                            \`;
                         }
-                    } catch (e) {
-                        console.error('Error fetching QC:', e);
                     }
                     
                     // Create modal HTML
                     const modalHTML = \`
                         <div class="modal show" id="deviceJourneyModal" style="display: flex !important;">
-                            <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+                            <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
                                     <h2 style="font-size: 24px; font-weight: 700; color: #1f2937;">
-                                        <i class="fas fa-route" style="color: #8b5cf6;"></i> Device Journey
+                                        <i class="fas fa-info-circle" style="color: #8b5cf6;"></i> Device Details
                                     </h2>
-                                    <button onclick="closeDeviceJourneyModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">
+                                    <button onclick="closeDeviceJourneyModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; transition: color 0.2s;">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </div>
                                 
-                                <!-- Device Info -->
-                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
-                                    <h3 style="color: white; margin-bottom: 15px;"><i class="fas fa-microchip"></i> Device Information</h3>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                        <div><strong>Serial Number:</strong><br/>\${device.device_serial_no}</div>
-                                        <div><strong>Model:</strong><br/>\${device.model_name || 'N/A'}</div>
-                                        <div><strong>Status:</strong><br/>\${device.status || 'N/A'}</div>
-                                        <div><strong>In Date:</strong><br/>\${device.in_date || 'N/A'}</div>
-                                        <div><strong>Customer:</strong><br/>\${device.customer_name || 'N/A'}</div>
-                                        <div><strong>Order ID:</strong><br/>\${device.order_id || 'N/A'}</div>
+                                <!-- Basic Device Info -->
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px; border-radius: 12px; color: white; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                                        <div style="background: rgba(255,255,255,0.15); padding: 14px; border-radius: 8px;">
+                                            <div style="font-size: 12px; opacity: 0.9; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Serial Number</div>
+                                            <div style="font-weight: 700; font-size: 16px; font-family: monospace;">\${device.device_serial_no}</div>
+                                        </div>
+                                        <div style="background: rgba(255,255,255,0.15); padding: 14px; border-radius: 8px;">
+                                            <div style="font-size: 12px; opacity: 0.9; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Model</div>
+                                            <div style="font-weight: 700; font-size: 16px;">\${device.model_name || 'N/A'}</div>
+                                        </div>
+                                        <div style="background: rgba(255,255,255,0.15); padding: 14px; border-radius: 8px;">
+                                            <div style="font-size: 12px; opacity: 0.9; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Status</div>
+                                            <div style="font-weight: 700; font-size: 16px;">\${device.status || 'N/A'}</div>
+                                        </div>
+                                        <div style="background: rgba(255,255,255,0.15); padding: 14px; border-radius: 8px;">
+                                            <div style="font-size: 12px; opacity: 0.9; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Order ID</div>
+                                            <div style="font-weight: 700; font-size: 16px;">\${device.order_id || 'N/A'}</div>
+                                        </div>
                                     </div>
                                 </div>
                                 
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                                    <!-- QC History -->
-                                    <div>
-                                        <h3 style="margin-bottom: 15px; color: #1f2937;">
-                                            <i class="fas fa-clipboard-check" style="color: #10b981;"></i> QC History
+                                <!-- Replacement Info -->
+                                \${replacementInfo}
+                                
+                                <!-- IN and OUT Information -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                                    <!-- Device IN -->
+                                    <div style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #10b981;">
+                                        <h3 style="color: #065f46; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 18px;">
+                                            <i class="fas fa-sign-in-alt"></i> Device IN
                                         </h3>
-                                        <div style="max-height: 400px; overflow-y: auto;">
-                                            \${qcHTML}
+                                        <div style="color: #064e3b;">
+                                            <div style="margin-bottom: 10px;">
+                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">IN Date</div>
+                                                <div style="font-weight: 700; font-size: 16px;">\${device.in_date || 'N/A'}</div>
+                                            </div>
                                         </div>
                                     </div>
                                     
-                                    <!-- Dispatch History -->
-                                    <div>
-                                        <h3 style="margin-bottom: 15px; color: #1f2937;">
-                                            <i class="fas fa-shipping-fast" style="color: #3b82f6;"></i> Dispatch History
+                                    <!-- Device OUT -->
+                                    <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #3b82f6;">
+                                        <h3 style="color: #1e40af; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 18px;">
+                                            <i class="fas fa-sign-out-alt"></i> Device OUT
                                         </h3>
-                                        <div style="max-height: 400px; overflow-y: auto;">
-                                            \${dispatchHTML}
+                                        <div style="color: #1e3a8a;">
+                                            <div style="margin-bottom: 10px;">
+                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">OUT Date (Dispatch)</div>
+                                                <div style="font-weight: 700; font-size: 16px;">\${device.dispatch_date || 'Not Dispatched Yet'}</div>
+                                            </div>
+                                            <div style="margin-bottom: 10px;">
+                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">Customer</div>
+                                                <div style="font-weight: 600; font-size: 14px;">\${device.customer_name || 'N/A'}</div>
+                                            </div>
+                                            <div>
+                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">City</div>
+                                                <div style="font-weight: 600; font-size: 14px;">\${device.cust_city || 'N/A'}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Additional Details -->
+                                <div style="background: #f9fafb; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb;">
+                                    <h3 style="color: #1f2937; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 18px;">
+                                        <i class="fas fa-list-ul"></i> Additional Information
+                                    </h3>
+                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; color: #374151;">
+                                        <div>
+                                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Customer Code</div>
+                                            <div style="font-weight: 600;">\${device.cust_code || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Customer Mobile</div>
+                                            <div style="font-weight: 600;">\${device.cust_mobile || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Warranty</div>
+                                            <div style="font-weight: 600;">\${device.warranty_provide || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">License Renew Time</div>
+                                            <div style="font-weight: 600;">\${device.license_renew_time || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Sale Date</div>
+                                            <div style="font-weight: 600;">\${device.sale_date || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Dispatch Reason</div>
+                                            <div style="font-weight: 600;">\${device.dispatch_reason || 'N/A'}</div>
                                         </div>
                                     </div>
                                 </div>
