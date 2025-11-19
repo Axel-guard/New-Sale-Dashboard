@@ -6364,18 +6364,19 @@ app.get('/', (c) => {
                         <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0;">Quality Check Reports</h1>
                     </div>
                     <div style="position: relative; display: inline-block;">
-                        <button onclick="toggleQCActionsDropdown()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 24px;">
-                            <i class="fas fa-ellipsis-v"></i> Actions <i class="fas fa-chevron-down" style="margin-left: 8px; font-size: 12px;"></i>
+                        <button onclick="toggleQCActionsDropdown()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 14px 28px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); border: none; border-radius: 10px; display: flex; align-items: center; gap: 10px; transition: all 0.3s; cursor: pointer;">
+                            <i class="fas fa-tasks" style="font-size: 16px;"></i> 
+                            <span>Actions</span>
+                            <i class="fas fa-chevron-down" style="font-size: 12px;"></i>
                         </button>
-                        <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 5px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); min-width: 200px; z-index: 1000;">
-                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-file-excel" style="color: #059669; width: 20px;"></i> Export Excel
+                        <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); min-width: 220px; z-index: 1000; overflow: hidden;">
+                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: all 0.2s; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; border-radius: 12px 12px 0 0;" onmouseover="this.style.background='linear-gradient(90deg, #f0fdf4 0%, #dcfce7 100%)'; this.style.paddingLeft='24px'" onmouseout="this.style.background='none'; this.style.paddingLeft='20px'">
+                                <i class="fas fa-file-excel" style="color: #059669; font-size: 16px; width: 22px; text-align: center;"></i>
+                                <span>Export Excel</span>
                             </button>
-                            <button onclick="openNewQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-plus-circle" style="color: #667eea; width: 20px;"></i> New Quality Check
-                            </button>
-                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-edit" style="color: #f59e0b; width: 20px;"></i> Update QC
+                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: all 0.2s; display: flex; align-items: center; gap: 12px; border-radius: 0 0 12px 12px;" onmouseover="this.style.background='linear-gradient(90deg, #fef3c7 0%, #fde68a 100%)'; this.style.paddingLeft='24px'" onmouseout="this.style.background='none'; this.style.paddingLeft='20px'">
+                                <i class="fas fa-edit" style="color: #f59e0b; font-size: 16px; width: 22px; text-align: center;"></i>
+                                <span>Update QC</span>
                             </button>
                         </div>
                     </div>
