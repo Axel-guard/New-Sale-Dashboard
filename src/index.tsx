@@ -16735,30 +16735,49 @@ Prices are subject to change without prior notice.</textarea>
                 }
                 
                 tbody.innerHTML = filteredRecords.map((record, index) => {
-                    // Display model_name from inventory JOIN
-                    const deviceType = record.model_name || 'N/A';
+                    // Parse test_results JSON if it exists
+                    let testResults = {};
+                    try {
+                        if (record.test_results) {
+                            testResults = typeof record.test_results === 'string' 
+                                ? JSON.parse(record.test_results) 
+                                : record.test_results;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing test_results:', e);
+                    }
                     
-                    // Get QC parameter values from record columns (prioritize column values over test_results JSON)
-                    const getQCValue = (value) => {
+                    // Display model_name from inventory JOIN or device_type from test_results
+                    const deviceType = record.model_name || testResults.device_type || 'N/A';
+                    
+                    // Get QC parameter values - prioritize test_results JSON, then fall back to direct columns
+                    const getQCValue = (jsonKey, columnKey) => {
+                        const value = testResults[jsonKey] || record[columnKey] || '';
+                        
                         if (!value || value === '' || value === null) return '-';
-                        // Display the actual status
-                        if (value.toLowerCase().includes('not applicable') || value.toLowerCase().includes('n/a')) {
-                            return '<span style="color: #9ca3af; font-style: italic;">N/A</span>';
+                        
+                        // Display the actual status with styling
+                        const valueLower = value.toLowerCase();
+                        if (valueLower.includes('not applicable') || valueLower === 'n/a') {
+                            return '<span style="color: #9ca3af; font-style: italic;">➖ N/A</span>';
                         }
-                        if (value.toLowerCase().includes('pass') || value.toLowerCase().includes('ok')) {
-                            return '<span style="color: #10b981; font-weight: 600;">✓ ' + value + '</span>';
+                        if (valueLower.includes('pass') || valueLower === 'ok') {
+                            return '<span style="color: #10b981; font-weight: 600;">✅ QC Pass</span>';
                         }
-                        if (value.toLowerCase().includes('fail')) {
-                            return '<span style="color: #ef4444; font-weight: 600;">✗ ' + value + '</span>';
+                        if (valueLower.includes('fail')) {
+                            return '<span style="color: #ef4444; font-weight: 600;">❌ QC Fail</span>';
                         }
                         return value;
                     };
                     
                     // Determine final status badge color
-                    const finalStatus = record.final_status || record.pass_fail || 'Pending';
+                    const finalStatus = testResults.final_qc_status || record.final_status || record.pass_fail || 'Pending';
                     let statusColor = '#f59e0b'; // Pending/Unknown - yellow
                     if (finalStatus.toLowerCase().includes('pass')) statusColor = '#10b981'; // Pass - green
                     if (finalStatus.toLowerCase().includes('fail')) statusColor = '#ef4444'; // Fail - red
+                    
+                    // Get IP address and update status from test_results
+                    const ipAddress = testResults.ip_address || record.ip_address || '-';
                     
                     return \`
                         <tr>
@@ -16766,16 +16785,16 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${record.check_date || 'N/A'}</td>
                             <td><strong>\${record.device_serial_no}</strong></td>
                             <td>\${deviceType}</td>
-                            <td>\${getQCValue(record.sd_connect)}</td>
-                            <td>\${getQCValue(record.all_ch_status)}</td>
-                            <td>\${getQCValue(record.network)}</td>
-                            <td>\${getQCValue(record.gps)}</td>
-                            <td>\${getQCValue(record.sim_slot)}</td>
-                            <td>\${getQCValue(record.online)}</td>
-                            <td>\${getQCValue(record.camera_quality)}</td>
-                            <td>\${getQCValue(record.monitor)}</td>
+                            <td>\${getQCValue('sd_connectivity', 'sd_connect')}</td>
+                            <td>\${getQCValue('all_ch_status', 'all_ch_status')}</td>
+                            <td>\${getQCValue('network_connectivity', 'network')}</td>
+                            <td>\${getQCValue('gps_qc', 'gps')}</td>
+                            <td>\${getQCValue('sim_card_slot', 'sim_slot')}</td>
+                            <td>\${getQCValue('online_qc', 'online')}</td>
+                            <td>\${getQCValue('camera_quality', 'camera_quality')}</td>
+                            <td>\${getQCValue('monitor_qc_status', 'monitor')}</td>
                             <td><span style="background: \${statusColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">\${finalStatus}</span></td>
-                            <td>\${record.ip_address || '-'}</td>
+                            <td>\${ipAddress}</td>
                             <td>
                                 <button onclick="deleteQCRecord(\${record.id})" class="btn-primary" style="background: #ef4444; padding: 4px 8px; font-size: 11px;" title="Delete QC Record">
                                     <i class="fas fa-trash"></i>
