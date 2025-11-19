@@ -6164,7 +6164,19 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 
-                <!-- Tabs Navigation - REMOVED, only showing Dispatch Orders now -->
+                <!-- Tabs Navigation -->
+                <div style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+                    <div style="display: flex; gap: 0;">
+                        <button id="dispatchOrdersTab" onclick="switchDispatchTab('orders')" 
+                            style="padding: 12px 24px; border: none; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid #2563eb;">
+                            <i class="fas fa-box"></i> Dispatch Orders
+                        </button>
+                        <button id="trackingDetailsTab" onclick="switchDispatchTab('tracking')" 
+                            style="padding: 12px 24px; border: none; background: #f3f4f6; color: #6b7280; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid transparent;">
+                            <i class="fas fa-shipping-fast"></i> Tracking Details
+                        </button>
+                    </div>
+                </div>
                 
                 <!-- Dispatch Orders Tab Content -->
                 <div id="dispatchOrdersContent" style="display: block;">
