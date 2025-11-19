@@ -3046,9 +3046,11 @@ app.get('/api/inventory/dispatches', async (c) => {
     const dispatches = await env.DB.prepare(`
       SELECT 
         dr.*,
-        i.model_name
+        i.model_name,
+        l.phone as lead_phone
       FROM dispatch_records dr
       LEFT JOIN inventory i ON i.device_serial_no LIKE '%' || dr.device_serial_no || '%'
+      LEFT JOIN leads l ON l.customer_name = dr.customer_name OR l.phone = dr.customer_mobile
       ORDER BY dr.serial_number ASC
     `).all();
     
@@ -14281,7 +14283,7 @@ Prices are subject to change without prior notice.</textarea>
                                 order_id: dispatch.serial_number || dispatch.id,
                                 dispatch_date: dispatch.dispatch_date,
                                 customer_name: dispatch.customer_name,
-                                customer_mobile: dispatch.customer_mobile,
+                                customer_mobile: dispatch.lead_phone || dispatch.customer_mobile,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
                                 qc_status: dispatch.order_id || 'Pending', // order_id actually contains status
@@ -14365,7 +14367,7 @@ Prices are subject to change without prior notice.</textarea>
                                 order_id: dispatch.serial_number || dispatch.id,
                                 dispatch_date: dispatch.dispatch_date,
                                 customer_name: dispatch.customer_name,
-                                customer_mobile: dispatch.customer_mobile,
+                                customer_mobile: dispatch.lead_phone || dispatch.customer_mobile,
                                 customer_code: dispatch.customer_code,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
