@@ -3047,15 +3047,16 @@ app.get('/api/inventory/dispatches', async (c) => {
       SELECT 
         dr.*,
         i.model_name,
-        l.phone as lead_phone
+        l.mobile_number as lead_phone
       FROM dispatch_records dr
       LEFT JOIN inventory i ON i.device_serial_no LIKE '%' || dr.device_serial_no || '%'
-      LEFT JOIN leads l ON l.customer_name = dr.customer_name OR l.phone = dr.customer_mobile
+      LEFT JOIN leads l ON l.customer_name = dr.customer_name OR l.mobile_number = dr.customer_mobile
       ORDER BY dr.serial_number ASC
     `).all();
     
     return c.json({ success: true, data: dispatches.results || [] });
   } catch (error) {
+    console.error('Error fetching dispatches:', error);
     return c.json({ success: false, error: 'Failed to fetch dispatches' }, 500);
   }
 });
