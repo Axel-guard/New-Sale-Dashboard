@@ -3227,6 +3227,99 @@ app.post('/api/inventory/quality-check', async (c) => {
   }
 });
 
+// Manual QC Entry - Does NOT require device to exist in inventory
+app.post('/api/inventory/quality-check-manual', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { 
+      device_serial_no, check_date, checked_by, device_type,
+      camera_quality, sd_connectivity, all_ch_status, network_connectivity,
+      gps_qc, sim_card_slot, online_qc, monitor_qc_status, final_qc_status,
+      ip_address, update_status
+    } = body;
+    
+    // Validate required fields
+    if (!device_serial_no || !check_date || !device_type || !final_qc_status) {
+      return c.json({ 
+        success: false, 
+        error: 'Missing required fields: Serial Number, QC Date, Device Type, and Final QC Status are required' 
+      }, 400);
+    }
+    
+    // Try to find device (optional - don't fail if not found)
+    const device = await env.DB.prepare(`
+      SELECT id, status, device_serial_no as full_serial_no FROM inventory 
+      WHERE device_serial_no LIKE ?
+    `).bind(`%${device_serial_no}%`).first();
+    
+    // Create comprehensive test results JSON
+    const testResults = {
+      device_type: device_type,
+      camera_quality: camera_quality || 'QC Not Applicable',
+      sd_connectivity: sd_connectivity || 'QC Not Applicable',
+      all_ch_status: all_ch_status || 'QC Not Applicable',
+      network_connectivity: network_connectivity || 'QC Not Applicable',
+      gps_qc: gps_qc || 'QC Not Applicable',
+      sim_card_slot: sim_card_slot || 'QC Not Applicable',
+      online_qc: online_qc || 'QC Not Applicable',
+      monitor_qc_status: monitor_qc_status || 'QC Not Applicable',
+      final_qc_status: final_qc_status,
+      ip_address: ip_address || '',
+      update_status: update_status || ''
+    };
+    
+    // Insert QC record (with inventory_id = device.id or NULL if device not found)
+    await env.DB.prepare(`
+      INSERT INTO quality_check (
+        inventory_id, device_serial_no, check_date, checked_by,
+        test_results, pass_fail, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      device ? device.id : null,
+      device_serial_no,
+      check_date,
+      checked_by,
+      JSON.stringify(testResults),
+      final_qc_status,
+      `Manual QC Entry - Device Type: ${device_type}`
+    ).run();
+    
+    // Update inventory status if device was found
+    if (device) {
+      const newStatus = final_qc_status === 'QC Fail' ? 'Defective' : 'In Stock';
+      
+      if (device.status !== newStatus) {
+        await env.DB.prepare(`
+          UPDATE inventory SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+        `).bind(newStatus, device.id).run();
+        
+        // Add to history
+        await env.DB.prepare(`
+          INSERT INTO inventory_status_history (
+            inventory_id, device_serial_no, old_status, new_status,
+            changed_by, change_reason
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(device.id, device_serial_no, device.status, newStatus, checked_by, `Manual QC ${final_qc_status}`).run();
+      }
+    }
+    
+    const message = device 
+      ? `✅ QC report saved and device status updated to ${final_qc_status === 'QC Fail' ? 'Defective' : 'In Stock'}`
+      : `✅ QC report saved (device not found in inventory - record created without inventory link)`;
+    
+    return c.json({ 
+      success: true, 
+      message: message,
+      device_found: !!device
+    });
+  } catch (error) {
+    console.error('Manual QC submission error:', error);
+    return c.json({ success: false, error: 'Failed to save QC report: ' + error.message }, 500);
+  }
+});
+
 // Get quality check records
 app.get('/api/inventory/quality-checks', async (c) => {
   const { env } = c;
@@ -6248,8 +6341,11 @@ app.get('/', (c) => {
                             <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
                                 <i class="fas fa-file-excel" style="color: #059669; width: 20px;"></i> Export Excel
                             </button>
-                            <button onclick="openNewQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                            <button onclick="openNewQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
                                 <i class="fas fa-plus-circle" style="color: #667eea; width: 20px;"></i> New Quality Check
+                            </button>
+                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">
+                                <i class="fas fa-edit" style="color: #f59e0b; width: 20px;"></i> Update QC
                             </button>
                         </div>
                     </div>
@@ -6406,6 +6502,153 @@ app.get('/', (c) => {
                             </button>
                             <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 30px;">
                                 <i class="fas fa-save"></i> Submit QC Report
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Update QC Modal - Manual Entry -->
+            <div id="updateQCModal" class="modal">
+                <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                        <h2 style="margin: 0; color: #1f2937; font-size: 24px;">
+                            <i class="fas fa-edit"></i> Update QC - Manual Entry
+                        </h2>
+                        <button onclick="closeUpdateQCModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <form id="updateQCForm" onsubmit="submitUpdateQC(event)">
+                        <!-- Row 1: Basic Information -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">QC Date *</label>
+                                <input type="date" id="update_qc_date" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Serial Number *</label>
+                                <input type="text" id="update_serial_number" placeholder="Enter device serial number" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Device Type *</label>
+                                <input type="text" id="update_device_type" placeholder="e.g., MDVR, Camera" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;" required>
+                            </div>
+                        </div>
+
+                        <!-- Row 2: QC Parameters (Part 1) -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Camera Quality (For Camera)</label>
+                                <select id="update_camera_quality" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">SD Connectivity QC</label>
+                                <select id="update_sd_connectivity" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">All Ch QC Status</label>
+                                <select id="update_all_ch_status" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Row 3: QC Parameters (Part 2) -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Network Connectivity QC</label>
+                                <select id="update_network_connectivity" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">GPS QC</label>
+                                <select id="update_gps_qc" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">SIM Card Slot QC</label>
+                                <select id="update_sim_card_slot" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Row 4: QC Parameters (Part 3) -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Online QC</label>
+                                <select id="update_online_qc" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Monitor QC Status</label>
+                                <select id="update_monitor_qc_status" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Final QC Status *</label>
+                                <select id="update_final_qc_status" style="width: 100%; padding: 10px; border: 2px solid #10b981; border-radius: 6px; font-size: 14px; font-weight: 600;" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">✅ QC Pass</option>
+                                    <option value="QC Fail">❌ QC Fail</option>
+                                    <option value="QC Not Applicable">➖ QC Not Applicable</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Row 5: Additional Information -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">IP Address</label>
+                                <input type="text" id="update_ip_address" placeholder="e.g., 192.168.1.100" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151; margin-bottom: 8px; display: block;">Update Status</label>
+                                <input type="text" id="update_status" placeholder="e.g., Firmware updated" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                            <button type="button" onclick="closeUpdateQCModal()" class="btn-primary" style="background: #6b7280; padding: 12px 24px;">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 12px 30px;">
+                                <i class="fas fa-save"></i> Save QC Report
                             </button>
                         </div>
                     </form>
@@ -16195,6 +16438,78 @@ Prices are subject to change without prior notice.</textarea>
                 } catch (error) {
                     console.error('Error submitting QC:', error);
                     alert('Error submitting QC: ' + (error.response?.data?.error || error.message));
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            }
+            
+            // Open Update QC Modal (Manual Entry)
+            function openUpdateQCModal() {
+                document.getElementById('updateQCModal').classList.add('show');
+                // Set today's date as default
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('update_qc_date').value = today;
+                // Focus on serial number input
+                setTimeout(() => {
+                    document.getElementById('update_serial_number').focus();
+                }, 100);
+            }
+            
+            // Close Update QC Modal
+            function closeUpdateQCModal() {
+                document.getElementById('updateQCModal').classList.remove('show');
+                document.getElementById('updateQCForm').reset();
+            }
+            
+            // Submit Update QC (Manual Entry)
+            async function submitUpdateQC(event) {
+                event.preventDefault();
+                
+                // Collect all form data
+                const qcData = {
+                    device_serial_no: document.getElementById('update_serial_number').value.trim(),
+                    check_date: document.getElementById('update_qc_date').value,
+                    checked_by: currentUser.employeeName || currentUser.fullName,
+                    device_type: document.getElementById('update_device_type').value.trim(),
+                    camera_quality: document.getElementById('update_camera_quality').value || 'QC Not Applicable',
+                    sd_connectivity: document.getElementById('update_sd_connectivity').value || 'QC Not Applicable',
+                    all_ch_status: document.getElementById('update_all_ch_status').value || 'QC Not Applicable',
+                    network_connectivity: document.getElementById('update_network_connectivity').value || 'QC Not Applicable',
+                    gps_qc: document.getElementById('update_gps_qc').value || 'QC Not Applicable',
+                    sim_card_slot: document.getElementById('update_sim_card_slot').value || 'QC Not Applicable',
+                    online_qc: document.getElementById('update_online_qc').value || 'QC Not Applicable',
+                    monitor_qc_status: document.getElementById('update_monitor_qc_status').value || 'QC Not Applicable',
+                    final_qc_status: document.getElementById('update_final_qc_status').value,
+                    ip_address: document.getElementById('update_ip_address').value.trim() || '',
+                    update_status: document.getElementById('update_status').value.trim() || ''
+                };
+                
+                // Validate required fields
+                if (!qcData.device_serial_no || !qcData.check_date || !qcData.device_type || !qcData.final_qc_status) {
+                    alert('❌ Please fill all required fields:\\n- QC Date\\n- Serial Number\\n- Device Type\\n- Final QC Status');
+                    return;
+                }
+                
+                const submitBtn = event.target.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                
+                try {
+                    const response = await axios.post('/api/inventory/quality-check-manual', qcData);
+                    
+                    if (response.data.success) {
+                        alert(\`✅ QC Report Saved Successfully!\\n\\nSerial Number: \${qcData.device_serial_no}\\nFinal Status: \${qcData.final_qc_status}\`);
+                        closeUpdateQCModal();
+                        loadQCData();
+                    } else {
+                        throw new Error(response.data.error || 'Submission failed');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error submitting QC:', error);
+                    alert('❌ Error saving QC report:\\n\\n' + (error.response?.data?.error || error.message));
                 } finally {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
