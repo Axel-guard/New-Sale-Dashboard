@@ -5780,7 +5780,7 @@ app.get('/', (c) => {
                         <input 
                             type="text" 
                             id="customerSearchInput" 
-                            placeholder="Search by Customer Code or Mobile Number..." 
+                            placeholder="Search by Customer Name, Mobile Number, or Company..." 
                             style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
                             oninput="searchCustomerWithAutocomplete()"
                             onfocus="showCustomerSearchDropdown()"
@@ -10957,44 +10957,11 @@ Prices are subject to change without prior notice.</textarea>
                 
                 customerSearchTimeout = setTimeout(async () => {
                     try {
-                        // Search in both leads and sales tables
+                        // Only search in leads database (single source of truth)
                         const leadsResponse = await axios.get('/api/leads?search=' + encodeURIComponent(searchTerm));
                         const leads = leadsResponse.data.data || [];
                         
-                        // Also search in sales table for existing customers
-                        const salesResponse = await axios.get('/api/sales');
-                        const allSales = salesResponse.data.data || [];
-                        
-                        // Find unique customers from sales that match the search term
-                        const salesCustomers = [];
-                        const seenCustomers = new Set();
-                        
-                        allSales.forEach(sale => {
-                            const matchesSearch = 
-                                (sale.customer_code && sale.customer_code.toString().includes(searchTerm)) ||
-                                (sale.customer_contact && sale.customer_contact.toString().includes(searchTerm)) ||
-                                (sale.customer_name && sale.customer_name.toLowerCase().includes(searchTerm.toLowerCase()));
-                            
-                            const uniqueKey = sale.customer_code + '-' + sale.customer_contact;
-                            
-                            if (matchesSearch && !seenCustomers.has(uniqueKey)) {
-                                seenCustomers.add(uniqueKey);
-                                salesCustomers.push({
-                                    customer_name: sale.customer_name,
-                                    customer_code: sale.customer_code,
-                                    mobile_number: sale.customer_contact,
-                                    company_name: sale.company_name || '',
-                                    source: 'sales'
-                                });
-                            }
-                        });
-                        
-                        // Mark leads as from leads table
-                        const leadsWithSource = leads.map(lead => ({...lead, source: 'leads'}));
-                        
-                        // Combine both results
-                        const allResults = [...leadsWithSource, ...salesCustomers];
-                        displayCustomerAutocomplete(allResults);
+                        displayCustomerAutocomplete(leads);
                     } catch (error) {
                         console.error('Error searching customers:', error);
                     }
@@ -11018,20 +10985,13 @@ Prices are subject to change without prior notice.</textarea>
                 
                 allLeadsForSearch = customers;
                 dropdown.innerHTML = customers.slice(0, 10).map(customer => {
-                    const isFromLeads = customer.source === 'leads';
-                    const displayCode = isFromLeads ? customer.mobile_number : customer.customer_code;
-                    const badge = isFromLeads ? 
-                        '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Lead</span>' : 
-                        '<span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Customer</span>';
-                    
                     return \`
-                        <div class="autocomplete-item" onclick="selectCustomer('\${displayCode}', '\${customer.mobile_number}', '\${customer.source}')">
+                        <div class="autocomplete-item" onclick="selectCustomer('\${customer.mobile_number}')">
                             <div class="autocomplete-item-title">
                                 \${customer.customer_name}
-                                \${badge}
                             </div>
                             <div class="autocomplete-item-subtitle">
-                                \${isFromLeads ? 'Mobile' : 'Code'}: \${displayCode} | Mobile: \${customer.mobile_number} | Company: \${customer.company_name || 'N/A'}
+                                Mobile: \${customer.mobile_number} | Company: \${customer.company_name || 'N/A'} | Location: \${customer.location || 'N/A'}
                             </div>
                         </div>
                     \`;
@@ -11039,56 +10999,31 @@ Prices are subject to change without prior notice.</textarea>
                 dropdown.style.display = 'block';
             }
             
-            function selectCustomer(customerCode, mobileNumber, source) {
-                // Use mobile number for leads, customer code for sales
-                const searchQuery = source === 'leads' ? mobileNumber : customerCode;
-                document.getElementById('customerSearchInput').value = searchQuery;
+            function selectCustomer(mobileNumber) {
+                // Always use mobile number as identifier
+                document.getElementById('customerSearchInput').value = mobileNumber;
                 document.getElementById('customerSearchDropdown').style.display = 'none';
-                searchCustomerByCode(searchQuery);
+                searchCustomerByCode(mobileNumber);
             }
             
             // Store currently selected customer
             let currentCustomerQuery = '';
             
-            async function searchCustomerByCode(customerCode) {
+            async function searchCustomerByCode(mobileNumber) {
                 try {
-                    // First try searching in leads table
-                    let response = await axios.get('/api/leads?search=' + encodeURIComponent(customerCode));
+                    // Only search in leads database using mobile number
+                    let response = await axios.get('/api/leads?search=' + encodeURIComponent(mobileNumber));
                     let leads = response.data.data;
                     
-                    // If not found in leads, try searching in sales table
                     if (!leads || leads.length === 0) {
-                        try {
-                            const salesResponse = await axios.get('/api/sales');
-                            const allSales = salesResponse.data.data;
-                            
-                            // Search in sales by customer_code, customer_contact, or customer_name
-                            const found = allSales.find(sale => 
-                                sale.customer_code === customerCode ||
-                                sale.customer_contact === customerCode ||
-                                (sale.customer_name && sale.customer_name.toLowerCase().includes(customerCode.toLowerCase()))
-                            );
-                            
-                            if (found) {
-                                // Use customer data from sales
-                                currentCustomerQuery = found.customer_code || found.customer_contact || customerCode;
-                                document.getElementById('customerActionButtons').style.display = 'block';
-                                document.getElementById('customerDetailsContent').style.display = 'none';
-                                return;
-                            }
-                        } catch (salesError) {
-                            console.error('Error searching in sales:', salesError);
-                        }
-                        
                         alert('No customer found');
                         document.getElementById('customerActionButtons').style.display = 'none';
                         document.getElementById('customerDetailsContent').style.display = 'none';
                         return;
                     }
                     
-                    // Store the customer query for later use
-                    // IMPORTANT: leads table uses mobile_number as primary identifier, NOT customer_code
-                    currentCustomerQuery = leads[0].mobile_number || customerCode;
+                    // Store the mobile number as the customer identifier
+                    currentCustomerQuery = leads[0].mobile_number;
                     
                     // Show the 5-button menu
                     document.getElementById('customerActionButtons').style.display = 'block';
