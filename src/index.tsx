@@ -13868,15 +13868,24 @@ Prices are subject to change without prior notice.</textarea>
             // View device details - Complete device journey
             window.viewDevice = async function(serialNo) {
                 try {
+                    console.log('ViewDevice called with serial:', serialNo);
+                    
                     // Fetch device details from inventory
                     const invResponse = await axios.get(\`/api/inventory/search?serial=\${serialNo}\`);
+                    console.log('Inventory response:', invResponse.data);
                     
-                    if (!invResponse.data.success || invResponse.data.data.length === 0) {
-                        alert('❌ Device not found: ' + serialNo);
+                    if (!invResponse.data.success) {
+                        alert('❌ Error: ' + (invResponse.data.error || 'Failed to fetch device'));
+                        return;
+                    }
+                    
+                    if (!invResponse.data.data || invResponse.data.data.length === 0) {
+                        alert('❌ Device not found with serial: ' + serialNo);
                         return;
                     }
                     
                     const device = invResponse.data.data[0];
+                    console.log('Device found:', device);
                     
                     // Check if this device is a replacement (has old_serial_no)
                     let replacementInfo = '';
@@ -13895,23 +13904,27 @@ Prices are subject to change without prior notice.</textarea>
                     }
                     
                     // Check if this device was replaced by another device
-                    const allInventoryResponse = await axios.get('/api/inventory');
-                    if (allInventoryResponse.data.success) {
-                        const replacedBy = allInventoryResponse.data.data.find(item => item.old_serial_no === serialNo);
-                        if (replacedBy) {
-                            replacementInfo += \`
-                                <div style="background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">
-                                    <h3 style="color: #5b21b6; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                                        <i class="fas fa-undo-alt"></i> Device Was Replaced
-                                    </h3>
-                                    <div style="color: #4c1d95;">
-                                        <strong>Replaced by:</strong> \${replacedBy.device_serial_no}<br/>
-                                        <strong>Reason:</strong> \${replacedBy.dispatch_reason || 'N/A'}<br/>
-                                        <strong>Date:</strong> \${replacedBy.dispatch_date || 'N/A'}
+                    try {
+                        const allInventoryResponse = await axios.get('/api/inventory');
+                        if (allInventoryResponse.data.success) {
+                            const replacedBy = allInventoryResponse.data.data.find(item => item.old_serial_no === serialNo);
+                            if (replacedBy) {
+                                replacementInfo += \`
+                                    <div style="background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">
+                                        <h3 style="color: #5b21b6; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fas fa-undo-alt"></i> Device Was Replaced
+                                        </h3>
+                                        <div style="color: #4c1d95;">
+                                            <strong>Replaced by:</strong> \${replacedBy.device_serial_no}<br/>
+                                            <strong>Reason:</strong> \${replacedBy.dispatch_reason || 'N/A'}<br/>
+                                            <strong>Date:</strong> \${replacedBy.dispatch_date || 'N/A'}
+                                        </div>
                                     </div>
-                                </div>
-                            \`;
+                                \`;
+                            }
                         }
+                    } catch (e) {
+                        console.error('Error checking replacement:', e);
                     }
                     
                     // Create modal HTML
