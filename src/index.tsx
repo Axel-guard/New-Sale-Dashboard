@@ -5436,12 +5436,6 @@ app.get('/', (c) => {
                             </div>
                         </div>
                     </div>
-                    <button onclick="showPage('qc-reports')" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                        <i class="fas fa-clipboard-check"></i> QC
-                    </button>
-                    <button onclick="showPage('dispatch-management')" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-                        <i class="fas fa-shipping-fast"></i> Dispatch
-                    </button>
                     <button onclick="openBalancePaymentReportModal()" class="btn-primary" style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
                         <i class="fas fa-chart-pie"></i> Balance Report
                     </button>
