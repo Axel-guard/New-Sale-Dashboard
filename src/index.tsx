@@ -6246,7 +6246,7 @@ app.get('/', (c) => {
                                 </p>
                             </div>
 
-                            <form onsubmit="submitTrackingDetails(event)" style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                            <form onsubmit="submitTrackingDetailsTab(event)" style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
                                 <div class="form-group" style="margin-bottom: 20px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Order ID *</label>
                                     <input type="text" id="trackingOrderIdTab" 
@@ -14068,26 +14068,37 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Submit tracking details from tab
-            async function submitTrackingDetails(event) {
+            async function submitTrackingDetailsTab(event) {
                 event.preventDefault();
+                
+                console.log('Submit tracking details TAB called');
                 
                 const orderId = document.getElementById('trackingOrderIdTab').value.trim();
                 const courierPartner = document.getElementById('trackingCourierPartnerTab').value;
                 const courierMode = document.getElementById('trackingCourierModeTab').value;
                 const trackingId = document.getElementById('trackingTrackingIdTab').value.trim();
                 
+                console.log('Tab form values:', { orderId, courierPartner, courierMode, trackingId });
+                
                 if (!orderId || !courierPartner || !courierMode || !trackingId) {
-                    showTrackingStatusTab('Please fill all required fields', 'error');
+                    showTrackingStatusTab('❌ Please fill all required fields', 'error');
                     return;
                 }
                 
+                // Show loading status
+                showTrackingStatusTab('⏳ Saving tracking details...', 'info');
+                
                 try {
+                    console.log('Sending POST request from TAB to /api/tracking-details');
+                    
                     const response = await axios.post('/api/tracking-details', {
                         order_id: orderId,
                         courier_partner: courierPartner,
                         courier_mode: courierMode,
                         tracking_id: trackingId
                     });
+                    
+                    console.log('Response received (TAB):', response.data);
                     
                     if (response.data.success) {
                         showTrackingStatusTab('✅ Tracking details added successfully! Weight: ' + response.data.data.weight + ' items', 'success');
@@ -14107,14 +14118,20 @@ Prices are subject to change without prior notice.</textarea>
                         showTrackingStatusTab('❌ ' + response.data.error, 'error');
                     }
                 } catch (error) {
-                    console.error('Error submitting tracking:', error);
-                    showTrackingStatusTab('❌ Error: ' + (error.response?.data?.error || error.message), 'error');
+                    console.error('Error submitting tracking (TAB):', error);
+                    console.error('Error details (TAB):', error.response);
+                    showTrackingStatusTab('❌ Error: ' + (error.response?.data?.error || error.message || 'Failed to save tracking details'), 'error');
                 }
             }
             
             // Show tracking status message in tab
             function showTrackingStatusTab(message, type) {
                 const statusDiv = document.getElementById('trackingFormStatusTab');
+                if (!statusDiv) {
+                    console.error('trackingFormStatusTab element not found');
+                    return;
+                }
+                
                 statusDiv.style.display = 'block';
                 statusDiv.style.padding = '12px';
                 statusDiv.style.borderRadius = '8px';
@@ -14125,6 +14142,10 @@ Prices are subject to change without prior notice.</textarea>
                     statusDiv.style.background = '#d1fae5';
                     statusDiv.style.color = '#065f46';
                     statusDiv.style.border = '2px solid #10b981';
+                } else if (type === 'info') {
+                    statusDiv.style.background = '#dbeafe';
+                    statusDiv.style.color = '#1e40af';
+                    statusDiv.style.border = '2px solid #3b82f6';
                 } else {
                     statusDiv.style.background = '#fee2e2';
                     statusDiv.style.color = '#991b1b';
@@ -15697,23 +15718,34 @@ Prices are subject to change without prior notice.</textarea>
             async function submitTrackingDetails(event) {
                 event.preventDefault();
                 
+                console.log('Submit tracking details called');
+                
                 const orderId = document.getElementById('trackingOrderId').value.trim();
                 const courierPartner = document.getElementById('trackingCourierPartner').value.trim();
                 const courierMode = document.getElementById('trackingCourierMode').value;
                 const trackingId = document.getElementById('trackingTrackingId').value.trim();
                 
+                console.log('Form values:', { orderId, courierPartner, courierMode, trackingId });
+                
                 if (!orderId || !courierPartner || !courierMode || !trackingId) {
-                    showTrackingStatus('Please fill all required fields', 'error');
+                    showTrackingStatus('❌ Please fill all required fields', 'error');
                     return;
                 }
                 
+                // Show loading status
+                showTrackingStatus('⏳ Saving tracking details...', 'info');
+                
                 try {
+                    console.log('Sending POST request to /api/tracking-details');
+                    
                     const response = await axios.post('/api/tracking-details', {
                         order_id: orderId,
                         courier_partner: courierPartner,
                         courier_mode: courierMode,
                         tracking_id: trackingId
                     });
+                    
+                    console.log('Response received:', response.data);
                     
                     if (response.data.success) {
                         showTrackingStatus('✅ Tracking details added successfully!', 'success');
@@ -15734,7 +15766,8 @@ Prices are subject to change without prior notice.</textarea>
                     }
                 } catch (error) {
                     console.error('Error submitting tracking:', error);
-                    showTrackingStatus('❌ Error: ' + (error.response?.data?.error || error.message), 'error');
+                    console.error('Error details:', error.response);
+                    showTrackingStatus('❌ Error: ' + (error.response?.data?.error || error.message || 'Failed to save tracking details'), 'error');
                 }
             }
             
@@ -15935,6 +15968,11 @@ Prices are subject to change without prior notice.</textarea>
             // Show Tracking Status Message
             function showTrackingStatus(message, type) {
                 const statusDiv = document.getElementById('trackingFormStatus');
+                if (!statusDiv) {
+                    console.error('trackingFormStatus element not found');
+                    return;
+                }
+                
                 statusDiv.style.display = 'block';
                 statusDiv.textContent = message;
                 
@@ -15942,16 +15980,22 @@ Prices are subject to change without prior notice.</textarea>
                     statusDiv.style.background = '#d1fae5';
                     statusDiv.style.color = '#065f46';
                     statusDiv.style.border = '2px solid #10b981';
+                } else if (type === 'info') {
+                    statusDiv.style.background = '#dbeafe';
+                    statusDiv.style.color = '#1e40af';
+                    statusDiv.style.border = '2px solid #3b82f6';
                 } else {
                     statusDiv.style.background = '#fee2e2';
                     statusDiv.style.color = '#991b1b';
                     statusDiv.style.border = '2px solid #ef4444';
                 }
                 
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
-                    statusDiv.style.display = 'none';
-                }, 5000);
+                // Auto-hide after 5 seconds (except for info messages)
+                if (type !== 'info') {
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 5000);
+                }
             }
             
             // View Sale Details from Tracking (without edit button)
