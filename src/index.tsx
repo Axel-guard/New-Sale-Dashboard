@@ -13966,39 +13966,44 @@ Prices are subject to change without prior notice.</textarea>
                                 <!-- Replacement Info -->
                                 \${replacementInfo}
                                 
-                                <!-- IN and OUT Information -->
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                                <!-- IN, OUT, and Replacement Information -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                                     <!-- Device IN -->
                                     <div style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #10b981;">
-                                        <h3 style="color: #065f46; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 18px;">
-                                            <i class="fas fa-sign-in-alt"></i> Device IN
+                                        <h3 style="color: #065f46; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 16px;">
+                                            <i class="fas fa-sign-in-alt"></i> IN Date
                                         </h3>
                                         <div style="color: #064e3b;">
-                                            <div style="margin-bottom: 10px;">
-                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">IN Date</div>
-                                                <div style="font-weight: 700; font-size: 16px;">\${device.in_date || 'N/A'}</div>
-                                            </div>
+                                            <div style="font-weight: 700; font-size: 18px;">\${device.in_date || 'N/A'}</div>
                                         </div>
                                     </div>
                                     
                                     <!-- Device OUT -->
                                     <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #3b82f6;">
-                                        <h3 style="color: #1e40af; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 18px;">
-                                            <i class="fas fa-sign-out-alt"></i> Device OUT
+                                        <h3 style="color: #1e40af; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 16px;">
+                                            <i class="fas fa-sign-out-alt"></i> OUT Date
                                         </h3>
                                         <div style="color: #1e3a8a;">
-                                            <div style="margin-bottom: 10px;">
-                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">OUT Date (Dispatch)</div>
-                                                <div style="font-weight: 700; font-size: 16px;">\${device.dispatch_date || 'Not Dispatched Yet'}</div>
+                                            <div style="font-weight: 700; font-size: 18px; margin-bottom: 10px;">\${device.dispatch_date || 'N/A'}</div>
+                                            <div style="font-size: 13px; opacity: 0.9;">\${device.customer_name || 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Replacement Date -->
+                                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #f59e0b;">
+                                        <h3 style="color: #92400e; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 16px;">
+                                            <i class="fas fa-exchange-alt"></i> Replacement
+                                        </h3>
+                                        <div style="color: #78350f;">
+                                            <div style="font-weight: 700; font-size: 18px;">
+                                                \${(() => {
+                                                    if (device.old_serial_no) {
+                                                        return device.dispatch_date || 'N/A';
+                                                    }
+                                                    return 'N/A';
+                                                })()}
                                             </div>
-                                            <div style="margin-bottom: 10px;">
-                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">Customer</div>
-                                                <div style="font-weight: 600; font-size: 14px;">\${device.customer_name || 'N/A'}</div>
-                                            </div>
-                                            <div>
-                                                <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">City</div>
-                                                <div style="font-weight: 600; font-size: 14px;">\${device.cust_city || 'N/A'}</div>
-                                            </div>
+                                            \${device.old_serial_no ? '<div style="font-size: 12px; margin-top: 8px; opacity: 0.9;">Replaced: ' + device.old_serial_no + '</div>' : ''}
                                         </div>
                                     </div>
                                 </div>
@@ -14035,13 +14040,6 @@ Prices are subject to change without prior notice.</textarea>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <!-- Replacement Button -->
-                                <div style="margin-top: 20px; text-align: center;">
-                                    <button onclick="openReplacementModalFromDevice('\${device.device_serial_no}')" class="btn-primary" style="padding: 12px 24px; font-size: 14px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none; border-radius: 8px; color: white; cursor: pointer; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); transition: all 0.2s;">
-                                        <i class="fas fa-exchange-alt"></i> Replace This Device
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     \`;
@@ -14067,28 +14065,6 @@ Prices are subject to change without prior notice.</textarea>
                 if (modal) {
                     modal.remove();
                 }
-            }
-            
-            // Open replacement modal from device details with pre-filled old serial
-            window.openReplacementModalFromDevice = function(oldSerial) {
-                // Close the device details modal first
-                closeDeviceJourneyModal();
-                
-                // Switch to dispatch page
-                showPage('dispatch-management');
-                
-                // Wait for page to load, then open replacement modal with pre-filled data
-                setTimeout(() => {
-                    openReplaceModal();
-                    
-                    // Pre-fill the old device serial number
-                    setTimeout(() => {
-                        const oldSerialInput = document.getElementById('oldDeviceSerial');
-                        if (oldSerialInput) {
-                            oldSerialInput.value = oldSerial;
-                        }
-                    }, 100);
-                }, 300);
             }
             
             // Upload inventory Excel
