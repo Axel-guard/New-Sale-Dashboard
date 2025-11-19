@@ -14035,6 +14035,13 @@ Prices are subject to change without prior notice.</textarea>
                                         </div>
                                     </div>
                                 </div>
+                                
+                                <!-- Replacement Button -->
+                                <div style="margin-top: 20px; text-align: center;">
+                                    <button onclick="openReplacementModalFromDevice('\${device.device_serial_no}')" class="btn-primary" style="padding: 12px 24px; font-size: 14px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none; border-radius: 8px; color: white; cursor: pointer; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); transition: all 0.2s;">
+                                        <i class="fas fa-exchange-alt"></i> Replace This Device
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     \`;
@@ -14060,6 +14067,28 @@ Prices are subject to change without prior notice.</textarea>
                 if (modal) {
                     modal.remove();
                 }
+            }
+            
+            // Open replacement modal from device details with pre-filled old serial
+            window.openReplacementModalFromDevice = function(oldSerial) {
+                // Close the device details modal first
+                closeDeviceJourneyModal();
+                
+                // Switch to dispatch page
+                showPage('dispatch-management');
+                
+                // Wait for page to load, then open replacement modal with pre-filled data
+                setTimeout(() => {
+                    openReplaceModal();
+                    
+                    // Pre-fill the old device serial number
+                    setTimeout(() => {
+                        const oldSerialInput = document.getElementById('oldDeviceSerial');
+                        if (oldSerialInput) {
+                            oldSerialInput.value = oldSerial;
+                        }
+                    }, 100);
+                }, 300);
             }
             
             // Upload inventory Excel
