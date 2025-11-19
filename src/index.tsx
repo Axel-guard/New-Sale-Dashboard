@@ -6328,17 +6328,25 @@ app.get('/', (c) => {
                             </div>
 
                             <!-- Search Bar and Month Filter -->
-                            <div style="margin-bottom: 20px; display: flex; gap: 12px;">
-                                <input type="text" id="trackingReportSearchTab" 
-                                    placeholder="🔍 Search by Order ID, Courier, Tracking ID..." 
-                                    oninput="filterTrackingReportTab()"
-                                    style="flex: 1; padding: 13px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.3s; outline: none;"
-                                    onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)'"
-                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
-                                <select id="trackingMonthFilterTab" onchange="filterTrackingReportTab()"
-                                    style="min-width: 180px; padding: 13px 16px; border: 2px solid #8b5cf6; border-radius: 10px; font-size: 14px; font-weight: 600; color: #7c3aed; background: white; cursor: pointer; transition: all 0.3s;">
-                                    <option value="">📅 All Months</option>
-                                </select>
+                            <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                                <div style="flex: 1; position: relative;">
+                                    <i class="fas fa-search" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 16px;"></i>
+                                    <input type="text" id="trackingReportSearchTab" 
+                                        placeholder="Search by Order ID, Courier, Tracking ID..." 
+                                        oninput="filterTrackingReportTab()"
+                                        style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 15px; transition: all 0.3s; outline: none;"
+                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 4px rgba(139, 92, 246, 0.1)'"
+                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
+                                </div>
+                                <div style="position: relative; min-width: 220px;">
+                                    <i class="fas fa-calendar-alt" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #8b5cf6; font-size: 16px; z-index: 1;"></i>
+                                    <select id="trackingMonthFilterTab" onchange="filterTrackingReportTab()"
+                                        style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #8b5cf6; border-radius: 10px; font-size: 15px; font-weight: 600; color: #7c3aed; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); cursor: pointer; transition: all 0.3s; outline: none; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22%237c3aed%22 d=%22M6 8L0 0h12z%22/></svg>'); background-repeat: no-repeat; background-position: right 14px center;"
+                                        onmouseover="this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.3)'"
+                                        onmouseout="this.style.boxShadow='none'">
+                                        <option value="">All Months</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <!-- Report Table -->
@@ -8654,15 +8662,25 @@ Prices are subject to change without prior notice.</textarea>
                         </div>
 
                         <!-- Search Bar and Month Filter -->
-                        <div style="margin-bottom: 15px; display: flex; gap: 10px;">
-                            <input type="text" id="trackingReportSearch" 
-                                placeholder="Search by Order ID, Courier, Tracking ID..." 
-                                oninput="filterTrackingReport()"
-                                style="flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
-                            <select id="trackingMonthFilter" onchange="filterTrackingReport()"
-                                style="width: 200px; padding: 10px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px; font-weight: 600; color: #7c3aed;">
-                                <option value="">All Months</option>
-                            </select>
+                        <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                            <div style="flex: 1; position: relative;">
+                                <i class="fas fa-search" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 16px;"></i>
+                                <input type="text" id="trackingReportSearch" 
+                                    placeholder="Search by Order ID, Courier, Tracking ID..." 
+                                    oninput="filterTrackingReport()"
+                                    style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 15px; transition: all 0.3s; outline: none;"
+                                    onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 4px rgba(139, 92, 246, 0.1)'"
+                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
+                            </div>
+                            <div style="position: relative; min-width: 220px;">
+                                <i class="fas fa-calendar-alt" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #8b5cf6; font-size: 16px; z-index: 1;"></i>
+                                <select id="trackingMonthFilter" onchange="filterTrackingReport()"
+                                    style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #8b5cf6; border-radius: 10px; font-size: 15px; font-weight: 600; color: #7c3aed; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); cursor: pointer; transition: all 0.3s; outline: none; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22%237c3aed%22 d=%22M6 8L0 0h12z%22/></svg>'); background-repeat: no-repeat; background-position: right 14px center;"
+                                    onmouseover="this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.3)'"
+                                    onmouseout="this.style.boxShadow='none'">
+                                    <option value="">All Months</option>
+                                </select>
+                            </div>
                         </div>
 
                         <!-- Report Table -->
