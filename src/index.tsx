@@ -13886,7 +13886,7 @@ Prices are subject to change without prior notice.</textarea>
                         return \`\${day}-\${month}-\${year}\`;
                     };
                     
-                    tbody.innerHTML = response.data.data.map(item => {
+                    tbody.innerHTML = response.data.data.map((item, index) => {
                         const statusColors = {
                             'In Stock': 'background: #d1fae5; color: #065f46;',
                             'Dispatched': 'background: #dbeafe; color: #1e40af;',
@@ -13902,7 +13902,7 @@ Prices are subject to change without prior notice.</textarea>
                         
                         return \`
                             <tr>
-                                <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">\${item.serial_number || item.id}</td>
+                                <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">\${index + 1}</td>
                                 <td style="position: sticky; left: 60px; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);"><strong>\${item.device_serial_no}</strong></td>
                                 <td>\${item.model_name}</td>
                                 <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[item.status] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
