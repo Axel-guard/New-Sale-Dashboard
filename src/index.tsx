@@ -15315,13 +15315,27 @@ Prices are subject to change without prior notice.</textarea>
                         return;
                     }
                     
+                    // Helper function to format date as DD/MMM/YY
+                    const formatQCDate = (dateStr) => {
+                        if (!dateStr || dateStr === '-') return '-';
+                        const date = new Date(dateStr);
+                        if (isNaN(date.getTime())) return dateStr;
+                        
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const month = monthNames[date.getMonth()];
+                        const year = String(date.getFullYear()).slice(-2);
+                        
+                        return \`\${day}/\${month}/\${year}\`;
+                    };
+                    
                     tbody.innerHTML = response.data.data.map(item => {
                         const resultColor = item.pass_fail === 'Pass' ? '#10b981' : '#ef4444';
                         return \`
                             <tr>
                                 <td>\${item.serial_number || item.id}</td>
                                 <td><strong>\${item.device_serial_no}</strong></td>
-                                <td>\${item.check_date}</td>
+                                <td>\${formatQCDate(item.check_date)}</td>
                                 <td><span style="color: \${resultColor}; font-weight: 600;">\${item.pass_fail}</span></td>
                                 <td>\${item.checked_by}</td>
                             </tr>
