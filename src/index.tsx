@@ -5914,6 +5914,10 @@ app.get('/', (c) => {
                 background: var(--hover-bg);
             }
             
+            tbody tr:hover td {
+                color: var(--text-primary);
+            }
+            
             .modal-content {
                 background-color: var(--bg-card);
                 color: var(--text-primary);
@@ -6134,6 +6138,116 @@ app.get('/', (c) => {
             [data-theme="dark"] .top-bar,
             [data-theme="dark"] .top-bar * {
                 color: white !important;
+            }
+            
+            /* Fix table row hover in dark mode */
+            [data-theme="dark"] tbody tr:hover {
+                background: var(--hover-bg) !important;
+            }
+            
+            [data-theme="dark"] tbody tr:hover td {
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] tbody tr:hover td * {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Ensure hovered rows with inline styles remain visible */
+            [data-theme="dark"] tbody tr:hover td[style*="color"] {
+                filter: brightness(1.3);
+            }
+            
+            /* Modal backgrounds in dark mode */
+            [data-theme="dark"] .modal {
+                background-color: rgba(0, 0, 0, 0.8);
+            }
+            
+            [data-theme="dark"] .modal-content {
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] .modal-content * {
+                color: var(--text-primary);
+            }
+            
+            [data-theme="dark"] .modal-content table {
+                background: var(--bg-card);
+            }
+            
+            [data-theme="dark"] .modal-content th {
+                background: var(--table-header-bg) !important;
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] .modal-content td {
+                background: var(--bg-card);
+                color: var(--text-primary) !important;
+            }
+            
+            /* Modal headers and titles */
+            [data-theme="dark"] .modal-content h2,
+            [data-theme="dark"] .modal-content h3,
+            [data-theme="dark"] .modal-content h4 {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Inventory Report Modal specific fixes */
+            [data-theme="dark"] #inventoryReportModal .modal-content,
+            [data-theme="dark"] #inventoryReportModal table {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] #inventoryReportModal th {
+                background: var(--table-header-bg) !important;
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] #inventoryReportModal td {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Fix any tables with white backgrounds */
+            [data-theme="dark"] table[style*="background: white"],
+            [data-theme="dark"] table[style*="background: #fff"],
+            [data-theme="dark"] table[style*="background: #ffffff"] {
+                background: var(--bg-card) !important;
+            }
+            
+            /* Ensure table cells in modals are visible */
+            [data-theme="dark"] .modal table tbody tr {
+                background: transparent;
+            }
+            
+            [data-theme="dark"] .modal table tbody tr:hover {
+                background: var(--hover-bg) !important;
+            }
+            
+            [data-theme="dark"] .modal table tbody tr:hover td {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Fix for expandable rows and nested tables */
+            [data-theme="dark"] .expandable-row {
+                background: var(--bg-secondary) !important;
+            }
+            
+            [data-theme="dark"] .expandable-row td {
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] .nested-table {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] .nested-table th {
+                background: var(--table-header-bg) !important;
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] .nested-table td {
+                color: var(--text-primary) !important;
             }
         </style>
     </head>
