@@ -16147,13 +16147,16 @@ Prices are subject to change without prior notice.</textarea>
                 const products = selectedOrder.items;
                 
                 document.getElementById('orderProductsList').innerHTML = products.map(item => {
+                    // Check if product is MDVR Installation (should be marked as completed automatically)
+                    const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
+                    
                     // Match scanned devices by product name (model_name)
                     const scannedForThisProduct = scannedDevices.filter(d => 
                         d.model_name === item.product_name || 
                         d.product_name === item.product_name
                     ).length;
                     const remainingToScan = item.quantity - scannedForThisProduct;
-                    const isComplete = remainingToScan === 0;
+                    const isComplete = isMDVRInstallation || remainingToScan === 0;
                     
                     return \`
                         <div style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -16170,7 +16173,7 @@ Prices are subject to change without prior notice.</textarea>
                                             \${scannedForThisProduct} / \${item.quantity}
                                         </div>
                                         <div style="font-size: 14px; font-weight: 600; color: \${isComplete ? '#10b981' : '#dc2626'}; background: \${isComplete ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
-                                            \${isComplete ? '✅ Complete' : remainingToScan + ' Remaining'}
+                                            \${isMDVRInstallation ? '✅ Completed Already' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
                                         </div>
                                     </div>
                                 </div>
