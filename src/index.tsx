@@ -12,8 +12,8 @@ const app = new Hono<{ Bindings: Bindings }>()
 // Enable CORS
 app.use('/api/*', cors())
 
-// Serve static files
-app.use('/static/*', serveStatic({ root: './public' }))
+// Serve static files from public/static
+app.use('/static/*', serveStatic({ root: './' }))
 
 // API Routes
 
