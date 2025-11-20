@@ -5944,6 +5944,197 @@ app.get('/', (c) => {
             #themeToggle:hover {
                 transform: rotate(20deg) scale(1.1);
             }
+            
+            /* Additional Dark Mode Fixes for Better Visibility */
+            [data-theme="dark"] .stat-card h3 {
+                color: rgba(255, 255, 255, 0.9);
+            }
+            
+            [data-theme="dark"] .stat-card p {
+                color: rgba(255, 255, 255, 0.7);
+            }
+            
+            [data-theme="dark"] h1,
+            [data-theme="dark"] h2,
+            [data-theme="dark"] h3,
+            [data-theme="dark"] h4,
+            [data-theme="dark"] h5,
+            [data-theme="dark"] h6 {
+                color: var(--text-primary);
+            }
+            
+            [data-theme="dark"] p,
+            [data-theme="dark"] span,
+            [data-theme="dark"] div {
+                color: var(--text-primary);
+            }
+            
+            [data-theme="dark"] label {
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] .badge-success {
+                background: #064e3b;
+                color: #6ee7b7;
+            }
+            
+            [data-theme="dark"] .badge-warning {
+                background: #78350f;
+                color: #fcd34d;
+            }
+            
+            [data-theme="dark"] .badge-danger {
+                background: #7f1d1d;
+                color: #fca5a5;
+            }
+            
+            [data-theme="dark"] .alert-success {
+                background: #064e3b;
+                border-color: #10b981;
+                color: #6ee7b7;
+            }
+            
+            [data-theme="dark"] .alert-error {
+                background: #7f1d1d;
+                border-color: #ef4444;
+                color: #fca5a5;
+            }
+            
+            [data-theme="dark"] .alert-warning {
+                background: #78350f;
+                border-color: #f59e0b;
+                color: #fcd34d;
+            }
+            
+            [data-theme="dark"] input::placeholder,
+            [data-theme="dark"] textarea::placeholder {
+                color: var(--text-muted);
+            }
+            
+            [data-theme="dark"] select option {
+                background: var(--input-bg);
+                color: var(--text-primary);
+            }
+            
+            /* Make sure all inline styles respect theme */
+            [data-theme="dark"] [style*="color: #374151"],
+            [data-theme="dark"] [style*="color: #1f2937"],
+            [data-theme="dark"] [style*="color: #6b7280"] {
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] [style*="background: #f9fafb"],
+            [data-theme="dark"] [style*="background: white"],
+            [data-theme="dark"] [style*="background: #ffffff"] {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] [style*="border: 1px solid #e5e7eb"],
+            [data-theme="dark"] [style*="border: 1px solid #d1d5db"] {
+                border-color: var(--border-color) !important;
+            }
+            
+            /* Employee cards and stat cards */
+            [data-theme="dark"] .employee-card {
+                background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            }
+            
+            /* Ensure table text is visible */
+            [data-theme="dark"] table {
+                color: var(--text-primary);
+            }
+            
+            [data-theme="dark"] th {
+                color: var(--text-primary) !important;
+                background: var(--table-header-bg);
+            }
+            
+            [data-theme="dark"] td {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Status badges in tables */
+            [data-theme="dark"] td[style*="color: #10b981"] {
+                color: #6ee7b7 !important;
+            }
+            
+            [data-theme="dark"] td[style*="color: #f59e0b"] {
+                color: #fcd34d !important;
+            }
+            
+            [data-theme="dark"] td[style*="color: #ef4444"] {
+                color: #fca5a5 !important;
+            }
+            
+            /* Loading and empty states */
+            [data-theme="dark"] .loading {
+                color: var(--text-secondary);
+            }
+            
+            /* Modal headers and content */
+            [data-theme="dark"] .modal-content h2,
+            [data-theme="dark"] .modal-content h3 {
+                color: var(--text-primary);
+            }
+            
+            /* Ensure buttons remain visible */
+            [data-theme="dark"] .btn-view {
+                background: #3b82f6;
+            }
+            
+            [data-theme="dark"] .btn-update {
+                background: #f59e0b;
+            }
+            
+            [data-theme="dark"] .btn-delete {
+                background: #ef4444;
+            }
+            
+            /* Charts container */
+            [data-theme="dark"] canvas {
+                background: transparent !important;
+            }
+            
+            /* Dispatch summary cards */
+            [data-theme="dark"] div[style*="background: linear-gradient(135deg, #10b981"] {
+                filter: brightness(0.85);
+            }
+            
+            [data-theme="dark"] div[style*="background: linear-gradient(135deg, #f59e0b"] {
+                filter: brightness(0.85);
+            }
+            
+            /* Recent Activity section */
+            [data-theme="dark"] #recentActivity {
+                color: var(--text-primary);
+            }
+            
+            /* Ensure all text in cards is visible */
+            [data-theme="dark"] .card * {
+                border-color: var(--border-color);
+            }
+            
+            [data-theme="dark"] .card h3,
+            [data-theme="dark"] .card h2,
+            [data-theme="dark"] .card p,
+            [data-theme="dark"] .card div,
+            [data-theme="dark"] .card span {
+                color: var(--text-primary);
+            }
+            
+            /* Special case for white text on gradients (keep white) */
+            [data-theme="dark"] .employee-card *,
+            [data-theme="dark"] .stat-card[style*="gradient"] *,
+            [data-theme="dark"] div[style*="background: linear-gradient"] span,
+            [data-theme="dark"] div[style*="background: linear-gradient"] div {
+                color: white !important;
+            }
+            
+            /* Top bar stays with white text */
+            [data-theme="dark"] .top-bar,
+            [data-theme="dark"] .top-bar * {
+                color: white !important;
+            }
         </style>
     </head>
     <body>
