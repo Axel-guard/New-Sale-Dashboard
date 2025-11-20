@@ -4219,13 +4219,19 @@ app.get('/api/dispatch/summary', async (c) => {
   
   try {
     // Get all sales/orders with their items and dispatch counts
+    // Exclude MDVR Installation from total_items count
     const salesQuery = await env.DB.prepare(`
       SELECT 
         s.order_id,
         s.customer_name,
         s.company_name,
         s.sale_date as order_date,
-        COALESCE(SUM(si.quantity), 0) as total_items
+        COALESCE(SUM(
+          CASE 
+            WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
+            ELSE si.quantity
+          END
+        ), 0) as total_items
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
       GROUP BY s.order_id
@@ -4448,16 +4454,27 @@ app.get('/api/orders', async (c) => {
   
   try {
     // Get orders from sales table with item count and dispatch count
+    // Exclude MDVR Installation from total_items count
     const orders = await env.DB.prepare(`
       SELECT 
         s.order_id,
         s.customer_name,
         s.company_name,
         s.sale_date as order_date,
-        COUNT(DISTINCT si.id) as total_items,
+        COALESCE(SUM(
+          CASE 
+            WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
+            ELSE si.quantity
+          END
+        ), 0) as total_items,
         COUNT(DISTINCT dr.id) as dispatched_items,
         CASE 
-          WHEN COUNT(DISTINCT dr.id) >= COUNT(DISTINCT si.id) THEN 'Complete'
+          WHEN COUNT(DISTINCT dr.id) >= COALESCE(SUM(
+            CASE 
+              WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
+              ELSE si.quantity
+            END
+          ), 0) THEN 'Complete'
           WHEN COUNT(DISTINCT dr.id) > 0 THEN 'Partial'
           ELSE 'Pending'
         END as dispatch_status
