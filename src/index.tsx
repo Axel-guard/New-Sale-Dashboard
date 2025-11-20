@@ -6586,7 +6586,7 @@ app.get('/', (c) => {
                             <input type="text" id="inventorySearch" placeholder="Search serial, model, customer... (Barcode Scanner Ready)" 
                                 onkeypress="if(event.key==='Enter') searchInventory()"
                                 style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; width: 300px;">
-                            <select id="inventoryStatusFilter" style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                            <select id="inventoryStatusFilter" onchange="searchInventory()" style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px;">
                                 <option value="">All Status</option>
                                 <option value="In Stock">In Stock</option>
                                 <option value="Dispatched">Dispatched</option>
