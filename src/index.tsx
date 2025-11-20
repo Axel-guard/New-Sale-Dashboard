@@ -7383,11 +7383,11 @@ app.get('/', (c) => {
                                 <div style="font-size: 32px; font-weight: 700;" id="statTotalDispatched">0</div>
                             </div>
                             <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">✅ Completed</div>
+                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">✅ Dispatch Completed</div>
                                 <div style="font-size: 32px; font-weight: 700;" id="statCompletedOrders">0</div>
                             </div>
                             <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">⏳ Pending</div>
+                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 6px; font-weight: 500;">⏳ Dispatch Pending</div>
                                 <div style="font-size: 32px; font-weight: 700;" id="statPendingOrders">0</div>
                             </div>
                         </div>
