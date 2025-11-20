@@ -4771,48 +4771,6 @@ app.get('/', (c) => {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <style>
-            :root {
-                /* Light Theme Colors */
-                --bg-primary: #f0f2f5;
-                --bg-secondary: #ffffff;
-                --bg-card: #ffffff;
-                --bg-sidebar: #ffffff;
-                --bg-topbar: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                --text-primary: #1f2937;
-                --text-secondary: #6b7280;
-                --text-muted: #9ca3af;
-                --border-color: #e5e7eb;
-                --shadow: rgba(0,0,0,0.08);
-                --shadow-lg: rgba(0,0,0,0.1);
-                --hover-bg: #f3f4f6;
-                --active-bg: #eef2ff;
-                --input-bg: #ffffff;
-                --input-border: #e5e7eb;
-                --table-header-bg: #f9fafb;
-                --table-border: #e5e7eb;
-            }
-            
-            [data-theme="dark"] {
-                /* Dark Theme Colors */
-                --bg-primary: #111827;
-                --bg-secondary: #1f2937;
-                --bg-card: #1f2937;
-                --bg-sidebar: #1f2937;
-                --bg-topbar: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-                --text-primary: #f9fafb;
-                --text-secondary: #d1d5db;
-                --text-muted: #9ca3af;
-                --border-color: #374151;
-                --shadow: rgba(0,0,0,0.3);
-                --shadow-lg: rgba(0,0,0,0.5);
-                --hover-bg: #374151;
-                --active-bg: #312e81;
-                --input-bg: #374151;
-                --input-border: #4b5563;
-                --table-header-bg: #374151;
-                --table-border: #4b5563;
-            }
-            
             * {
                 margin: 0;
                 padding: 0;
@@ -4821,9 +4779,7 @@ app.get('/', (c) => {
             
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: var(--bg-primary);
-                color: var(--text-primary);
-                transition: background-color 0.3s ease, color 0.3s ease;
+                background: #f0f2f5;
             }
             
             .login-container {
@@ -5824,582 +5780,123 @@ app.get('/', (c) => {
                 background: #e5e7eb;
                 margin: 8px 0;
             }
+        </style>
             
-            /* Theme-aware Styles - Apply CSS Variables */
-            .top-bar {
-                background: var(--bg-topbar);
-            }
             
-            .sidebar {
-                background: var(--bg-sidebar);
-                box-shadow: 2px 0 10px var(--shadow-lg);
-            }
             
-            .card {
-                background: var(--bg-card);
-                box-shadow: 0 2px 8px var(--shadow);
-            }
             
-            .card-title {
-                color: var(--text-primary);
-            }
             
-            .sidebar-item {
-                border-bottom: 1px solid var(--border-color);
-                color: var(--text-primary);
-            }
             
-            .sidebar-item:hover {
-                background: var(--hover-bg);
-            }
             
-            .sidebar-item.active {
-                background: var(--active-bg);
-            }
             
-            .sidebar-parent {
-                border-bottom: 1px solid var(--border-color);
-                color: var(--text-primary);
-            }
             
-            .sidebar-parent:hover {
-                background: var(--hover-bg);
-            }
             
-            .sidebar-children {
-                background: var(--table-header-bg);
-            }
             
-            .sidebar-child {
-                border-bottom: 1px solid var(--border-color);
-                color: var(--text-secondary);
-            }
-            
-            .sidebar-child:hover {
-                background: var(--hover-bg);
-                color: var(--text-primary);
-            }
-            
-            .sidebar-child.active {
-                background: var(--active-bg);
-            }
-            
-            .form-group label {
-                color: var(--text-primary);
-            }
-            
-            .form-group input,
-            .form-group select,
-            .form-group textarea {
-                background: var(--input-bg);
-                border: 1px solid var(--input-border);
-                color: var(--text-primary);
-            }
-            
-            thead {
-                background: var(--table-header-bg);
-            }
-            
-            th {
-                color: var(--text-primary);
-                border-bottom: 2px solid var(--border-color);
-            }
-            
-            td {
-                border-bottom: 1px solid var(--border-color);
-                color: var(--text-primary);
-            }
-            
-            tbody tr:hover {
-                background: var(--hover-bg);
-            }
-            
-            tbody tr:hover td {
-                color: var(--text-primary);
-            }
-            
-            .modal-content {
-                background-color: var(--bg-card);
-                color: var(--text-primary);
-            }
-            
-            .dropdown-content {
-                background-color: var(--bg-card);
-                box-shadow: 0 8px 16px var(--shadow-lg);
-            }
-            
-            .dropdown-item {
-                color: var(--text-primary);
-            }
-            
-            .dropdown-item:hover {
-                background: var(--hover-bg);
-            }
-            
-            .dropdown-divider {
-                background: var(--border-color);
-            }
-            
-            /* Theme Toggle Button Animation */
-            #themeToggle {
-                transition: all 0.3s ease;
-            }
-            
-            #themeToggle:hover {
-                transform: rotate(20deg) scale(1.1);
-            }
-            
-            /* Additional Dark Mode Fixes for Better Visibility */
-            [data-theme="dark"] .stat-card h3 {
-                color: rgba(255, 255, 255, 0.9);
-            }
-            
-            [data-theme="dark"] .stat-card p {
-                color: rgba(255, 255, 255, 0.7);
-            }
-            
-            [data-theme="dark"] h1,
-            [data-theme="dark"] h2,
-            [data-theme="dark"] h3,
-            [data-theme="dark"] h4,
-            [data-theme="dark"] h5,
-            [data-theme="dark"] h6 {
-                color: var(--text-primary);
-            }
-            
-            [data-theme="dark"] p,
-            [data-theme="dark"] span,
-            [data-theme="dark"] div {
-                color: var(--text-primary);
-            }
-            
-            [data-theme="dark"] label {
-                color: var(--text-primary) !important;
-            }
-            
-            [data-theme="dark"] .badge-success {
-                background: #064e3b;
-                color: #6ee7b7;
-            }
-            
-            [data-theme="dark"] .badge-warning {
-                background: #78350f;
-                color: #fcd34d;
-            }
-            
-            [data-theme="dark"] .badge-danger {
-                background: #7f1d1d;
-                color: #fca5a5;
-            }
-            
-            [data-theme="dark"] .alert-success {
-                background: #064e3b;
-                border-color: #10b981;
-                color: #6ee7b7;
-            }
-            
-            [data-theme="dark"] .alert-error {
-                background: #7f1d1d;
-                border-color: #ef4444;
-                color: #fca5a5;
-            }
-            
-            [data-theme="dark"] .alert-warning {
-                background: #78350f;
-                border-color: #f59e0b;
-                color: #fcd34d;
-            }
-            
-            [data-theme="dark"] input::placeholder,
-            [data-theme="dark"] textarea::placeholder {
-                color: var(--text-muted);
-            }
-            
-            [data-theme="dark"] select option {
-                background: var(--input-bg);
-                color: var(--text-primary);
-            }
             
             /* Make sure all inline styles respect theme */
-            [data-theme="dark"] [style*="color: #374151"],
-            [data-theme="dark"] [style*="color: #1f2937"],
-            [data-theme="dark"] [style*="color: #6b7280"] {
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] [style*="background: #f9fafb"],
-            [data-theme="dark"] [style*="background: white"],
-            [data-theme="dark"] [style*="background: #ffffff"] {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] [style*="border: 1px solid #e5e7eb"],
-            [data-theme="dark"] [style*="border: 1px solid #d1d5db"] {
-                border-color: var(--border-color) !important;
-            }
             
             /* Employee cards and stat cards */
-            [data-theme="dark"] .employee-card {
-                background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-            }
             
             /* Ensure table text is visible */
-            [data-theme="dark"] table {
-                color: var(--text-primary);
-            }
             
-            [data-theme="dark"] th {
-                color: var(--text-primary) !important;
-                background: var(--table-header-bg);
-            }
             
-            [data-theme="dark"] td {
-                color: var(--text-primary) !important;
-            }
             
             /* Status badges in tables */
-            [data-theme="dark"] td[style*="color: #10b981"] {
-                color: #6ee7b7 !important;
-            }
             
-            [data-theme="dark"] td[style*="color: #f59e0b"] {
-                color: #fcd34d !important;
-            }
             
-            [data-theme="dark"] td[style*="color: #ef4444"] {
-                color: #fca5a5 !important;
-            }
             
             /* Loading and empty states */
-            [data-theme="dark"] .loading {
-                color: var(--text-secondary);
-            }
             
             /* Modal headers and content */
-            [data-theme="dark"] .modal-content h2,
-            [data-theme="dark"] .modal-content h3 {
-                color: var(--text-primary);
-            }
             
             /* Ensure buttons remain visible */
-            [data-theme="dark"] .btn-view {
-                background: #3b82f6;
-            }
             
-            [data-theme="dark"] .btn-update {
-                background: #f59e0b;
-            }
             
-            [data-theme="dark"] .btn-delete {
-                background: #ef4444;
-            }
             
             /* Charts container */
-            [data-theme="dark"] canvas {
-                background: transparent !important;
-            }
             
             /* Dispatch summary cards */
-            [data-theme="dark"] div[style*="background: linear-gradient(135deg, #10b981"] {
-                filter: brightness(0.85);
-            }
             
-            [data-theme="dark"] div[style*="background: linear-gradient(135deg, #f59e0b"] {
-                filter: brightness(0.85);
-            }
             
             /* Recent Activity section */
-            [data-theme="dark"] #recentActivity {
-                color: var(--text-primary);
-            }
             
             /* Ensure all text in cards is visible */
-            [data-theme="dark"] .card * {
-                border-color: var(--border-color);
-            }
             
-            [data-theme="dark"] .card h3,
-            [data-theme="dark"] .card h2,
-            [data-theme="dark"] .card p,
-            [data-theme="dark"] .card div,
-            [data-theme="dark"] .card span {
-                color: var(--text-primary);
-            }
             
             /* Special case for white text on gradients (keep white) */
-            [data-theme="dark"] .employee-card *,
-            [data-theme="dark"] .stat-card[style*="gradient"] *,
-            [data-theme="dark"] div[style*="background: linear-gradient"] span,
-            [data-theme="dark"] div[style*="background: linear-gradient"] div {
-                color: white !important;
-            }
             
             /* Top bar stays with white text */
-            [data-theme="dark"] .top-bar,
-            [data-theme="dark"] .top-bar * {
-                color: white !important;
-            }
             
             /* Fix table row hover in dark mode */
-            [data-theme="dark"] tbody tr:hover {
-                background: var(--hover-bg) !important;
-            }
             
-            [data-theme="dark"] tbody tr:hover td {
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] tbody tr:hover td * {
-                color: var(--text-primary) !important;
-            }
             
             /* Ensure hovered rows with inline styles remain visible */
-            [data-theme="dark"] tbody tr:hover td[style*="color"] {
-                filter: brightness(1.3);
-            }
             
             /* Modal backgrounds in dark mode */
-            [data-theme="dark"] .modal {
-                background-color: rgba(0, 0, 0, 0.8);
-            }
             
-            [data-theme="dark"] .modal-content {
-                background-color: var(--bg-card) !important;
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] .modal-content * {
-                color: var(--text-primary);
-            }
             
-            [data-theme="dark"] .modal-content table {
-                background: var(--bg-card);
-            }
             
-            [data-theme="dark"] .modal-content th {
-                background: var(--table-header-bg) !important;
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] .modal-content td {
-                background: var(--bg-card);
-                color: var(--text-primary) !important;
-            }
             
             /* Modal headers and titles */
-            [data-theme="dark"] .modal-content h2,
-            [data-theme="dark"] .modal-content h3,
-            [data-theme="dark"] .modal-content h4 {
-                color: var(--text-primary) !important;
-            }
             
             /* Inventory Report Modal specific fixes */
-            [data-theme="dark"] #inventoryReportModal .modal-content,
-            [data-theme="dark"] #inventoryReportModal table {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] #inventoryReportModal th {
-                background: var(--table-header-bg) !important;
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] #inventoryReportModal td {
-                color: var(--text-primary) !important;
-            }
             
             /* Fix any tables with white backgrounds */
-            [data-theme="dark"] table[style*="background: white"],
-            [data-theme="dark"] table[style*="background: #fff"],
-            [data-theme="dark"] table[style*="background: #ffffff"] {
-                background: var(--bg-card) !important;
-            }
             
             /* Ensure table cells in modals are visible */
-            [data-theme="dark"] .modal table tbody tr {
-                background: transparent;
-            }
             
-            [data-theme="dark"] .modal table tbody tr:hover {
-                background: var(--hover-bg) !important;
-            }
             
-            [data-theme="dark"] .modal table tbody tr:hover td {
-                color: var(--text-primary) !important;
-            }
             
             /* Fix for expandable rows and nested tables */
-            [data-theme="dark"] .expandable-row {
-                background: var(--bg-secondary) !important;
-            }
             
-            [data-theme="dark"] .expandable-row td {
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] .nested-table {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] .nested-table th {
-                background: var(--table-header-bg) !important;
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] .nested-table td {
-                color: var(--text-primary) !important;
-            }
             
             /* Fix modal footers and action buttons in dark mode */
-            [data-theme="dark"] .modal-content button {
-                color: white;
-            }
             
-            [data-theme="dark"] .modal-content .btn-primary,
-            [data-theme="dark"] .modal-content button[style*="background"] {
-                color: white !important;
-            }
             
             /* Fix report modals with specific backgrounds */
-            [data-theme="dark"] div[style*="background: white"] {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] div[style*="background: #fff"],
-            [data-theme="dark"] div[style*="background: #ffffff"],
-            [data-theme="dark"] div[style*="background-color: white"],
-            [data-theme="dark"] div[style*="background-color: #fff"],
-            [data-theme="dark"] div[style*="background-color: #ffffff"] {
-                background: var(--bg-card) !important;
-            }
             
             /* Fix colored table cells in reports */
-            [data-theme="dark"] td[style*="background: #fef3c7"],
-            [data-theme="dark"] td[style*="background: #dbeafe"],
-            [data-theme="dark"] td[style*="background: #fce7f3"],
-            [data-theme="dark"] td[style*="background: #fef9c3"] {
-                filter: brightness(0.4) saturate(1.5);
-            }
             
             /* Fix light colored backgrounds in tables */
-            [data-theme="dark"] td[style*="background-color"],
-            [data-theme="dark"] th[style*="background-color"] {
-                filter: brightness(0.6);
-            }
             
             /* Ensure text remains visible on adjusted backgrounds */
-            [data-theme="dark"] td[style*="background-color"] *,
-            [data-theme="dark"] th[style*="background-color"] * {
-                color: var(--text-primary) !important;
-            }
             
             /* Fix percentage badges and growth indicators */
-            [data-theme="dark"] td span[style*="color: #10b981"],
-            [data-theme="dark"] span[style*="color: #10b981"] {
-                color: #6ee7b7 !important;
-            }
             
-            [data-theme="dark"] td span[style*="color: #ef4444"],
-            [data-theme="dark"] span[style*="color: #ef4444"] {
-                color: #fca5a5 !important;
-            }
             
             /* Fix modal action areas */
-            [data-theme="dark"] .modal-content > div[style*="margin-top"],
-            [data-theme="dark"] .modal-content > div[style*="text-align: center"] {
-                background: transparent !important;
-            }
             
             /* Fix close buttons in modals */
-            [data-theme="dark"] button[onclick*="close"],
-            [data-theme="dark"] button[onclick*="Close"] {
-                background: #6b7280 !important;
-                color: white !important;
-            }
             
             /* Employee Sales Report specific fixes */
-            [data-theme="dark"] #employeeSalesReportModal .modal-content,
-            [data-theme="dark"] #employeeSalesReportModal table {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] #employeeSalesReportModal th {
-                background: var(--table-header-bg) !important;
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] #employeeSalesReportModal td {
-                color: var(--text-primary) !important;
-            }
             
             /* Model-Wise Inventory Report fixes */
-            [data-theme="dark"] #inventoryReportModal tbody tr {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] #inventoryReportModal tbody td {
-                background: var(--bg-card) !important;
-            }
             
             /* Dispatch Summary Report fixes */
-            [data-theme="dark"] #dispatchSummaryModal .modal-content,
-            [data-theme="dark"] #dispatchSummaryModal table {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] #dispatchSummaryModal th {
-                background: var(--table-header-bg) !important;
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] #dispatchSummaryModal td {
-                color: var(--text-primary) !important;
-                background: var(--bg-card) !important;
-            }
             
             /* Balance Payment Report fixes */
-            [data-theme="dark"] #balancePaymentReportModal .modal-content,
-            [data-theme="dark"] #balancePaymentReportModal table {
-                background: var(--bg-card) !important;
-            }
             
-            [data-theme="dark"] #balancePaymentReportModal th {
-                background: var(--table-header-bg) !important;
-                color: var(--text-primary) !important;
-            }
             
-            [data-theme="dark"] #balancePaymentReportModal td {
-                color: var(--text-primary) !important;
-            }
             
             /* Fix all report modal tables comprehensively */
-            [data-theme="dark"] .modal table tbody tr td[style] {
-                background: var(--bg-card) !important;
-            }
             
             /* Ensure all inline background colors in dark mode get adjusted */
-            [data-theme="dark"] [style*="background: rgb"],
-            [data-theme="dark"] [style*="background-color: rgb"] {
-                filter: brightness(0.5) saturate(1.2);
-            }
-            
-            /* Keep text readable on filtered backgrounds */
-            [data-theme="dark"] [style*="background: rgb"] *,
-            [data-theme="dark"] [style*="background-color: rgb"] * {
-                filter: none;
-                color: var(--text-primary) !important;
-            }
-            
-            /* Fix PDF export buttons and action buttons in reports */
-            [data-theme="dark"] button[style*="background: linear-gradient"] {
-                opacity: 0.95;
-            }
-            
-            /* Ensure modal close buttons are visible */
-            [data-theme="dark"] .modal button[style*="background: #"] {
-                filter: brightness(1.1);
-            }
-        </style>
     </head>
     <body>
         <!-- Login Screen -->
@@ -6550,9 +6047,6 @@ app.get('/', (c) => {
                         <i class="fas fa-chart-pie"></i> Balance Report
                     </button>
                     <span id="userDisplay" style="font-size: 14px; color: white; font-weight: 500; margin-left: 10px;"></span>
-                    <button onclick="toggleTheme()" class="btn-primary" id="themeToggle" title="Toggle Theme" style="padding: 8px 16px; font-size: 14px; background: rgba(255,255,255,0.2); margin-left: 10px;">
-                        <i class="fas fa-moon" id="themeIcon"></i>
-                    </button>
                     <button onclick="handleLogout()" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </button>
@@ -9797,36 +9291,6 @@ Prices are subject to change without prior notice.</textarea>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
-            // Theme Management
-            function initTheme() {
-                const savedTheme = localStorage.getItem('axelguard-theme') || 'light';
-                document.documentElement.setAttribute('data-theme', savedTheme);
-                updateThemeIcon(savedTheme);
-            }
-            
-            function toggleTheme() {
-                const currentTheme = document.documentElement.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                
-                document.documentElement.setAttribute('data-theme', newTheme);
-                localStorage.setItem('axelguard-theme', newTheme);
-                updateThemeIcon(newTheme);
-            }
-            
-            function updateThemeIcon(theme) {
-                const themeIcon = document.getElementById('themeIcon');
-                if (themeIcon) {
-                    if (theme === 'dark') {
-                        themeIcon.className = 'fas fa-sun';
-                    } else {
-                        themeIcon.className = 'fas fa-moon';
-                    }
-                }
-            }
-            
-            // Initialize theme on page load
-            initTheme();
-            
             let currentPage = 'dashboard'; // Track current page
             let paymentChart = null;
             let employeeChart = null;
