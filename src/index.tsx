@@ -14342,7 +14342,7 @@ Prices are subject to change without prior notice.</textarea>
                             const day = String(saleDateObj.getDate()).padStart(2, '0');
                             const month = String(saleDateObj.getMonth() + 1).padStart(2, '0');
                             const year = saleDateObj.getFullYear();
-                            licenseRenewTime = `${day}/${month}/${year}`;
+                            licenseRenewTime = day + '/' + month + '/' + year;
                         } catch (e) {
                             console.error('Error calculating license renew time:', e);
                         }
@@ -14355,7 +14355,7 @@ Prices are subject to change without prior notice.</textarea>
                             const day = String(renewDateObj.getDate()).padStart(2, '0');
                             const month = String(renewDateObj.getMonth() + 1).padStart(2, '0');
                             const year = renewDateObj.getFullYear();
-                            licenseRenewTime = `${day}/${month}/${year}`;
+                            licenseRenewTime = day + '/' + month + '/' + year;
                         } catch (e) {
                             // Keep calculated value if formatting fails
                         }
@@ -16149,6 +16149,11 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('orderProductsList').innerHTML = products.map(item => {
                     // Check if product is MDVR Installation (should be marked as completed automatically)
                     const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
+                    
+                    // Debug logging
+                    if (isMDVRInstallation) {
+                        console.log('✅ MDVR Installation detected:', item.product_name);
+                    }
                     
                     // Match scanned devices by product name (model_name)
                     const scannedForThisProduct = scannedDevices.filter(d => 
