@@ -3959,8 +3959,12 @@ app.get('/api/inventory/activity', async (c) => {
   
   try {
     const activity = await env.DB.prepare(`
-      SELECT * FROM inventory_status_history 
-      ORDER BY changed_at DESC 
+      SELECT 
+        ish.*,
+        qc.pass_fail as qc_status
+      FROM inventory_status_history ish
+      LEFT JOIN quality_check qc ON ish.device_serial_no = qc.device_serial_no
+      ORDER BY ish.changed_at DESC 
       LIMIT 100
     `).all();
     
@@ -7417,12 +7421,13 @@ app.get('/', (c) => {
                                         <th>Serial No</th>
                                         <th>Old Status</th>
                                         <th>New Status</th>
+                                        <th>QC Status</th>
                                         <th>Changed By</th>
                                         <th>Reason</th>
                                     </tr>
                                 </thead>
                                 <tbody id="activityTableBody">
-                                    <tr><td colspan="6" class="loading">Loading...</td></tr>
+                                    <tr><td colspan="7" class="loading">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -15663,18 +15668,42 @@ Prices are subject to change without prior notice.</textarea>
                         const activities = activityResponse.data.data;
                         
                         if (activities.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #9ca3af;">No activity yet</td></tr>';
+                            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #9ca3af;">No activity yet</td></tr>';
                         } else {
-                            tbody.innerHTML = activities.map(a => \`
-                                <tr>
-                                    <td>\${new Date(a.changed_at).toLocaleString()}</td>
-                                    <td><strong>\${a.device_serial_no}</strong></td>
-                                    <td>\${a.old_status}</td>
-                                    <td>\${a.new_status}</td>
-                                    <td>\${a.changed_by}</td>
-                                    <td>\${a.change_reason}</td>
-                                </tr>
-                            \`).join('');
+                            tbody.innerHTML = activities.map(a => {
+                                // Format date as DD/MM/YY with space and time
+                                const date = new Date(a.changed_at);
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const year = String(date.getFullYear()).slice(-2);
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                const seconds = String(date.getSeconds()).padStart(2, '0');
+                                const formattedDateTime = \`\${day}/\${month}/\${year}  \${hours}:\${minutes}:\${seconds}\`;
+                                
+                                // QC Status badge
+                                const qcStatus = a.qc_status || 'Not Tested';
+                                const qcColor = qcStatus.toLowerCase().includes('pass') ? '#10b981' : 
+                                                qcStatus.toLowerCase().includes('fail') ? '#ef4444' : '#6b7280';
+                                const qcBg = qcStatus.toLowerCase().includes('pass') ? '#d1fae5' : 
+                                             qcStatus.toLowerCase().includes('fail') ? '#fee2e2' : '#f3f4f6';
+                                
+                                return \`
+                                    <tr>
+                                        <td style="white-space: nowrap;">\${formattedDateTime}</td>
+                                        <td><strong>\${a.device_serial_no}</strong></td>
+                                        <td>\${a.old_status}</td>
+                                        <td>\${a.new_status}</td>
+                                        <td>
+                                            <span style="background: \${qcBg}; color: \${qcColor}; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                                                \${qcStatus}
+                                            </span>
+                                        </td>
+                                        <td>\${a.changed_by}</td>
+                                        <td>\${a.change_reason}</td>
+                                    </tr>
+                                \`;
+                            }).join('');
                         }
                     }
                 } catch (error) {
