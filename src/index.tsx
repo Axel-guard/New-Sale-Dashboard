@@ -4612,20 +4612,265 @@ app.get('/', (c) => {
             }
             
             .login-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                min-height: 100vh;
+                background: linear-gradient(to right, #E8E8E8 0%, #F5F5F5 50%, #FFFFFF 100%);
+            }
+            
+            .left-side {
+                position: relative;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                min-height: 100vh;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                overflow: hidden;
+            }
+            
+            .characters-container {
+                position: relative;
+                width: 500px;
+                height: 420px;
+            }
+            
+            .character {
+                position: absolute;
+                bottom: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .orange-character {
+                width: 200px;
+                height: 150px;
+                background: linear-gradient(180deg, #FF9F6E 0%, #FF8654 100%);
+                border-radius: 250px 250px 0 0;
+                left: 0;
+                z-index: 3;
+            }
+            
+            .orange-character::after {
+                content: '';
+                position: absolute;
+                bottom: 50px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 60px;
+                height: 30px;
+                border: 3px solid #1F2937;
+                border-top: none;
+                border-radius: 0 0 50px 50px;
+            }
+            
+            .purple-character {
+                width: 160px;
+                height: 380px;
+                background: linear-gradient(180deg, #8B5CF6 0%, #7C3AED 100%);
+                border-radius: 30px;
+                left: 130px;
+                z-index: 1;
+            }
+            
+            .black-character {
+                width: 140px;
+                height: 260px;
+                background: linear-gradient(180deg, #4B5563 0%, #374151 100%);
+                border-radius: 28px;
+                left: 250px;
+                z-index: 2;
+            }
+            
+            .yellow-character {
+                width: 100px;
+                height: 240px;
+                background: linear-gradient(180deg, #F4D03F 0%, #F7C815 100%);
+                border-radius: 50px;
+                left: 370px;
+                z-index: 3;
+            }
+            
+            .yellow-character::after {
+                content: '';
+                position: absolute;
+                bottom: 130px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 50px;
+                height: 3px;
+                background: #1F2937;
+            }
+            
+            .eyes {
+                position: absolute;
+                display: flex;
+                gap: 25px;
+            }
+            
+            .orange-character .eyes { top: 40px; gap: 32px; left: 50%; transform: translateX(-50%); }
+            .purple-character .eyes { top: 70px; gap: 32px; left: 50%; transform: translateX(-50%); }
+            .black-character .eyes { top: 45px; gap: 28px; left: 50%; transform: translateX(-50%); }
+            .yellow-character .eyes { top: 65px; gap: 26px; left: 50%; transform: translateX(-50%); }
+            
+            .eye {
+                width: 45px;
+                height: 45px;
+                background: white;
+                border-radius: 50%;
+                position: relative;
+                overflow: hidden;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                border: 3px solid #1F2937;
+            }
+            
+            .orange-character .eye { width: 40px; height: 40px; }
+            .black-character .eye { width: 42px; height: 42px; }
+            .yellow-character .eye { width: 43px; height: 43px; }
+            
+            .pupil {
+                width: 18px;
+                height: 18px;
+                background: #1f2937;
+                border-radius: 50%;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                transition: transform 0.1s ease;
+            }
+            
+            .orange-character .pupil { width: 16px; height: 16px; }
+            .black-character .pupil { width: 16px; height: 16px; }
+            .yellow-character .pupil { width: 17px; height: 17px; }
+            
+            @keyframes blink {
+                0%, 90%, 100% { transform: scaleY(1); }
+                95% { transform: scaleY(0.1); }
+            }
+            
+            .eye.blink {
+                animation: blink 0.3s ease-in-out;
+            }
+            
+            .right-side {
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                padding: 40px;
+                padding-left: 80px;
             }
             
             .login-box {
                 background: white;
-                padding: 40px;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                padding: 60px 54px;
+                border-radius: 18px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.08);
                 width: 100%;
-                max-width: 420px;
+                max-width: 504px;
+            }
+            
+            .login-box input {
+                width: 100%;
+                padding: 16px 18px !important;
+                font-size: 16px !important;
+                border: none;
+                border-bottom: 2px solid #E5E7EB;
+                border-radius: 0;
+                box-sizing: border-box;
+                transition: all 0.2s;
+                background: transparent;
+            }
+            
+            .login-box input:focus {
+                outline: none;
+                border-bottom-color: #667eea;
+            }
+            
+            .password-input-wrapper {
+                position: relative;
+                display: flex;
+                align-items: center;
+            }
+            
+            .password-toggle {
+                position: absolute;
+                right: 10px;
+                cursor: pointer;
+                color: #6B7280;
+                font-size: 18px;
+                transition: color 0.2s;
+                background: none;
+                border: none;
+                padding: 5px;
+            }
+            
+            .password-toggle:hover {
+                color: #374151;
+            }
+            
+            .remember-forgot {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin: 20px 0;
+            }
+            
+            .remember-me {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 14px;
+                color: #374151;
+                cursor: pointer;
+            }
+            
+            .forgot-password {
+                font-size: 14px;
+                color: #667eea;
+                text-decoration: none;
+            }
+            
+            .forgot-password:hover {
+                text-decoration: underline;
+            }
+            
+            .google-login-btn {
+                width: 100%;
+                padding: 12px;
+                margin-top: 16px;
+                background: white;
+                border: 2px solid #E5E7EB;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 600;
+                color: #374151;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+            }
+            
+            .google-login-btn:hover {
+                background: #F9FAFB;
+                border-color: #D1D5DB;
+            }
+            
+            .signup-link {
+                text-align: center;
+                margin-top: 24px;
+                font-size: 14px;
+                color: #6B7280;
+            }
+            
+            .signup-link a {
+                color: #667eea;
+                text-decoration: none;
+                font-weight: 600;
+            }
+            
+            .signup-link a:hover {
+                text-decoration: underline;
             }
             
             .top-bar {
@@ -5369,28 +5614,103 @@ app.get('/', (c) => {
     <body>
         <!-- Login Screen -->
         <div id="loginScreen" class="login-container">
-            <div class="login-box">
-                <div style="text-align: center; margin-bottom: 30px;">
-                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                        <img src="/static/logo-blue.jpg" alt="AxelGuard" style="height: 50px; width: auto;">
-                        <h1 style="color: #667eea; font-size: 32px;">AxelGuard</h1>
+            <!-- Left Side with Animated Characters -->
+            <div class="left-side">
+                <div class="characters-container">
+                    <!-- Orange Character -->
+                    <div class="character orange-character">
+                        <div class="eyes">
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                        </div>
                     </div>
-                    <p style="color: #6b7280; font-size: 14px;">Sign in to access your dashboard</p>
+                    
+                    <!-- Purple Character -->
+                    <div class="character purple-character">
+                        <div class="eyes">
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Black Character -->
+                    <div class="character black-character">
+                        <div class="eyes">
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Yellow Character -->
+                    <div class="character yellow-character">
+                        <div class="eyes">
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <form id="loginForm" onsubmit="handleLogin(event)">
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" id="loginUsername" required placeholder="Enter your username" autocomplete="username">
+            </div>
+            
+            <!-- Right Side with Login Form -->
+            <div class="right-side">
+                <div class="login-box">
+                    <div style="margin-bottom: 45px;">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px;">
+                            <img src="/static/logo-blue.jpg" alt="AxelGuard" style="height: 45px; width: auto;">
+                            <h2 style="color: #7c8aed; font-size: 28px; margin: 0; font-weight: 700;">AxelGuard</h2>
+                        </div>
+                        <h1 style="color: #1F2937; font-size: 42px; margin: 0 0 12px 0; font-weight: 700;">Welcome back!</h1>
+                        <p style="color: #9CA3AF; font-size: 16px; margin: 0; font-weight: 400;">Please enter your details</p>
                     </div>
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="loginPassword" required placeholder="Enter your password" autocomplete="current-password">
+                    <form id="loginForm" onsubmit="handleLogin(event)">
+                        <div class="form-group" style="margin-bottom: 28px;">
+                            <label>Email</label>
+                            <input type="email" id="loginUsername" required placeholder="Enter your email" autocomplete="email">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label>Password</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="loginPassword" required placeholder="Enter your password" autocomplete="current-password">
+                                <button type="button" class="password-toggle" onclick="togglePasswordVisibility()">
+                                    <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="remember-forgot">
+                            <label class="remember-me">
+                                <input type="checkbox" id="rememberMe" style="width: auto; margin: 0;">
+                                <span>Remember for 30 days</span>
+                            </label>
+                            <a href="#" class="forgot-password">Forgot password</a>
+                        </div>
+                        <div id="loginError" style="color: #ef4444; font-size: 15px; margin-bottom: 20px; display: none; padding: 14px; background: #fef2f2; border-radius: 7px; border-left: 3px solid #ef4444;"></div>
+                        <button type="submit" class="btn-primary" style="width: 100%;">
+                            Log in
+                        </button>
+                        <button type="button" class="google-login-btn">
+                            <i class="fab fa-google"></i> Log in with Google
+                        </button>
+                    </form>
+                    <div class="signup-link">
+                        Don't have an account? <a href="#">Sign Up</a>
                     </div>
-                    <div id="loginError" style="color: #dc2626; font-size: 14px; margin: 10px 0; display: none;"></div>
-                    <button type="submit" class="btn-primary" style="width: 100%; padding: 12px;">
-                        <i class="fas fa-sign-in-alt"></i> Sign In
-                    </button>
-                </form>
+                </div>
             </div>
         </div>
 
@@ -12561,6 +12881,65 @@ Prices are subject to change without prior notice.</textarea>
             // ============================================
             let currentUser = null;
             
+            // Eye-tracking animation for login characters
+            document.addEventListener('mousemove', (e) => {
+                const characters = document.querySelectorAll('.character');
+                
+                characters.forEach(character => {
+                    const pupils = character.querySelectorAll('.pupil');
+                    const eyes = character.querySelectorAll('.eye');
+                    
+                    eyes.forEach((eye, index) => {
+                        const eyeRect = eye.getBoundingClientRect();
+                        const eyeCenterX = eyeRect.left + eyeRect.width / 2;
+                        const eyeCenterY = eyeRect.top + eyeRect.height / 2;
+                        
+                        const angle = Math.atan2(e.clientY - eyeCenterY, e.clientX - eyeCenterX);
+                        const distance = Math.min(8, Math.sqrt(Math.pow(e.clientX - eyeCenterX, 2) + Math.pow(e.clientY - eyeCenterY, 2)) / 20);
+                        
+                        const pupilX = Math.cos(angle) * distance;
+                        const pupilY = Math.sin(angle) * distance;
+                        
+                        pupils[index].style.transform = 'translate(calc(-50% + ' + pupilX + 'px), calc(-50% + ' + pupilY + 'px))';
+                    });
+                });
+            });
+            
+            // Blinking animation for characters
+            function addBlinkAnimation() {
+                const eyes = document.querySelectorAll('.eye');
+                
+                setInterval(() => {
+                    eyes.forEach(eye => {
+                        if (Math.random() > 0.7) {
+                            eye.classList.add('blink');
+                            setTimeout(() => {
+                                eye.classList.remove('blink');
+                            }, 300);
+                        }
+                    });
+                }, 3000);
+            }
+            
+            // Start blinking when page loads
+            window.addEventListener('load', addBlinkAnimation);
+            
+            // Toggle password visibility
+            function togglePasswordVisibility() {
+                const passwordInput = document.getElementById('loginPassword');
+                const toggleIcon = document.getElementById('passwordToggleIcon');
+                
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    toggleIcon.classList.remove('fa-eye');
+                    toggleIcon.classList.add('fa-eye-slash');
+                } else {
+                    passwordInput.type = 'password';
+                    toggleIcon.classList.remove('fa-eye-slash');
+                    toggleIcon.classList.add('fa-eye');
+                }
+            }
+            
             // Database-based login using API
             async function handleLogin(event) {
                 event.preventDefault();
@@ -12628,10 +13007,24 @@ Prices are subject to change without prior notice.</textarea>
                 console.log('Logging out...');
                 currentUser = null;
                 sessionStorage.removeItem('user');
-                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('loginScreen').style.display = 'grid';
                 document.getElementById('mainDashboard').style.display = 'none';
                 document.getElementById('loginUsername').value = '';
                 document.getElementById('loginPassword').value = '';
+                
+                // Reset login button
+                const submitBtn = document.querySelector('#loginForm button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Log in';
+                }
+                
+                // Clear any error messages
+                const errorDiv = document.getElementById('loginError');
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.textContent = '';
+                }
             }
             
             function showDashboard() {
