@@ -18770,6 +18770,12 @@ Prices are subject to change without prior notice.</textarea>
             
             // Show quick login modal with user list
             window.showMagicLinkModal = async function() {
+                // Don't show modal if user is already logged in
+                if (currentUser) {
+                    console.log('User already logged in, ignoring modal open request');
+                    return;
+                }
+                
                 const modal = document.getElementById('magicLinkModal');
                 const errorDiv = document.getElementById('magicLinkError');
                 const userListContainer = document.getElementById('userListContainer');
