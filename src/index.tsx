@@ -14256,8 +14256,8 @@ Prices are subject to change without prior notice.</textarea>
                                 <td>\${formatDate(item.in_date)}</td>
                                 <td>\${item.customer_name || '-'}</td>
                                 <td>\${formatDate(item.dispatch_date)}</td>
-                                <td>\${item.cust_code || item.order_id || '-'}</td>
-                                <td>\${item.dispatch_order_id || '-'}</td>
+                                <td>\${item.cust_code || '-'}</td>
+                                <td>\${item.order_id || '-'}</td>
                                 <td>
                                     <button class="btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="viewDevice('\${item.device_serial_no}')">
                                         <i class="fas fa-eye"></i> View
