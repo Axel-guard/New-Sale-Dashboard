@@ -718,7 +718,12 @@ webapp/
 
 ## Authentication
 
-### 🔐 Login System (FIXED - 2025-11-15)
+### 🔐 Login System with Magic Link (NEW - 2025-11-20)
+
+**Two Ways to Login:**
+
+1. **Traditional Login** - Username and password
+2. **Magic Link** - Passwordless login via email (NEW!)
 
 **Production Database Authentication**
 
@@ -726,7 +731,7 @@ The login system uses Cloudflare D1 database with base64-encoded passwords.
 
 **Production Credentials (All users password: admin123):**
 1. **Admin Account:**
-   - Username: `admin`
+   - Email/Username: `info@axel-guard.com` or `admin`
    - Password: `admin123`
    - Role: Administrator (full access)
 
@@ -734,6 +739,26 @@ The login system uses Cloudflare D1 database with base64-encoded passwords.
    - Username: `mandeep` | Password: `admin123` | Name: Mandeep Samal
    - Username: `priyanshu` | Password: `admin123` | Name: Priyanshu Mishra
    - Username: `vikash` | Password: `admin123` | Name: Vikash Yadav
+
+### 🔗 Magic Link Login (Passwordless)
+
+**How to Use:**
+1. Click the **"Login with Email"** button on the login page
+2. Enter your registered email address (e.g., `info@axel-guard.com`)
+3. Click **"Send Magic Link"**
+4. In development, the magic link will be displayed in the response (demo mode)
+5. Click the link to login automatically - no password needed!
+
+**How It Works:**
+- Magic links are valid for **15 minutes** from generation
+- Each link can only be used **once** (single-use tokens)
+- Links expire automatically after use or timeout
+- Secure token-based authentication with database verification
+
+**For Production:**
+- In production, magic links would be sent via email (SendGrid, Mailgun, etc.)
+- Users click the link in their email to login instantly
+- No password to remember - just email access verification
 
 **Key Features:**
 1. ✅ **API-based authentication** - Secure database validation
