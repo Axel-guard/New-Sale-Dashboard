@@ -18770,9 +18770,17 @@ Prices are subject to change without prior notice.</textarea>
             
             // Show quick login modal with user list
             window.showMagicLinkModal = async function() {
-                // Don't show modal if user is already logged in
-                if (currentUser) {
+                // Don't show modal if dashboard is visible (user is already logged in)
+                const dashboard = document.getElementById('mainDashboard');
+                const loginScreen = document.getElementById('loginScreen');
+                if (dashboard && dashboard.style.display !== 'none') {
                     console.log('User already logged in, ignoring modal open request');
+                    return;
+                }
+                
+                // Only show modal if we're on the login screen
+                if (!loginScreen || loginScreen.style.display === 'none') {
+                    console.log('Not on login screen, ignoring modal open request');
                     return;
                 }
                 
