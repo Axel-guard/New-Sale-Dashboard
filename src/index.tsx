@@ -4771,6 +4771,48 @@ app.get('/', (c) => {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <style>
+            :root {
+                /* Light Theme Colors */
+                --bg-primary: #f0f2f5;
+                --bg-secondary: #ffffff;
+                --bg-card: #ffffff;
+                --bg-sidebar: #ffffff;
+                --bg-topbar: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                --text-primary: #1f2937;
+                --text-secondary: #6b7280;
+                --text-muted: #9ca3af;
+                --border-color: #e5e7eb;
+                --shadow: rgba(0,0,0,0.08);
+                --shadow-lg: rgba(0,0,0,0.1);
+                --hover-bg: #f3f4f6;
+                --active-bg: #eef2ff;
+                --input-bg: #ffffff;
+                --input-border: #e5e7eb;
+                --table-header-bg: #f9fafb;
+                --table-border: #e5e7eb;
+            }
+            
+            [data-theme="dark"] {
+                /* Dark Theme Colors */
+                --bg-primary: #111827;
+                --bg-secondary: #1f2937;
+                --bg-card: #1f2937;
+                --bg-sidebar: #1f2937;
+                --bg-topbar: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+                --text-primary: #f9fafb;
+                --text-secondary: #d1d5db;
+                --text-muted: #9ca3af;
+                --border-color: #374151;
+                --shadow: rgba(0,0,0,0.3);
+                --shadow-lg: rgba(0,0,0,0.5);
+                --hover-bg: #374151;
+                --active-bg: #312e81;
+                --input-bg: #374151;
+                --input-border: #4b5563;
+                --table-header-bg: #374151;
+                --table-border: #4b5563;
+            }
+            
             * {
                 margin: 0;
                 padding: 0;
@@ -4779,7 +4821,9 @@ app.get('/', (c) => {
             
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: #f0f2f5;
+                background: var(--bg-primary);
+                color: var(--text-primary);
+                transition: background-color 0.3s ease, color 0.3s ease;
             }
             
             .login-container {
@@ -5780,6 +5824,126 @@ app.get('/', (c) => {
                 background: #e5e7eb;
                 margin: 8px 0;
             }
+            
+            /* Theme-aware Styles - Apply CSS Variables */
+            .top-bar {
+                background: var(--bg-topbar);
+            }
+            
+            .sidebar {
+                background: var(--bg-sidebar);
+                box-shadow: 2px 0 10px var(--shadow-lg);
+            }
+            
+            .card {
+                background: var(--bg-card);
+                box-shadow: 0 2px 8px var(--shadow);
+            }
+            
+            .card-title {
+                color: var(--text-primary);
+            }
+            
+            .sidebar-item {
+                border-bottom: 1px solid var(--border-color);
+                color: var(--text-primary);
+            }
+            
+            .sidebar-item:hover {
+                background: var(--hover-bg);
+            }
+            
+            .sidebar-item.active {
+                background: var(--active-bg);
+            }
+            
+            .sidebar-parent {
+                border-bottom: 1px solid var(--border-color);
+                color: var(--text-primary);
+            }
+            
+            .sidebar-parent:hover {
+                background: var(--hover-bg);
+            }
+            
+            .sidebar-children {
+                background: var(--table-header-bg);
+            }
+            
+            .sidebar-child {
+                border-bottom: 1px solid var(--border-color);
+                color: var(--text-secondary);
+            }
+            
+            .sidebar-child:hover {
+                background: var(--hover-bg);
+                color: var(--text-primary);
+            }
+            
+            .sidebar-child.active {
+                background: var(--active-bg);
+            }
+            
+            .form-group label {
+                color: var(--text-primary);
+            }
+            
+            .form-group input,
+            .form-group select,
+            .form-group textarea {
+                background: var(--input-bg);
+                border: 1px solid var(--input-border);
+                color: var(--text-primary);
+            }
+            
+            thead {
+                background: var(--table-header-bg);
+            }
+            
+            th {
+                color: var(--text-primary);
+                border-bottom: 2px solid var(--border-color);
+            }
+            
+            td {
+                border-bottom: 1px solid var(--border-color);
+                color: var(--text-primary);
+            }
+            
+            tbody tr:hover {
+                background: var(--hover-bg);
+            }
+            
+            .modal-content {
+                background-color: var(--bg-card);
+                color: var(--text-primary);
+            }
+            
+            .dropdown-content {
+                background-color: var(--bg-card);
+                box-shadow: 0 8px 16px var(--shadow-lg);
+            }
+            
+            .dropdown-item {
+                color: var(--text-primary);
+            }
+            
+            .dropdown-item:hover {
+                background: var(--hover-bg);
+            }
+            
+            .dropdown-divider {
+                background: var(--border-color);
+            }
+            
+            /* Theme Toggle Button Animation */
+            #themeToggle {
+                transition: all 0.3s ease;
+            }
+            
+            #themeToggle:hover {
+                transform: rotate(20deg) scale(1.1);
+            }
         </style>
     </head>
     <body>
@@ -5931,6 +6095,9 @@ app.get('/', (c) => {
                         <i class="fas fa-chart-pie"></i> Balance Report
                     </button>
                     <span id="userDisplay" style="font-size: 14px; color: white; font-weight: 500; margin-left: 10px;"></span>
+                    <button onclick="toggleTheme()" class="btn-primary" id="themeToggle" title="Toggle Theme" style="padding: 8px 16px; font-size: 14px; background: rgba(255,255,255,0.2); margin-left: 10px;">
+                        <i class="fas fa-moon" id="themeIcon"></i>
+                    </button>
                     <button onclick="handleLogout()" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </button>
@@ -9175,6 +9342,36 @@ Prices are subject to change without prior notice.</textarea>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+            // Theme Management
+            function initTheme() {
+                const savedTheme = localStorage.getItem('axelguard-theme') || 'light';
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                updateThemeIcon(savedTheme);
+            }
+            
+            function toggleTheme() {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('axelguard-theme', newTheme);
+                updateThemeIcon(newTheme);
+            }
+            
+            function updateThemeIcon(theme) {
+                const themeIcon = document.getElementById('themeIcon');
+                if (themeIcon) {
+                    if (theme === 'dark') {
+                        themeIcon.className = 'fas fa-sun';
+                    } else {
+                        themeIcon.className = 'fas fa-moon';
+                    }
+                }
+            }
+            
+            // Initialize theme on page load
+            initTheme();
+            
             let currentPage = 'dashboard'; // Track current page
             let paymentChart = null;
             let employeeChart = null;
