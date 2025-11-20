@@ -14227,16 +14227,16 @@ Prices are subject to change without prior notice.</textarea>
                         let displayStatus = item.status;
                         if (displayStatus === 'Quality Check') displayStatus = 'QC Pending';
                         
-                        // QC Result badge styling
+                        // QC Result badge styling (teal for Pass, red for Fail)
                         let qcBadge = '-';
                         if (item.qc_result) {
-                            // Remove "QC " prefix if present (e.g., "QC Pass" -> "Pass")
-                            const displayQC = item.qc_result.replace(/^QC\s+/i, '');
+                            // Keep full text "QC Pass" or "QC Fail"
+                            const displayQC = item.qc_result;
                             const qcStyles = {
-                                'Pass': 'background: #d1fae5; color: #065f46;',
-                                'Fail': 'background: #fee2e2; color: #991b1b;'
+                                'QC Pass': 'background: #14b8a6; color: white;',
+                                'QC Fail': 'background: #ef4444; color: white;'
                             };
-                            qcBadge = \`<span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${qcStyles[displayQC] || ''}">\${displayQC}</span>\`;
+                            qcBadge = \`<span style="padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; \${qcStyles[displayQC] || 'background: #14b8a6; color: white;'}">\${displayQC}</span>\`;
                         }
                         
                         return \`
