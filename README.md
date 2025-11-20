@@ -740,25 +740,31 @@ The login system uses Cloudflare D1 database with base64-encoded passwords.
    - Username: `priyanshu` | Password: `admin123` | Name: Priyanshu Mishra
    - Username: `vikash` | Password: `admin123` | Name: Vikash Yadav
 
-### 🔗 Magic Link Login (Passwordless)
+### 🚀 Quick Login (Employee Selector)
 
 **How to Use:**
 1. Click the **"Login with Email"** button on the login page
-2. Enter your registered email address (e.g., `info@axel-guard.com`)
-3. Click **"Send Magic Link"**
-4. In development, the magic link will be displayed in the response (demo mode)
-5. Click the link to login automatically - no password needed!
+2. A modal appears showing **all active employees** with their:
+   - Avatar with initials
+   - Full name
+   - Email address
+   - Role badge (Admin/Employee)
+3. **Click on any employee** to login instantly - no password needed!
+4. Automatically redirects to dashboard
 
 **How It Works:**
-- Magic links are valid for **15 minutes** from generation
-- Each link can only be used **once** (single-use tokens)
-- Links expire automatically after use or timeout
-- Secure token-based authentication with database verification
+- Fetches all active users from database via `/api/auth/users`
+- Displays user cards with visual role indicators
+- One-click login using `/api/auth/quick-login` endpoint
+- Secure authentication with user ID verification
+- Perfect for trusted environments and internal teams
 
-**For Production:**
-- In production, magic links would be sent via email (SendGrid, Mailgun, etc.)
-- Users click the link in their email to login instantly
-- No password to remember - just email access verification
+**Features:**
+- ✅ **Visual User Selection** - See all employees at a glance
+- ✅ **Role-Based Styling** - Admin (red badge) vs Employee (blue badge)
+- ✅ **Avatar Initials** - Colorful avatars with user initials
+- ✅ **Instant Login** - No password typing required
+- ✅ **Responsive Design** - Works on all devices
 
 **Key Features:**
 1. ✅ **API-based authentication** - Secure database validation
