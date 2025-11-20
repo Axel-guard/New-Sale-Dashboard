@@ -8666,7 +8666,9 @@ app.get('/', (c) => {
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Search Customer (Code or Mobile) *</label>
-                                <input type="text" id="quotationCustomerSearch" placeholder="Enter customer code or mobile number" onblur="fetchCustomerForQuotation(this.value)">
+                                <input type="text" id="quotationCustomerSearch" placeholder="Enter customer code or mobile number" 
+                                       onkeypress="if(event.key==='Enter'){event.preventDefault();fetchCustomerForQuotation(this.value);}"
+                                       onblur="fetchCustomerForQuotation(this.value)">
                                 <small id="quotationCustomerFetchStatus" style="display: none; font-size: 11px;"></small>
                             </div>
                         </div>
