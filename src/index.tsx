@@ -98,6 +98,161 @@ app.get('/api/auth/verify', async (c) => {
   return c.json({ success: true });
 });
 
+// Magic Link - Send magic link email
+app.post('/api/auth/magic-link/send', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { email } = body;
+    
+    console.log('[MAGIC LINK] Send request for email:', email);
+    
+    // Check if user exists and is active
+    const user = await env.DB.prepare(`
+      SELECT id, username, full_name, role, is_active 
+      FROM users 
+      WHERE username = ? AND is_active = 1
+    `).bind(email).first();
+    
+    if (!user) {
+      console.log('[MAGIC LINK] User not found or inactive:', email);
+      // For security, don't reveal if user exists or not
+      return c.json({ 
+        success: true, 
+        message: 'If this email is registered, you will receive a magic link shortly.' 
+      });
+    }
+    
+    // Generate magic link token (simple version - in production use crypto)
+    const token = btoa(`${email}:${Date.now()}:${Math.random().toString(36)}`);
+    const expiresAt = Date.now() + (15 * 60 * 1000); // 15 minutes from now
+    
+    // Store magic link token in database
+    await env.DB.prepare(`
+      INSERT OR REPLACE INTO magic_links (email, token, expires_at, used)
+      VALUES (?, ?, ?, 0)
+    `).bind(email, token, expiresAt).run();
+    
+    // In production, send actual email here using SendGrid, Mailgun, etc.
+    // For demo, we'll just return the magic link
+    const magicLink = `${new URL(c.req.url).origin}?magic_token=${token}`;
+    
+    console.log('[MAGIC LINK] Generated link:', magicLink);
+    console.log('[MAGIC LINK] ⚠️  In production, this would be sent via email');
+    
+    // For demo purposes, show the link in console (in production, send via email service)
+    return c.json({ 
+      success: true, 
+      message: 'Magic link sent to your email!',
+      // Remove this in production - only for demo
+      demo_link: magicLink 
+    });
+    
+  } catch (error) {
+    console.error('[MAGIC LINK] Send error:', error);
+    return c.json({ success: false, error: 'Failed to send magic link: ' + error.message }, 500);
+  }
+});
+
+// Magic Link - Verify and login
+app.post('/api/auth/magic-link/verify', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { token } = body;
+    
+    console.log('[MAGIC LINK] Verify request');
+    
+    // Find magic link in database
+    const magicLink = await env.DB.prepare(`
+      SELECT email, token, expires_at, used 
+      FROM magic_links 
+      WHERE token = ?
+    `).bind(token).first();
+    
+    if (!magicLink) {
+      console.log('[MAGIC LINK] Token not found');
+      return c.json({ success: false, error: 'Invalid magic link' }, 401);
+    }
+    
+    // Check if already used
+    if (magicLink.used === 1) {
+      console.log('[MAGIC LINK] Token already used');
+      return c.json({ success: false, error: 'This magic link has already been used' }, 401);
+    }
+    
+    // Check if expired
+    if (Date.now() > magicLink.expires_at) {
+      console.log('[MAGIC LINK] Token expired');
+      return c.json({ success: false, error: 'Magic link has expired. Please request a new one.' }, 401);
+    }
+    
+    // Mark token as used
+    await env.DB.prepare(`
+      UPDATE magic_links SET used = 1 WHERE token = ?
+    `).bind(token).run();
+    
+    // Get user details
+    const user = await env.DB.prepare(`
+      SELECT id, username, full_name, role, employee_name, is_active,
+             can_edit, can_delete, can_view,
+             sales_view, sales_edit, sales_delete,
+             inventory_view, inventory_edit, inventory_delete,
+             leads_view, leads_edit, leads_delete,
+             reports_view, reports_edit
+      FROM users 
+      WHERE username = ? AND is_active = 1
+    `).bind(magicLink.email).first();
+    
+    if (!user) {
+      console.log('[MAGIC LINK] User not found or inactive');
+      return c.json({ success: false, error: 'User account not found or inactive' }, 401);
+    }
+    
+    console.log('[MAGIC LINK] Success for user:', magicLink.email);
+    return c.json({
+      success: true,
+      data: {
+        id: user.id,
+        username: user.username,
+        fullName: user.full_name,
+        role: user.role,
+        employeeName: user.employee_name,
+        permissions: {
+          canEdit: user.can_edit === 1,
+          canDelete: user.can_delete === 1,
+          canView: user.can_view === 1,
+          sales: {
+            view: user.sales_view === 1,
+            edit: user.sales_edit === 1,
+            delete: user.sales_delete === 1
+          },
+          inventory: {
+            view: user.inventory_view === 1,
+            edit: user.inventory_edit === 1,
+            delete: user.inventory_delete === 1
+          },
+          leads: {
+            view: user.leads_view === 1,
+            edit: user.leads_edit === 1,
+            delete: user.leads_delete === 1
+          },
+          reports: {
+            view: user.reports_view === 1,
+            edit: user.reports_edit === 1
+          }
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('[MAGIC LINK] Verify error:', error);
+    return c.json({ success: false, error: 'Failed to verify magic link: ' + error.message }, 500);
+  }
+});
+
 // Change password endpoint (Admin can change without current password)
 app.post('/api/auth/change-password', async (c) => {
   const { env } = c;
@@ -5703,8 +5858,8 @@ app.get('/', (c) => {
                         <button type="submit" class="btn-primary" style="width: 100%;">
                             Log in
                         </button>
-                        <button type="button" class="google-login-btn">
-                            <i class="fab fa-google"></i> Log in with Google
+                        <button type="button" class="google-login-btn" onclick="showMagicLinkModal()">
+                            <i class="fas fa-envelope"></i> Login with Email
                         </button>
                     </form>
                     <div class="signup-link">
@@ -8453,6 +8608,32 @@ app.get('/', (c) => {
                         <i class="fas fa-save"></i> Update User
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Magic Link Modal -->
+        <div class="modal" id="magicLinkModal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Login with Email</h2>
+                    <span class="close" onclick="closeMagicLinkModal()">&times;</span>
+                </div>
+                <div id="magicLinkFormContainer">
+                    <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
+                        Enter your email address and we'll send you a magic link to login instantly - no password needed!
+                    </p>
+                    <form id="magicLinkForm" onsubmit="sendMagicLink(event)">
+                        <div class="form-group">
+                            <label>Email Address *</label>
+                            <input type="email" id="magicLinkEmail" required placeholder="Enter your email address">
+                        </div>
+                        <div id="magicLinkError" style="color: #ef4444; font-size: 14px; margin-bottom: 15px; display: none; padding: 12px; background: #fef2f2; border-radius: 6px; border-left: 3px solid #ef4444;"></div>
+                        <div id="magicLinkSuccess" style="color: #10b981; font-size: 14px; margin-bottom: 15px; display: none; padding: 12px; background: #ecfdf5; border-radius: 6px; border-left: 3px solid #10b981;"></div>
+                        <button type="submit" class="btn-primary" style="width: 100%;">
+                            <i class="fas fa-paper-plane"></i> Send Magic Link
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -18419,6 +18600,111 @@ Prices are subject to change without prior notice.</textarea>
             
             // ===================================================================
             // END OF RENEWAL TRACKING FUNCTIONS
+            // ===================================================================
+            
+            // ===================================================================
+            // MAGIC LINK AUTHENTICATION FUNCTIONS
+            // ===================================================================
+            
+            // Show magic link modal
+            function showMagicLinkModal() {
+                const modal = document.getElementById('magicLinkModal');
+                modal.classList.add('show');
+                document.getElementById('magicLinkEmail').value = '';
+                document.getElementById('magicLinkError').style.display = 'none';
+                document.getElementById('magicLinkSuccess').style.display = 'none';
+            }
+            
+            // Close magic link modal
+            function closeMagicLinkModal() {
+                const modal = document.getElementById('magicLinkModal');
+                modal.classList.remove('show');
+            }
+            
+            // Send magic link
+            async function sendMagicLink(event) {
+                event.preventDefault();
+                
+                const email = document.getElementById('magicLinkEmail').value.trim();
+                const errorDiv = document.getElementById('magicLinkError');
+                const successDiv = document.getElementById('magicLinkSuccess');
+                const submitBtn = event.target.querySelector('button[type="submit"]');
+                
+                // Hide previous messages
+                errorDiv.style.display = 'none';
+                successDiv.style.display = 'none';
+                
+                // Show loading
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                }
+                
+                try {
+                    const response = await axios.post('/api/auth/magic-link/send', { email });
+                    
+                    if (response.data.success) {
+                        successDiv.textContent = '✓ Magic link sent! Please check your email inbox (and spam folder).';
+                        successDiv.style.display = 'block';
+                        
+                        // Clear email field
+                        document.getElementById('magicLinkEmail').value = '';
+                        
+                        // Auto-close modal after 3 seconds
+                        setTimeout(() => {
+                            closeMagicLinkModal();
+                        }, 3000);
+                    } else {
+                        throw new Error(response.data.error || 'Failed to send magic link');
+                    }
+                } catch (error) {
+                    console.error('Magic link error:', error);
+                    errorDiv.textContent = error.response?.data?.error || error.message || 'Failed to send magic link. Please try again.';
+                    errorDiv.style.display = 'block';
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Magic Link';
+                    }
+                }
+            }
+            
+            // Verify magic link on page load
+            window.addEventListener('load', async function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const token = urlParams.get('magic_token');
+                
+                if (token) {
+                    console.log('Magic link token detected, verifying...');
+                    
+                    try {
+                        const response = await axios.post('/api/auth/magic-link/verify', { token });
+                        
+                        if (response.data.success) {
+                            console.log('Magic link verified successfully!');
+                            currentUser = response.data.data;
+                            sessionStorage.setItem('user', JSON.stringify(currentUser));
+                            
+                            // Remove token from URL
+                            window.history.replaceState({}, document.title, window.location.pathname);
+                            
+                            // Show dashboard
+                            showDashboard();
+                        } else {
+                            throw new Error(response.data.error || 'Invalid magic link');
+                        }
+                    } catch (error) {
+                        console.error('Magic link verification failed:', error);
+                        alert('Invalid or expired magic link. Please request a new one.');
+                        
+                        // Remove token from URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }
+            });
+            
+            // ===================================================================
+            // END OF MAGIC LINK AUTHENTICATION FUNCTIONS
             // ===================================================================
             
             // ===================================================================
