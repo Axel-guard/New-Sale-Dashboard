@@ -6249,6 +6249,156 @@ app.get('/', (c) => {
             [data-theme="dark"] .nested-table td {
                 color: var(--text-primary) !important;
             }
+            
+            /* Fix modal footers and action buttons in dark mode */
+            [data-theme="dark"] .modal-content button {
+                color: white;
+            }
+            
+            [data-theme="dark"] .modal-content .btn-primary,
+            [data-theme="dark"] .modal-content button[style*="background"] {
+                color: white !important;
+            }
+            
+            /* Fix report modals with specific backgrounds */
+            [data-theme="dark"] div[style*="background: white"] {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] div[style*="background: #fff"],
+            [data-theme="dark"] div[style*="background: #ffffff"],
+            [data-theme="dark"] div[style*="background-color: white"],
+            [data-theme="dark"] div[style*="background-color: #fff"],
+            [data-theme="dark"] div[style*="background-color: #ffffff"] {
+                background: var(--bg-card) !important;
+            }
+            
+            /* Fix colored table cells in reports */
+            [data-theme="dark"] td[style*="background: #fef3c7"],
+            [data-theme="dark"] td[style*="background: #dbeafe"],
+            [data-theme="dark"] td[style*="background: #fce7f3"],
+            [data-theme="dark"] td[style*="background: #fef9c3"] {
+                filter: brightness(0.4) saturate(1.5);
+            }
+            
+            /* Fix light colored backgrounds in tables */
+            [data-theme="dark"] td[style*="background-color"],
+            [data-theme="dark"] th[style*="background-color"] {
+                filter: brightness(0.6);
+            }
+            
+            /* Ensure text remains visible on adjusted backgrounds */
+            [data-theme="dark"] td[style*="background-color"] *,
+            [data-theme="dark"] th[style*="background-color"] * {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Fix percentage badges and growth indicators */
+            [data-theme="dark"] td span[style*="color: #10b981"],
+            [data-theme="dark"] span[style*="color: #10b981"] {
+                color: #6ee7b7 !important;
+            }
+            
+            [data-theme="dark"] td span[style*="color: #ef4444"],
+            [data-theme="dark"] span[style*="color: #ef4444"] {
+                color: #fca5a5 !important;
+            }
+            
+            /* Fix modal action areas */
+            [data-theme="dark"] .modal-content > div[style*="margin-top"],
+            [data-theme="dark"] .modal-content > div[style*="text-align: center"] {
+                background: transparent !important;
+            }
+            
+            /* Fix close buttons in modals */
+            [data-theme="dark"] button[onclick*="close"],
+            [data-theme="dark"] button[onclick*="Close"] {
+                background: #6b7280 !important;
+                color: white !important;
+            }
+            
+            /* Employee Sales Report specific fixes */
+            [data-theme="dark"] #employeeSalesReportModal .modal-content,
+            [data-theme="dark"] #employeeSalesReportModal table {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] #employeeSalesReportModal th {
+                background: var(--table-header-bg) !important;
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] #employeeSalesReportModal td {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Model-Wise Inventory Report fixes */
+            [data-theme="dark"] #inventoryReportModal tbody tr {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] #inventoryReportModal tbody td {
+                background: var(--bg-card) !important;
+            }
+            
+            /* Dispatch Summary Report fixes */
+            [data-theme="dark"] #dispatchSummaryModal .modal-content,
+            [data-theme="dark"] #dispatchSummaryModal table {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] #dispatchSummaryModal th {
+                background: var(--table-header-bg) !important;
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] #dispatchSummaryModal td {
+                color: var(--text-primary) !important;
+                background: var(--bg-card) !important;
+            }
+            
+            /* Balance Payment Report fixes */
+            [data-theme="dark"] #balancePaymentReportModal .modal-content,
+            [data-theme="dark"] #balancePaymentReportModal table {
+                background: var(--bg-card) !important;
+            }
+            
+            [data-theme="dark"] #balancePaymentReportModal th {
+                background: var(--table-header-bg) !important;
+                color: var(--text-primary) !important;
+            }
+            
+            [data-theme="dark"] #balancePaymentReportModal td {
+                color: var(--text-primary) !important;
+            }
+            
+            /* Fix all report modal tables comprehensively */
+            [data-theme="dark"] .modal table tbody tr td[style] {
+                background: var(--bg-card) !important;
+            }
+            
+            /* Ensure all inline background colors in dark mode get adjusted */
+            [data-theme="dark"] [style*="background: rgb"],
+            [data-theme="dark"] [style*="background-color: rgb"] {
+                filter: brightness(0.5) saturate(1.2);
+            }
+            
+            /* Keep text readable on filtered backgrounds */
+            [data-theme="dark"] [style*="background: rgb"] *,
+            [data-theme="dark"] [style*="background-color: rgb"] * {
+                filter: none;
+                color: var(--text-primary) !important;
+            }
+            
+            /* Fix PDF export buttons and action buttons in reports */
+            [data-theme="dark"] button[style*="background: linear-gradient"] {
+                opacity: 0.95;
+            }
+            
+            /* Ensure modal close buttons are visible */
+            [data-theme="dark"] .modal button[style*="background: #"] {
+                filter: brightness(1.1);
+            }
         </style>
     </head>
     <body>
