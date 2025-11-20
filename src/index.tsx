@@ -3213,10 +3213,12 @@ app.get('/api/inventory/dispatches', async (c) => {
       SELECT 
         dr.*,
         i.model_name,
-        l.mobile_number as lead_phone
+        l.mobile_number as lead_phone,
+        td.tracking_id
       FROM dispatch_records dr
       LEFT JOIN inventory i ON i.device_serial_no LIKE '%' || dr.device_serial_no || '%'
       LEFT JOIN leads l ON l.customer_name = dr.customer_name OR l.mobile_number = dr.customer_mobile
+      LEFT JOIN tracking_details td ON dr.order_id = td.order_id
       ORDER BY dr.serial_number ASC
     `).all();
     
@@ -3238,9 +3240,11 @@ app.get('/api/inventory/dispatches/grouped', async (c) => {
     const dispatches = await env.DB.prepare(`
       SELECT 
         dr.*,
-        i.model_name
+        i.model_name,
+        td.tracking_id
       FROM dispatch_records dr
       LEFT JOIN inventory i ON i.device_serial_no LIKE '%' || dr.device_serial_no || '%'
+      LEFT JOIN tracking_details td ON dr.order_id = td.order_id
       ORDER BY dr.order_id, dr.dispatch_date DESC
     `).all();
     
@@ -3262,6 +3266,7 @@ app.get('/api/inventory/dispatches/grouped', async (c) => {
           customer_city: dispatch.customer_city,
           courier_name: dispatch.courier_name,
           tracking_number: dispatch.tracking_number,
+          tracking_id: dispatch.tracking_id || 'N/A',
           dispatched_by: dispatch.dispatched_by,
           items: [],
           total_items: 0,
@@ -14948,6 +14953,7 @@ Prices are subject to change without prior notice.</textarea>
                                 customer_mobile: dispatch.lead_phone || dispatch.customer_mobile,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
+                                tracking_id: dispatch.tracking_id || 'N/A',
                                 items: []
                             };
                         }
@@ -14967,6 +14973,7 @@ Prices are subject to change without prior notice.</textarea>
                                         <th style="background: #f9fafb;">Items</th>
                                         <th style="background: #f9fafb;">Order ID</th>
                                         <th style="background: #f9fafb;">Courier</th>
+                                        <th style="background: #f9fafb;">Tracking ID</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -14984,9 +14991,10 @@ Prices are subject to change without prior notice.</textarea>
                                                 <td style="font-weight: 600; color: #10b981;">\${order.items.length} Item(s)</td>
                                                 <td style="font-weight: 600;">\${order.order_id}</td>
                                                 <td>\${order.courier_name || '-'}\${order.tracking_number && order.tracking_number !== '-' ? '<br><small style="color: #6b7280;">' + order.tracking_number + '</small>' : ''}</td>
+                                                <td style="font-family: monospace; color: #6b7280;">\${order.tracking_id || 'N/A'}</td>
                                             </tr>
                                             <tr id="\${rowId}" style="display: none;">
-                                                <td colspan="7" style="padding: 0; background: #f9fafb;">
+                                                <td colspan="8" style="padding: 0; background: #f9fafb;">
                                                     <div style="padding: 15px 20px; margin: 0;">
                                                         <h4 style="margin: 0 0 10px 0; color: #1f2937; font-size: 14px;">
                                                             <i class="fas fa-box"></i> Dispatched Items (\${order.items.length})
@@ -14998,6 +15006,7 @@ Prices are subject to change without prior notice.</textarea>
                                                                     <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Device Serial Number</th>
                                                                     <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Product Name</th>
                                                                     <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Dispatch Date</th>
+                                                                    <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Tracking ID</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -15007,6 +15016,7 @@ Prices are subject to change without prior notice.</textarea>
                                                                         <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db; font-weight: 600;">\${item.device_serial_no}</td>
                                                                         <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db;">\${item.model_name || 'N/A'}</td>
                                                                         <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db;">\${formatDispatchDate(item.dispatch_date)}</td>
+                                                                        <td style="padding: 8px; font-size: 12px; font-family: monospace; border: 1px solid #d1d5db; color: #6b7280;">\${order.tracking_id || 'N/A'}</td>
                                                                     </tr>
                                                                 \`).join('')}
                                                             </tbody>
@@ -15066,6 +15076,7 @@ Prices are subject to change without prior notice.</textarea>
                                 customer_mobile: dispatch.lead_phone || dispatch.customer_mobile,
                                 courier_name: dispatch.courier_name,
                                 tracking_number: dispatch.tracking_number,
+                                tracking_id: dispatch.tracking_id || 'N/A',
                                 items: []
                             };
                         }
@@ -15136,9 +15147,10 @@ Prices are subject to change without prior notice.</textarea>
                                                 <td style="font-weight: 600; color: #10b981;">\${order.items.length} Item(s)</td>
                                                 <td style="font-weight: 600;">\${order.order_id}</td>
                                                 <td>\${order.courier_name || '-'}\${order.tracking_number && order.tracking_number !== '-' ? '<br><small style="color: #6b7280;">' + order.tracking_number + '</small>' : ''}</td>
+                                                <td style="font-family: monospace; color: #6b7280;">\${order.tracking_id || 'N/A'}</td>
                                             </tr>
                                             <tr id="\${rowId}" style="display: none;">
-                                                <td colspan="7" style="padding: 0; background: #f9fafb;">
+                                                <td colspan="8" style="padding: 0; background: #f9fafb;">
                                                     <div style="padding: 15px 20px; margin: 0;">
                                                         <h4 style="margin: 0 0 10px 0; color: #1f2937; font-size: 14px;">
                                                             <i class="fas fa-box"></i> Dispatched Items (\${order.items.length})
@@ -15150,6 +15162,7 @@ Prices are subject to change without prior notice.</textarea>
                                                                     <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Device Serial Number</th>
                                                                     <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Product Name</th>
                                                                     <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Dispatch Date</th>
+                                                                    <th style="padding: 8px; text-align: left; font-size: 12px; border: 1px solid #d1d5db;">Tracking ID</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -15159,6 +15172,7 @@ Prices are subject to change without prior notice.</textarea>
                                                                         <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db; font-weight: 600;">\${item.device_serial_no}</td>
                                                                         <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db;">\${item.model_name || 'N/A'}</td>
                                                                         <td style="padding: 8px; font-size: 12px; border: 1px solid #d1d5db;">\${formatDispatchDate(item.dispatch_date)}</td>
+                                                                        <td style="padding: 8px; font-size: 12px; font-family: monospace; border: 1px solid #d1d5db; color: #6b7280;">\${order.tracking_id || 'N/A'}</td>
                                                                     </tr>
                                                                 \`).join('')}
                                                             </tbody>
