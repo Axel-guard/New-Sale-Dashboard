@@ -15578,51 +15578,53 @@ Prices are subject to change without prior notice.</textarea>
                         document.getElementById('statCompletedOrders').textContent = completedCount;
                         document.getElementById('statPendingOrders').textContent = pendingCount;
                         
-                        // Draw dispatch pie chart
+                        // Draw dispatch pie chart (if canvas exists)
                         const dispatchCtx = document.getElementById('dispatchChart');
-                        if (dispatchChart) {
-                            dispatchChart.destroy();
-                        }
-                        
-                        dispatchChart = new Chart(dispatchCtx, {
-                            type: 'pie',
-                            data: {
-                                labels: ['Completed Dispatch', 'Pending Dispatch'],
-                                datasets: [{
-                                    data: [completedCount, pendingCount],
-                                    backgroundColor: ['#10b981', '#f59e0b'],
-                                    borderWidth: 3,
-                                    borderColor: 'white'
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: {
-                                        position: 'bottom',
-                                        labels: {
-                                            padding: 12,
-                                            font: {
-                                                size: 13,
-                                                weight: '600'
+                        if (dispatchCtx) {
+                            if (dispatchChart) {
+                                dispatchChart.destroy();
+                            }
+                            
+                            dispatchChart = new Chart(dispatchCtx, {
+                                type: 'pie',
+                                data: {
+                                    labels: ['Completed Dispatch', 'Pending Dispatch'],
+                                    datasets: [{
+                                        data: [completedCount, pendingCount],
+                                        backgroundColor: ['#10b981', '#f59e0b'],
+                                        borderWidth: 3,
+                                        borderColor: 'white'
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                        legend: {
+                                            position: 'bottom',
+                                            labels: {
+                                                padding: 12,
+                                                font: {
+                                                    size: 13,
+                                                    weight: '600'
+                                                }
                                             }
-                                        }
-                                    },
-                                    tooltip: {
-                                        callbacks: {
-                                            label: function(context) {
-                                                const label = context.label || '';
-                                                const value = context.parsed || 0;
-                                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                                return label + ': ' + value + ' (' + percentage + '%)';
+                                        },
+                                        tooltip: {
+                                            callbacks: {
+                                                label: function(context) {
+                                                    const label = context.label || '';
+                                                    const value = context.parsed || 0;
+                                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                                    return label + ': ' + value + ' (' + percentage + '%)';
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        });
+                            });
+                        }
                         
                         const orders = dispatchData.orders || [];
                         if (orders.length === 0) {
