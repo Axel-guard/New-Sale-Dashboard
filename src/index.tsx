@@ -4576,6 +4576,12 @@ app.put('/api/orders/:orderId/dockets', async (c) => {
 // ===================================================================
 
 // Home page with dashboard
+// Login page route - redirect to static file
+app.get('/login', (c) => {
+  return c.redirect('/login.html');
+});
+
+
 app.get('/', (c) => {
   return c.html(`
     <!DOCTYPE html>
