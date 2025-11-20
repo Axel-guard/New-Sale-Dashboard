@@ -98,6 +98,95 @@ app.get('/api/auth/verify', async (c) => {
   return c.json({ success: true });
 });
 
+// Get all active users for quick login selector
+app.get('/api/auth/users', async (c) => {
+  const { env } = c;
+  
+  try {
+    const users = await env.DB.prepare(`
+      SELECT id, username, full_name, role, employee_name
+      FROM users 
+      WHERE is_active = 1
+      ORDER BY role DESC, full_name ASC
+    `).all();
+    
+    return c.json({ 
+      success: true, 
+      data: users.results || []
+    });
+  } catch (error) {
+    console.error('[AUTH] Get users error:', error);
+    return c.json({ success: false, error: 'Failed to fetch users' }, 500);
+  }
+});
+
+// Quick login with user ID (no password needed)
+app.post('/api/auth/quick-login', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { userId } = body;
+    
+    console.log('[QUICK LOGIN] User ID:', userId);
+    
+    const user = await env.DB.prepare(`
+      SELECT id, username, full_name, role, employee_name, is_active,
+             can_edit, can_delete, can_view,
+             sales_view, sales_edit, sales_delete,
+             inventory_view, inventory_edit, inventory_delete,
+             leads_view, leads_edit, leads_delete,
+             reports_view, reports_edit
+      FROM users 
+      WHERE id = ? AND is_active = 1
+    `).bind(userId).first();
+    
+    if (!user) {
+      console.log('[QUICK LOGIN] User not found or inactive');
+      return c.json({ success: false, error: 'User not found' }, 401);
+    }
+    
+    console.log('[QUICK LOGIN] Success for user:', user.username);
+    return c.json({
+      success: true,
+      data: {
+        id: user.id,
+        username: user.username,
+        fullName: user.full_name,
+        role: user.role,
+        employeeName: user.employee_name,
+        permissions: {
+          canEdit: user.can_edit === 1,
+          canDelete: user.can_delete === 1,
+          canView: user.can_view === 1,
+          sales: {
+            view: user.sales_view === 1,
+            edit: user.sales_edit === 1,
+            delete: user.sales_delete === 1
+          },
+          inventory: {
+            view: user.inventory_view === 1,
+            edit: user.inventory_edit === 1,
+            delete: user.inventory_delete === 1
+          },
+          leads: {
+            view: user.leads_view === 1,
+            edit: user.leads_edit === 1,
+            delete: user.leads_delete === 1
+          },
+          reports: {
+            view: user.reports_view === 1,
+            edit: user.reports_edit === 1
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[QUICK LOGIN] Error:', error);
+    return c.json({ success: false, error: 'Login failed: ' + error.message }, 500);
+  }
+});
+
 // Magic Link - Send magic link email
 app.post('/api/auth/magic-link/send', async (c) => {
   const { env } = c;
@@ -5011,6 +5100,82 @@ app.get('/', (c) => {
                 border-color: #D1D5DB;
             }
             
+            .user-list-item {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                padding: 15px;
+                margin-bottom: 10px;
+                background: #ffffff;
+                border: 2px solid #E5E7EB;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .user-list-item:hover {
+                background: #F9FAFB;
+                border-color: #667eea;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 6px rgba(102, 126, 234, 0.1);
+            }
+            
+            .user-avatar {
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: 700;
+                font-size: 18px;
+                flex-shrink: 0;
+            }
+            
+            .user-avatar.admin {
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            }
+            
+            .user-info {
+                flex: 1;
+                min-width: 0;
+            }
+            
+            .user-name {
+                font-weight: 600;
+                font-size: 16px;
+                color: #1F2937;
+                margin-bottom: 4px;
+            }
+            
+            .user-email {
+                font-size: 14px;
+                color: #6B7280;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            
+            .user-role-badge {
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 600;
+                flex-shrink: 0;
+            }
+            
+            .user-role-badge.admin {
+                background: #FEE2E2;
+                color: #DC2626;
+            }
+            
+            .user-role-badge.employee {
+                background: #DBEAFE;
+                color: #2563EB;
+            }
+            
             .signup-link {
                 text-align: center;
                 margin-top: 24px;
@@ -8611,28 +8776,25 @@ app.get('/', (c) => {
             </div>
         </div>
 
-        <!-- Magic Link Modal -->
+        <!-- Quick Login Modal (Employee Selector) -->
         <div class="modal" id="magicLinkModal">
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
-                    <h2 style="font-size: 20px; font-weight: 600;">Login with Email</h2>
+                    <h2 style="font-size: 20px; font-weight: 600;">Select Your Account</h2>
                     <span class="close" onclick="closeMagicLinkModal()">&times;</span>
                 </div>
                 <div id="magicLinkFormContainer">
                     <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
-                        Enter your email address and we'll send you a magic link to login instantly - no password needed!
+                        Choose your account to login instantly - no password needed!
                     </p>
-                    <form id="magicLinkForm" onsubmit="sendMagicLink(event)">
-                        <div class="form-group">
-                            <label>Email Address *</label>
-                            <input type="email" id="magicLinkEmail" required placeholder="Enter your email address">
+                    <div id="userListContainer" style="max-height: 400px; overflow-y: auto;">
+                        <!-- User list will be loaded here -->
+                        <div style="text-align: center; padding: 30px; color: #9ca3af;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                            <p style="margin-top: 10px;">Loading users...</p>
                         </div>
-                        <div id="magicLinkError" style="color: #ef4444; font-size: 14px; margin-bottom: 15px; display: none; padding: 12px; background: #fef2f2; border-radius: 6px; border-left: 3px solid #ef4444;"></div>
-                        <div id="magicLinkSuccess" style="color: #10b981; font-size: 14px; margin-bottom: 15px; display: none; padding: 12px; background: #ecfdf5; border-radius: 6px; border-left: 3px solid #10b981;"></div>
-                        <button type="submit" class="btn-primary" style="width: 100%;">
-                            <i class="fas fa-paper-plane"></i> Send Magic Link
-                        </button>
-                    </form>
+                    </div>
+                    <div id="magicLinkError" style="color: #ef4444; font-size: 14px; margin-top: 15px; display: none; padding: 12px; background: #fef2f2; border-radius: 6px; border-left: 3px solid #ef4444;"></div>
                 </div>
             </div>
         </div>
@@ -18606,102 +18768,112 @@ Prices are subject to change without prior notice.</textarea>
             // MAGIC LINK AUTHENTICATION FUNCTIONS
             // ===================================================================
             
-            // Show magic link modal
-            function showMagicLinkModal() {
+            // Show quick login modal with user list
+            async function showMagicLinkModal() {
                 const modal = document.getElementById('magicLinkModal');
+                const errorDiv = document.getElementById('magicLinkError');
+                const userListContainer = document.getElementById('userListContainer');
+                
+                // Show modal
                 modal.classList.add('show');
-                document.getElementById('magicLinkEmail').value = '';
-                document.getElementById('magicLinkError').style.display = 'none';
-                document.getElementById('magicLinkSuccess').style.display = 'none';
+                errorDiv.style.display = 'none';
+                
+                // Show loading
+                userListContainer.innerHTML = '<div style="text-align: center; padding: 30px; color: #9ca3af;">' +
+                    '<i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>' +
+                    '<p style="margin-top: 10px;">Loading users...</p>' +
+                    '</div>';
+                
+                try {
+                    // Fetch all active users
+                    const response = await axios.get('/api/auth/users');
+                    
+                    if (response.data.success && response.data.data.length > 0) {
+                        const users = response.data.data;
+                        
+                        // Build user list HTML
+                        let html = '';
+                        users.forEach(user => {
+                            const initials = user.full_name
+                                .split(' ')
+                                .map(n => n[0])
+                                .join('')
+                                .toUpperCase()
+                                .substring(0, 2);
+                            
+                            const roleClass = user.role === 'admin' ? 'admin' : 'employee';
+                            const roleLabel = user.role === 'admin' ? 'Admin' : 'Employee';
+                            
+                            html += '<div class="user-list-item" onclick="quickLogin(' + user.id + ')">' +
+                                '<div class="user-avatar ' + roleClass + '">' + initials + '</div>' +
+                                '<div class="user-info">' +
+                                '<div class="user-name">' + user.full_name + '</div>' +
+                                '<div class="user-email">' + user.username + '</div>' +
+                                '</div>' +
+                                '<div class="user-role-badge ' + roleClass + '">' + roleLabel + '</div>' +
+                                '</div>';
+                        });
+                        
+                        userListContainer.innerHTML = html;
+                    } else {
+                        userListContainer.innerHTML = '<div style="text-align: center; padding: 30px; color: #9ca3af;">' +
+                            '<i class="fas fa-users-slash" style="font-size: 24px;"></i>' +
+                            '<p style="margin-top: 10px;">No users found</p>' +
+                            '</div>';
+                    }
+                } catch (error) {
+                    console.error('Failed to load users:', error);
+                    errorDiv.textContent = 'Failed to load users. Please try again.';
+                    errorDiv.style.display = 'block';
+                    userListContainer.innerHTML = '';
+                }
             }
             
-            // Close magic link modal
+            // Close quick login modal
             function closeMagicLinkModal() {
                 const modal = document.getElementById('magicLinkModal');
                 modal.classList.remove('show');
             }
             
-            // Send magic link
-            async function sendMagicLink(event) {
-                event.preventDefault();
-                
-                const email = document.getElementById('magicLinkEmail').value.trim();
+            // Quick login with selected user
+            async function quickLogin(userId) {
                 const errorDiv = document.getElementById('magicLinkError');
-                const successDiv = document.getElementById('magicLinkSuccess');
-                const submitBtn = event.target.querySelector('button[type="submit"]');
+                const userListContainer = document.getElementById('userListContainer');
                 
-                // Hide previous messages
+                // Hide error
                 errorDiv.style.display = 'none';
-                successDiv.style.display = 'none';
                 
                 // Show loading
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-                }
+                userListContainer.innerHTML = '<div style="text-align: center; padding: 30px; color: #667eea;">' +
+                    '<i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>' +
+                    '<p style="margin-top: 10px; font-weight: 600;">Logging you in...</p>' +
+                    '</div>';
                 
                 try {
-                    const response = await axios.post('/api/auth/magic-link/send', { email });
+                    const response = await axios.post('/api/auth/quick-login', { userId });
                     
                     if (response.data.success) {
-                        successDiv.textContent = '✓ Magic link sent! Please check your email inbox (and spam folder).';
-                        successDiv.style.display = 'block';
+                        console.log('Quick login successful!');
+                        currentUser = response.data.data;
+                        sessionStorage.setItem('user', JSON.stringify(currentUser));
                         
-                        // Clear email field
-                        document.getElementById('magicLinkEmail').value = '';
+                        // Close modal
+                        closeMagicLinkModal();
                         
-                        // Auto-close modal after 3 seconds
-                        setTimeout(() => {
-                            closeMagicLinkModal();
-                        }, 3000);
+                        // Show dashboard
+                        showDashboard();
                     } else {
-                        throw new Error(response.data.error || 'Failed to send magic link');
+                        throw new Error(response.data.error || 'Login failed');
                     }
                 } catch (error) {
-                    console.error('Magic link error:', error);
-                    errorDiv.textContent = error.response?.data?.error || error.message || 'Failed to send magic link. Please try again.';
+                    console.error('Quick login error:', error);
+                    errorDiv.textContent = error.response?.data?.error || error.message || 'Login failed. Please try again.';
                     errorDiv.style.display = 'block';
-                } finally {
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Magic Link';
-                    }
+                    
+                    // Reload user list
+                    showMagicLinkModal();
                 }
             }
-            
-            // Verify magic link on page load
-            window.addEventListener('load', async function() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const token = urlParams.get('magic_token');
-                
-                if (token) {
-                    console.log('Magic link token detected, verifying...');
-                    
-                    try {
-                        const response = await axios.post('/api/auth/magic-link/verify', { token });
-                        
-                        if (response.data.success) {
-                            console.log('Magic link verified successfully!');
-                            currentUser = response.data.data;
-                            sessionStorage.setItem('user', JSON.stringify(currentUser));
-                            
-                            // Remove token from URL
-                            window.history.replaceState({}, document.title, window.location.pathname);
-                            
-                            // Show dashboard
-                            showDashboard();
-                        } else {
-                            throw new Error(response.data.error || 'Invalid magic link');
-                        }
-                    } catch (error) {
-                        console.error('Magic link verification failed:', error);
-                        alert('Invalid or expired magic link. Please request a new one.');
-                        
-                        // Remove token from URL
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    }
-                }
-            });
             
             // ===================================================================
             // END OF MAGIC LINK AUTHENTICATION FUNCTIONS
