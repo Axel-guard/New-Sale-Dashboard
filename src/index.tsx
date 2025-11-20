@@ -16160,6 +16160,9 @@ Prices are subject to change without prior notice.</textarea>
                         d.model_name === item.product_name || 
                         d.product_name === item.product_name
                     ).length;
+                    
+                    // For MDVR Installation, show full quantity as completed
+                    const displayScannedCount = isMDVRInstallation ? item.quantity : scannedForThisProduct;
                     const remainingToScan = item.quantity - scannedForThisProduct;
                     const isComplete = isMDVRInstallation || remainingToScan === 0;
                     
@@ -16175,7 +16178,7 @@ Prices are subject to change without prior notice.</textarea>
                                 <div style="text-align: right;">
                                     <div style="display: flex; flex-direction: column; gap: 5px;">
                                         <div style="font-size: 24px; font-weight: 700; color: \${isComplete ? '#10b981' : '#f59e0b'};">
-                                            \${scannedForThisProduct} / \${item.quantity}
+                                            \${displayScannedCount} / \${item.quantity}
                                         </div>
                                         <div style="font-size: 14px; font-weight: 600; color: \${isComplete ? '#10b981' : '#dc2626'}; background: \${isComplete ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
                                             \${isMDVRInstallation ? '✅ Completed Already' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
