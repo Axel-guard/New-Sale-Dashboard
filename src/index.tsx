@@ -2779,8 +2779,19 @@ app.get('/api/inventory', async (c) => {
     const status = c.req.query('status') || '';
     
     let query = `
-      SELECT i.*
+      SELECT i.*,
+             qc.pass_fail as qc_result,
+             qc.check_date as qc_date
       FROM inventory i
+      LEFT JOIN (
+        SELECT device_serial_no, pass_fail, check_date
+        FROM quality_check
+        WHERE id IN (
+          SELECT MAX(id)
+          FROM quality_check
+          GROUP BY device_serial_no
+        )
+      ) qc ON i.device_serial_no = qc.device_serial_no
       WHERE 1=1
     `;
     const params = [];
@@ -6592,6 +6603,7 @@ app.get('/', (c) => {
                                     <th style="position: sticky; left: 60px; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">Device Serial No</th>
                                     <th style="background: #f9fafb;">Model Name</th>
                                     <th style="background: #f9fafb;">Status</th>
+                                    <th style="background: #f9fafb;">QC Result</th>
                                     <th style="background: #f9fafb;">In Date</th>
                                     <th style="background: #f9fafb;">Customer</th>
                                     <th style="background: #f9fafb;">Dispatch Date</th>
@@ -6601,7 +6613,7 @@ app.get('/', (c) => {
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
-                                <tr><td colspan="10" class="loading">Loading...</td></tr>
+                                <tr><td colspan="11" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -14183,19 +14195,20 @@ Prices are subject to change without prior notice.</textarea>
                     const tbody = document.getElementById('inventoryTableBody');
                     
                     if (!response.data.success || response.data.data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #9ca3af;">No devices found</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #9ca3af;">No devices found</td></tr>';
                         return;
                     }
                     
-                    // Helper function to format date as DD/MM/YYYY
+                    // Helper function to format date as DD/MMM/YY (e.g., 18/Nov/25)
                     const formatDate = (dateStr) => {
                         if (!dateStr || dateStr === '-' || dateStr === 'null') return '-';
                         const date = new Date(dateStr);
                         if (isNaN(date.getTime())) return '-';
                         
                         const day = String(date.getDate()).padStart(2, '0');
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const year = date.getFullYear();
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const month = monthNames[date.getMonth()];
+                        const year = String(date.getFullYear()).slice(-2);
                         
                         return \`\${day}/\${month}/\${year}\`;
                     };
@@ -14214,12 +14227,25 @@ Prices are subject to change without prior notice.</textarea>
                         let displayStatus = item.status;
                         if (displayStatus === 'Quality Check') displayStatus = 'QC Pending';
                         
+                        // QC Result badge styling
+                        let qcBadge = '-';
+                        if (item.qc_result) {
+                            // Remove "QC " prefix if present (e.g., "QC Pass" -> "Pass")
+                            const displayQC = item.qc_result.replace(/^QC\s+/i, '');
+                            const qcStyles = {
+                                'Pass': 'background: #d1fae5; color: #065f46;',
+                                'Fail': 'background: #fee2e2; color: #991b1b;'
+                            };
+                            qcBadge = \`<span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${qcStyles[displayQC] || ''}">\${displayQC}</span>\`;
+                        }
+                        
                         return \`
                             <tr>
                                 <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">\${index + 1}</td>
                                 <td style="position: sticky; left: 60px; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);"><strong>\${item.device_serial_no}</strong></td>
                                 <td>\${item.model_name}</td>
                                 <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[item.status] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
+                                <td>\${qcBadge}</td>
                                 <td>\${formatDate(item.in_date)}</td>
                                 <td>\${item.customer_name || '-'}</td>
                                 <td>\${formatDate(item.dispatch_date)}</td>
@@ -14235,7 +14261,7 @@ Prices are subject to change without prior notice.</textarea>
                     }).join('');
                 } catch (error) {
                     document.getElementById('inventoryTableBody').innerHTML = 
-                        '<tr><td colspan="10" style="text-align: center; color: #ef4444;">Error loading inventory</td></tr>';
+                        '<tr><td colspan="11" style="text-align: center; color: #ef4444;">Error loading inventory</td></tr>';
                 }
             }
             
