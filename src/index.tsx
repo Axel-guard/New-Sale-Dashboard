@@ -6692,17 +6692,6 @@ app.get('/', (c) => {
                                 <i class="fas fa-times"></i> Clear
                             </button>
                         </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <label style="font-size: 14px; color: #4b5563; font-weight: 500;">Sort by:</label>
-                            <select id="sortBySelect" onchange="loadGroupedDispatches()" style="padding: 10px 15px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-                                <option value="date">Dispatch Date</option>
-                                <option value="order">Order ID</option>
-                            </select>
-                            <select id="sortOrderSelect" onchange="loadGroupedDispatches()" style="padding: 10px 15px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-                                <option value="desc" selected>Newest First</option>
-                                <option value="asc">Oldest First</option>
-                            </select>
-                        </div>
                     </div>
                 </div>
                 
@@ -8982,7 +8971,14 @@ Prices are subject to change without prior notice.</textarea>
                             </div>
                             <div class="form-group">
                                 <label>Courier Company</label>
-                                <input type="text" id="newDispatchCourier" placeholder="e.g., Trackon, Blue Dart">
+                                <select id="newDispatchCourier">
+                                    <option value="">Select Courier</option>
+                                    <option value="Trackon">Trackon</option>
+                                    <option value="DTDC">DTDC</option>
+                                    <option value="Porter">Porter</option>
+                                    <option value="Self Pick">Self Pick</option>
+                                    <option value="We delivered">We delivered</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>Dispatch Method</label>
