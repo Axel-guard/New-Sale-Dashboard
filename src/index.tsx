@@ -14303,7 +14303,7 @@ Prices are subject to change without prior notice.</textarea>
                     // Calculate business logic fields
                     let customerMobile = 'N/A';
                     let warranty = 'One Year';
-                    let saleDate = device.dispatch_date || 'N/A';
+                    let saleDate = device.sale_date || device.dispatch_date || 'N/A';
                     let licenseRenewTime = 'N/A';
                     let dispatchReason = 'N/A';
                     
@@ -14318,22 +14318,46 @@ Prices are subject to change without prior notice.</textarea>
                     if (device.order_id) {
                         try {
                             const orderResponse = await axios.get('/api/orders/' + device.order_id);
-                            if (orderResponse.data.success && orderResponse.data.data) {
-                                customerMobile = orderResponse.data.data.customer_contact || 'N/A';
+                            if (orderResponse.data.success && orderResponse.data.data && orderResponse.data.data.order) {
+                                customerMobile = orderResponse.data.data.order.customer_contact || 'N/A';
                             }
                         } catch (e) {
                             console.error('Error fetching order details:', e);
                         }
                     }
                     
-                    // Calculate license renew time for 4G MDVR models only
-                    if (device.product_name && device.product_name.includes('4G MDVR') && saleDate !== 'N/A') {
+                    // If customer mobile not found from order, try from device inventory
+                    if (customerMobile === 'N/A' && device.cust_mobile) {
+                        customerMobile = device.cust_mobile;
+                    }
+                    
+                    // Calculate license renew time (sale_date + 1 year) for all devices
+                    if (saleDate !== 'N/A') {
                         try {
                             const saleDateObj = new Date(saleDate);
+                            // Add 1 year (365 days) to the sale date
                             saleDateObj.setFullYear(saleDateObj.getFullYear() + 1);
-                            licenseRenewTime = saleDateObj.toISOString().split('T')[0];
+                            
+                            // Format as DD/MM/YYYY
+                            const day = String(saleDateObj.getDate()).padStart(2, '0');
+                            const month = String(saleDateObj.getMonth() + 1).padStart(2, '0');
+                            const year = saleDateObj.getFullYear();
+                            licenseRenewTime = `${day}/${month}/${year}`;
                         } catch (e) {
                             console.error('Error calculating license renew time:', e);
+                        }
+                    }
+                    
+                    // If license renew time already exists in inventory, use it
+                    if (device.license_renew_time && device.license_renew_time !== 'N/A') {
+                        try {
+                            const renewDateObj = new Date(device.license_renew_time);
+                            const day = String(renewDateObj.getDate()).padStart(2, '0');
+                            const month = String(renewDateObj.getMonth() + 1).padStart(2, '0');
+                            const year = renewDateObj.getFullYear();
+                            licenseRenewTime = `${day}/${month}/${year}`;
+                        } catch (e) {
+                            // Keep calculated value if formatting fails
                         }
                     }
                     
