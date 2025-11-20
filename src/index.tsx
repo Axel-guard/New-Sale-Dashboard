@@ -98,7 +98,7 @@ app.get('/api/auth/verify', async (c) => {
   return c.json({ success: true });
 });
 
-// Get all active users for quick login selector
+// Get all active employees for quick login selector (excludes admins)
 app.get('/api/auth/users', async (c) => {
   const { env } = c;
   
@@ -106,8 +106,8 @@ app.get('/api/auth/users', async (c) => {
     const users = await env.DB.prepare(`
       SELECT id, username, full_name, role, employee_name
       FROM users 
-      WHERE is_active = 1
-      ORDER BY role DESC, full_name ASC
+      WHERE is_active = 1 AND role = 'employee'
+      ORDER BY full_name ASC
     `).all();
     
     return c.json({ 
@@ -8780,12 +8780,12 @@ app.get('/', (c) => {
         <div class="modal" id="magicLinkModal">
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
-                    <h2 style="font-size: 20px; font-weight: 600;">Select Your Account</h2>
+                    <h2 style="font-size: 20px; font-weight: 600;">Employee Login</h2>
                     <span class="close" onclick="closeMagicLinkModal()">&times;</span>
                 </div>
                 <div id="magicLinkFormContainer">
                     <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
-                        Choose your account to login instantly - no password needed!
+                        Select an employee to login instantly - no password needed!
                     </p>
                     <div id="userListContainer" style="max-height: 400px; overflow-y: auto;">
                         <!-- User list will be loaded here -->
