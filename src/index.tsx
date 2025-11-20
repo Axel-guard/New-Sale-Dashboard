@@ -18769,7 +18769,7 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             
             // Show quick login modal with user list
-            async function showMagicLinkModal() {
+            window.showMagicLinkModal = async function() {
                 const modal = document.getElementById('magicLinkModal');
                 const errorDiv = document.getElementById('magicLinkError');
                 const userListContainer = document.getElementById('userListContainer');
@@ -18830,13 +18830,13 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Close quick login modal
-            function closeMagicLinkModal() {
+            window.closeMagicLinkModal = function() {
                 const modal = document.getElementById('magicLinkModal');
                 modal.classList.remove('show');
             }
             
             // Quick login with selected user
-            async function quickLogin(userId) {
+            window.quickLogin = async function(userId) {
                 const errorDiv = document.getElementById('magicLinkError');
                 const userListContainer = document.getElementById('userListContainer');
                 
