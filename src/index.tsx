@@ -15315,7 +15315,7 @@ Prices are subject to change without prior notice.</textarea>
                         return;
                     }
                     
-                    // Helper function to format date as DD/MMM/YY
+                    // Helper function to format date as DD-MMM-YY
                     const formatQCDate = (dateStr) => {
                         if (!dateStr || dateStr === '-') return '-';
                         const date = new Date(dateStr);
@@ -15326,7 +15326,7 @@ Prices are subject to change without prior notice.</textarea>
                         const month = monthNames[date.getMonth()];
                         const year = String(date.getFullYear()).slice(-2);
                         
-                        return \`\${day}/\${month}/\${year}\`;
+                        return \`\${day}-\${month}-\${year}\`;
                     };
                     
                     tbody.innerHTML = response.data.data.map(item => {
@@ -17499,6 +17499,20 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
+                // Helper function to format date as DD-MMM-YY
+                const formatQCDate = (dateStr) => {
+                    if (!dateStr || dateStr === 'N/A' || dateStr === '-') return 'N/A';
+                    const date = new Date(dateStr);
+                    if (isNaN(date.getTime())) return dateStr;
+                    
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const month = monthNames[date.getMonth()];
+                    const year = String(date.getFullYear()).slice(-2);
+                    
+                    return \`\${day}-\${month}-\${year}\`;
+                };
+                
                 // Apply current filter if set
                 let filteredRecords = records;
                 if (currentQCFilter) {
@@ -17559,7 +17573,7 @@ Prices are subject to change without prior notice.</textarea>
                     return \`
                         <tr>
                             <td>\${index + 1}</td>
-                            <td>\${record.check_date || 'N/A'}</td>
+                            <td>\${formatQCDate(record.check_date)}</td>
                             <td><strong>\${record.device_serial_no}</strong></td>
                             <td>\${deviceType}</td>
                             <td>\${getQCValue('sd_connectivity', 'sd_connect')}</td>
