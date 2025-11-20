@@ -7675,7 +7675,7 @@ app.get('/', (c) => {
                             <thead>
                                 <tr>
                                     <th>ID</th>
-                                    <th>Username</th>
+                                    <th>Email</th>
                                     <th>Full Name</th>
                                     <th>Role</th>
                                     <th>Employee Name</th>
@@ -8280,8 +8280,8 @@ app.get('/', (c) => {
                 </div>
                 <form id="createUserForm" onsubmit="submitCreateUser(event)">
                     <div class="form-group">
-                        <label>Username *</label>
-                        <input type="text" name="username" required minlength="3" placeholder="Enter username (min 3 characters)">
+                        <label>Email *</label>
+                        <input type="email" name="username" required placeholder="Enter email address">
                     </div>
                     
                     <div class="form-group">
@@ -8326,8 +8326,8 @@ app.get('/', (c) => {
                     <input type="hidden" name="user_id" id="editUserId">
                     
                     <div class="form-group">
-                        <label>Username *</label>
-                        <input type="text" name="username" id="editUserUsername" required minlength="3" readonly style="background: #f3f4f6;">
+                        <label>Email *</label>
+                        <input type="email" name="username" id="editUserUsername" required readonly style="background: #f3f4f6;">
                     </div>
                     
                     <div class="form-group">
