@@ -4221,7 +4221,7 @@ app.get('/api/dispatch/summary', async (c) => {
         s.customer_name,
         s.company_name,
         s.sale_date as order_date,
-        COUNT(DISTINCT si.id) as total_items
+        COALESCE(SUM(si.quantity), 0) as total_items
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
       GROUP BY s.order_id
