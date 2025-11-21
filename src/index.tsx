@@ -4219,7 +4219,7 @@ app.get('/api/dispatch/summary', async (c) => {
   
   try {
     // Get all sales/orders with their items and dispatch counts
-    // Exclude MDVR Installation from total_items count (but keep RFID Tags/Readers for manual dispatch)
+    // Exclude auto-completed products from total_items count (MDVR Installation, RFID Tags, RFID Reader)
     const salesQuery = await env.DB.prepare(`
       SELECT 
         s.order_id,
@@ -4229,11 +4229,15 @@ app.get('/api/dispatch/summary', async (c) => {
         COALESCE(SUM(
           CASE 
             WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
+            WHEN LOWER(pc.category_name) LIKE '%rfid tags%' THEN 0
+            WHEN LOWER(pc.category_name) LIKE '%rfid reader%' THEN 0
             ELSE si.quantity
           END
         ), 0) as total_items
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
+      LEFT JOIN products p ON si.product_name = p.product_name
+      LEFT JOIN product_categories pc ON p.category_id = pc.id
       GROUP BY s.order_id
     `).all();
     
