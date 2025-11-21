@@ -4219,7 +4219,7 @@ app.get('/api/dispatch/summary', async (c) => {
   
   try {
     // Get all sales/orders with their items and dispatch counts
-    // Exclude auto-complete categories (MDVR Installation, RFID Tags, RFID Reader) from total_items count
+    // Exclude MDVR Installation from total_items count (but keep RFID Tags/Readers for manual dispatch)
     const salesQuery = await env.DB.prepare(`
       SELECT 
         s.order_id,
@@ -4229,15 +4229,11 @@ app.get('/api/dispatch/summary', async (c) => {
         COALESCE(SUM(
           CASE 
             WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
-            WHEN LOWER(pc.category_name) LIKE '%rfid tags%' THEN 0
-            WHEN LOWER(pc.category_name) LIKE '%rfid reader%' THEN 0
             ELSE si.quantity
           END
         ), 0) as total_items
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
-      LEFT JOIN products p ON si.product_name = p.product_name
-      LEFT JOIN product_categories pc ON p.category_id = pc.id
       GROUP BY s.order_id
     `).all();
     
@@ -4458,7 +4454,7 @@ app.get('/api/orders', async (c) => {
   
   try {
     // Get orders from sales table with item count and dispatch count
-    // Exclude auto-complete categories (MDVR Installation, RFID Tags, RFID Reader) from total_items count
+    // Exclude MDVR Installation from total_items count (but keep RFID Tags/Readers for manual dispatch)
     const orders = await env.DB.prepare(`
       SELECT 
         s.order_id,
@@ -4468,8 +4464,6 @@ app.get('/api/orders', async (c) => {
         COALESCE(SUM(
           CASE 
             WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
-            WHEN LOWER(pc.category_name) LIKE '%rfid tags%' THEN 0
-            WHEN LOWER(pc.category_name) LIKE '%rfid reader%' THEN 0
             ELSE si.quantity
           END
         ), 0) as total_items,
@@ -4478,8 +4472,6 @@ app.get('/api/orders', async (c) => {
           WHEN COUNT(DISTINCT dr.id) >= COALESCE(SUM(
             CASE 
               WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
-              WHEN LOWER(pc.category_name) LIKE '%rfid tags%' THEN 0
-              WHEN LOWER(pc.category_name) LIKE '%rfid reader%' THEN 0
               ELSE si.quantity
             END
           ), 0) THEN 'Complete'
@@ -4488,8 +4480,6 @@ app.get('/api/orders', async (c) => {
         END as dispatch_status
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
-      LEFT JOIN products p ON si.product_name = p.product_name
-      LEFT JOIN product_categories pc ON p.category_id = pc.id
       LEFT JOIN dispatch_records dr ON dr.order_id = s.order_id
       GROUP BY s.order_id, s.customer_name, s.company_name, s.sale_date
       ORDER BY s.order_id DESC
