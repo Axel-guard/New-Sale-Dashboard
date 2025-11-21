@@ -4712,10 +4712,37 @@ app.post('/api/dispatch/create', async (c) => {
       }
     }
     
-    // Note: Auto-completed devices are NOT added to dispatch_records
-    // They show as "Completed Already" in the UI but don't need physical tracking
-    // This allows orders with auto-completed products to remain visible for manual dispatch
-    // if the user wants to create dispatch records for other items
+    // Create dispatch records for auto-completed devices
+    // These don't have inventory_id but we need to track them for dispatch count
+    // so the order status changes to "Completed" and disappears from dispatch dropdown
+    for (const dev of autoCompletedDevices) {
+      try {
+        const serialNo = dev.device_serial_no || dev.serial_no;
+        await env.DB.prepare(`
+          INSERT INTO dispatch_records (
+            inventory_id, device_serial_no, order_id, dispatch_date, 
+            customer_name, customer_code, company_name, dispatch_reason,
+            qc_status, courier_name, dispatch_method, dispatched_by, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          null, // NULL inventory_id for auto-completed devices (now allowed)
+          serialNo, 
+          order_id, 
+          dispatch_date,
+          customer_name, 
+          customer_code, 
+          company_name, 
+          'New Sale - Auto-Completed',
+          dev.qc_status || 'Pass', 
+          courier_name || '', 
+          dispatch_method || '', 
+          'System', 
+          notes || 'Auto-completed device (no physical tracking required)'
+        ).run();
+      } catch (err) {
+        console.error(`Error creating dispatch record for auto-completed device: ${err.message}`);
+      }
+    }
     
     return c.json({ 
       success: true, 
