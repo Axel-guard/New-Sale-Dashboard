@@ -18028,32 +18028,18 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${isPending ? '-' : ipAddress}</td>
                             <td>
                                 \${isPending ? \`
-                                    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                                        <button onclick="openUpdateQCModal('\${record.device_serial_no}', '\${record.model_name}')" 
-                                            class="btn-primary" 
-                                            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
-                                                   padding: 6px 12px; 
-                                                   font-size: 11px; 
-                                                   border-radius: 6px;
-                                                   box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
-                                                   flex: 1;
-                                                   min-width: 90px;" 
-                                            title="Full QC Test">
-                                            <i class="fas fa-edit"></i> Update QC
-                                        </button>
-                                        <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Pass')" 
-                                            class="btn-primary" 
-                                            style="background: #10b981; padding: 6px 10px; font-size: 11px; border-radius: 6px;" 
-                                            title="Quick Pass">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                        <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Fail')" 
-                                            class="btn-primary" 
-                                            style="background: #ef4444; padding: 6px 10px; font-size: 11px; border-radius: 6px;" 
-                                            title="Quick Fail">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
+                                    <button onclick="openUpdateQCModal('\${record.device_serial_no}', '\${record.model_name}')" 
+                                        class="btn-primary" 
+                                        style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
+                                               padding: 8px 16px; 
+                                               font-size: 12px; 
+                                               border-radius: 6px;
+                                               box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+                                               font-weight: 600;
+                                               width: 120px;" 
+                                        title="Full QC Test">
+                                        <i class="fas fa-edit"></i> Update QC
+                                    </button>
                                 \` : \`
                                     <button onclick="deleteQCRecord(\${record.id})" 
                                         class="btn-primary" 
