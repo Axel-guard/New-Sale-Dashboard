@@ -4219,13 +4219,19 @@ app.get('/api/dispatch/summary', async (c) => {
   
   try {
     // Get all sales/orders with their items and dispatch counts
+    // Exclude MDVR Installation from total_items count (no physical device tracking)
     const salesQuery = await env.DB.prepare(`
       SELECT 
         s.order_id,
         s.customer_name,
         s.company_name,
         s.sale_date as order_date,
-        COALESCE(SUM(si.quantity), 0) as total_items
+        COALESCE(SUM(
+          CASE 
+            WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
+            ELSE si.quantity
+          END
+        ), 0) as total_items
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
       GROUP BY s.order_id
@@ -4630,10 +4636,22 @@ app.post('/api/dispatch/create', async (c) => {
     
     const dispatchResults = [];
     const errors = [];
+    let autoCompletedCount = 0;
+    const autoCompletedDevices = [];
     
     // Create dispatch record for each device
     for (const dev of devices) {
       try {
+        // Check if this is an auto-completed device (MDVR Installation only)
+        const isAutoCompleted = dev.auto_completed || (dev.device_serial_no || dev.serial_no || '').startsWith('AUTO-');
+        
+        if (isAutoCompleted) {
+          // Track auto-completed devices for MDVR Installation
+          autoCompletedCount++;
+          autoCompletedDevices.push(dev);
+          continue;
+        }
+        
         // Find device in inventory
         const device = await env.DB.prepare(`
           SELECT id, status FROM inventory WHERE device_serial_no = ?
@@ -4694,11 +4712,42 @@ app.post('/api/dispatch/create', async (c) => {
       }
     }
     
+    // Create dispatch records for auto-completed MDVR Installation devices
+    for (const dev of autoCompletedDevices) {
+      try {
+        const serialNo = dev.device_serial_no || dev.serial_no;
+        await env.DB.prepare(`
+          INSERT INTO dispatch_records (
+            inventory_id, device_serial_no, order_id, dispatch_date, 
+            customer_name, customer_code, company_name, dispatch_reason,
+            qc_status, courier_name, dispatch_method, dispatched_by, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          null,
+          serialNo, 
+          order_id, 
+          dispatch_date,
+          customer_name, 
+          customer_code, 
+          company_name, 
+          'New Sale - MDVR Installation',
+          dev.qc_status || 'Pass', 
+          courier_name || '', 
+          dispatch_method || '', 
+          'System', 
+          notes || 'Auto-completed MDVR Installation (no physical device tracking)'
+        ).run();
+      } catch (err) {
+        console.error(`Error creating dispatch record for auto-completed device: ${err.message}`);
+      }
+    }
+    
     return c.json({ 
       success: true, 
       data: {
-        dispatched: dispatchResults.length,
+        dispatched: dispatchResults.length + autoCompletedCount,
         total: devices.length,
+        auto_completed: autoCompletedCount,
         results: dispatchResults,
         errors: errors.length > 0 ? errors : null
       }
@@ -16114,6 +16163,28 @@ Prices are subject to change without prior notice.</textarea>
                     selectedOrder = response.data.data;
                     scannedDevices = [];
                     
+                    // Auto-add devices for MDVR Installation only
+                    selectedOrder.items.forEach(item => {
+                        const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
+                        
+                        if (isMDVRInstallation) {
+                            // Auto-add dummy devices for MDVR Installation
+                            for (let i = 0; i < item.quantity; i++) {
+                                scannedDevices.push({
+                                    device_serial_no: \`AUTO-\${item.product_name}-\${i + 1}\`,
+                                    model_name: item.product_name,
+                                    product_name: item.product_name,
+                                    product_category: item.product_category,
+                                    status: 'In Stock',
+                                    qc_status: 'Pass',
+                                    qc_passed: true,
+                                    auto_completed: true
+                                });
+                            }
+                            console.log(\`✅ Auto-added \${item.quantity} devices for \${item.product_name}\`);
+                        }
+                    });
+                    
                     // Show Step 2
                     document.getElementById('dispatchStep1').style.display = 'none';
                     document.getElementById('dispatchStep2').style.display = 'block';
@@ -16158,14 +16229,19 @@ Prices are subject to change without prior notice.</textarea>
                 const products = selectedOrder.items;
                 
                 document.getElementById('orderProductsList').innerHTML = products.map(item => {
+                    // Check if product is MDVR Installation (should be marked as completed automatically)
+                    const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
+                    
                     // Match scanned devices by product name (model_name)
                     const scannedForThisProduct = scannedDevices.filter(d => 
                         d.model_name === item.product_name || 
                         d.product_name === item.product_name
                     ).length;
                     
+                    // For MDVR Installation, show full quantity as completed
+                    const displayScannedCount = isMDVRInstallation ? item.quantity : scannedForThisProduct;
                     const remainingToScan = item.quantity - scannedForThisProduct;
-                    const isComplete = remainingToScan === 0;
+                    const isComplete = isMDVRInstallation || remainingToScan === 0;
                     
                     return \`
                         <div style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -16179,10 +16255,10 @@ Prices are subject to change without prior notice.</textarea>
                                 <div style="text-align: right;">
                                     <div style="display: flex; flex-direction: column; gap: 5px;">
                                         <div style="font-size: 24px; font-weight: 700; color: \${isComplete ? '#10b981' : '#f59e0b'};">
-                                            \${scannedForThisProduct} / \${item.quantity}
+                                            \${displayScannedCount} / \${item.quantity}
                                         </div>
                                         <div style="font-size: 14px; font-weight: 600; color: \${isComplete ? '#10b981' : '#dc2626'}; background: \${isComplete ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
-                                            \${isComplete ? '✅ Complete' : remainingToScan + ' Remaining'}
+                                            \${isMDVRInstallation ? '✅ Completed Already' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
                                         </div>
                                     </div>
                                 </div>
@@ -16319,11 +16395,16 @@ Prices are subject to change without prior notice.</textarea>
                     const qcColor = device.qc_passed ? '#10b981' : '#f59e0b';
                     const qcBg = device.qc_passed ? '#d1fae5' : '#fef3c7';
                     
+                    // Show auto-completed badge for MDVR Installation
+                    const autoCompleteBadge = device.auto_completed ? 
+                        '<span style="background: #d1fae5; color: #10b981; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-left: 8px;">AUTO</span>' : '';
+                    
                     return \`
                         <div style="padding: 12px; margin-bottom: 8px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; display: flex; justify-content: space-between; align-items: center;">
                             <div style="flex: 1;">
                                 <div style="font-weight: 700; color: #1f2937;">
                                     <i class="fas fa-barcode" style="color: #667eea;"></i> \${device.device_serial_no || device.serial_no}
+                                    \${autoCompleteBadge}
                                 </div>
                                 <div style="font-size: 12px; color: #6b7280; margin-top: 3px;">\${device.model_name}</div>
                             </div>
