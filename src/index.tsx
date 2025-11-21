@@ -3500,18 +3500,49 @@ app.get('/api/inventory/quality-checks', async (c) => {
   const { env } = c;
   
   try {
+    // Get existing QC records from quality_check table
     const qcRecords = await env.DB.prepare(`
       SELECT 
         qc.*,
         i.model_name,
-        i.device_serial_no as full_serial_no
+        i.device_serial_no as full_serial_no,
+        'completed' as qc_record_status
       FROM quality_check qc
       LEFT JOIN inventory i ON i.device_serial_no LIKE '%' || qc.device_serial_no || '%'
       ORDER BY qc.serial_number ASC
     `).all();
     
-    return c.json({ success: true, data: qcRecords.results || [] });
+    // Get inventory items not yet in quality_check table (QC Pending)
+    // These are newly added devices that need QC testing
+    const pendingItems = await env.DB.prepare(`
+      SELECT 
+        i.id,
+        i.device_serial_no,
+        i.model_name,
+        i.in_date as check_date,
+        i.status,
+        'QC Pending' as pass_fail,
+        'pending' as qc_record_status
+      FROM inventory i
+      WHERE NOT EXISTS (
+          SELECT 1 FROM quality_check qc 
+          WHERE qc.device_serial_no = i.device_serial_no 
+             OR i.device_serial_no LIKE '%' || qc.device_serial_no || '%'
+        )
+        AND i.status IN ('In Stock', 'Quality Check')
+      ORDER BY i.id DESC
+      LIMIT 100
+    `).all();
+    
+    // Combine QC records and pending items
+    const allRecords = [
+      ...(qcRecords.results || []),
+      ...(pendingItems.results || [])
+    ];
+    
+    return c.json({ success: true, data: allRecords });
   } catch (error) {
+    console.error('Error fetching QC records:', error);
     return c.json({ success: false, error: 'Failed to fetch QC records' }, 500);
   }
 });
@@ -3540,6 +3571,70 @@ app.delete('/api/inventory/quality-check/:id', async (c) => {
   } catch (error) {
     console.error('Error deleting QC record:', error);
     return c.json({ success: false, error: 'Failed to delete QC record: ' + error.message }, 500);
+  }
+});
+
+// Quick update QC status for pending items
+app.post('/api/inventory/quick-qc-update', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { device_serial_no, qc_status } = body;
+    
+    if (!device_serial_no || !qc_status) {
+      return c.json({ success: false, error: 'Device serial number and QC status are required' }, 400);
+    }
+    
+    // Validate QC status
+    const validStatuses = ['QC Pass', 'QC Fail', 'QC Pending'];
+    if (!validStatuses.includes(qc_status)) {
+      return c.json({ success: false, error: 'Invalid QC status. Must be QC Pass, QC Fail, or QC Pending' }, 400);
+    }
+    
+    // Check if device exists in inventory
+    const device = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no = ?
+    `).bind(device_serial_no).first();
+    
+    if (!device) {
+      return c.json({ success: false, error: 'Device not found in inventory' }, 404);
+    }
+    
+    // Update inventory status based on QC result
+    const newStatus = qc_status === 'QC Fail' ? 'Defective' : 
+                      qc_status === 'QC Pass' ? 'In Stock' : device.status;
+    
+    await env.DB.prepare(`
+      UPDATE inventory 
+      SET status = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE device_serial_no = ?
+    `).bind(newStatus, device_serial_no).run();
+    
+    // If QC Pass or QC Fail, create a basic quality_check record
+    if (qc_status !== 'QC Pending') {
+      await env.DB.prepare(`
+        INSERT INTO quality_check (
+          device_serial_no, check_date, 
+          sd_connect, all_ch_status, network, gps, sim_slot, online,
+          camera_quality, monitor, pass_fail, checked_by
+        ) VALUES (?, CURRENT_DATE, 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', ?, ?)
+      `).bind(
+        device_serial_no, 
+        qc_status, 
+        'Admin'
+      ).run();
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: `QC status updated to ${qc_status}`,
+      newStatus: newStatus
+    });
+  } catch (error) {
+    console.error('Error updating QC status:', error);
+    return c.json({ success: false, error: 'Failed to update QC status: ' + error.message }, 500);
   }
 });
 
@@ -17876,26 +17971,47 @@ Prices are subject to change without prior notice.</textarea>
                     // Get IP address and update status from test_results
                     const ipAddress = testResults.ip_address || record.ip_address || '-';
                     
+                    // Check if this is a pending item from inventory (not yet QC tested)
+                    const isPending = record.qc_record_status === 'pending';
+                    
                     return \`
-                        <tr>
+                        <tr style="background: \${isPending ? '#fef3c7' : 'white'};">
                             <td>\${index + 1}</td>
-                            <td>\${formatQCDate(record.check_date)}</td>
+                            <td>\${formatQCDate(record.check_date || record.qc_date)}</td>
                             <td><strong>\${record.device_serial_no}</strong></td>
                             <td>\${deviceType}</td>
-                            <td>\${getQCValue('sd_connectivity', 'sd_connect')}</td>
-                            <td>\${getQCValue('all_ch_status', 'all_ch_status')}</td>
-                            <td>\${getQCValue('network_connectivity', 'network')}</td>
-                            <td>\${getQCValue('gps_qc', 'gps')}</td>
-                            <td>\${getQCValue('sim_card_slot', 'sim_slot')}</td>
-                            <td>\${getQCValue('online_qc', 'online')}</td>
-                            <td>\${getQCValue('camera_quality', 'camera_quality')}</td>
-                            <td>\${getQCValue('monitor_qc_status', 'monitor')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('sd_connectivity', 'sd_connect')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('all_ch_status', 'all_ch_status')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('network_connectivity', 'network')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('gps_qc', 'gps')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('sim_card_slot', 'sim_slot')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('online_qc', 'online')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('camera_quality', 'camera_quality')}</td>
+                            <td>\${isPending ? '<span style="color: #f59e0b; font-style: italic;">⏳ Pending</span>' : getQCValue('monitor_qc_status', 'monitor')}</td>
                             <td><span style="background: \${statusColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">\${finalStatus}</span></td>
-                            <td>\${ipAddress}</td>
+                            <td>\${isPending ? '-' : ipAddress}</td>
                             <td>
-                                <button onclick="deleteQCRecord(\${record.id})" class="btn-primary" style="background: #ef4444; padding: 4px 8px; font-size: 11px;" title="Delete QC Record">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                \${isPending ? \`
+                                    <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Pass')" 
+                                        class="btn-primary" 
+                                        style="background: #10b981; padding: 4px 8px; font-size: 11px; margin-right: 4px;" 
+                                        title="Mark as QC Pass">
+                                        <i class="fas fa-check"></i> Pass
+                                    </button>
+                                    <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Fail')" 
+                                        class="btn-primary" 
+                                        style="background: #ef4444; padding: 4px 8px; font-size: 11px;" 
+                                        title="Mark as QC Fail">
+                                        <i class="fas fa-times"></i> Fail
+                                    </button>
+                                \` : \`
+                                    <button onclick="deleteQCRecord(\${record.id})" 
+                                        class="btn-primary" 
+                                        style="background: #ef4444; padding: 4px 8px; font-size: 11px;" 
+                                        title="Delete QC Record">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                \`}
                             </td>
                         </tr>
                     \`;
@@ -17931,6 +18047,34 @@ Prices are subject to change without prior notice.</textarea>
                 });
                 
                 loadQCData();
+            }
+            
+            // Update QC status for pending items
+            async function updateQCStatus(deviceSerialNo, qcStatus) {
+                const confirmMsg = qcStatus === 'QC Pass' 
+                    ? \`Mark device \${deviceSerialNo} as QC PASS?\\nThis will set status to "In Stock".\`
+                    : \`Mark device \${deviceSerialNo} as QC FAIL?\\nThis will set status to "Defective".\`;
+                
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
+                
+                try {
+                    const response = await axios.post('/api/inventory/quick-qc-update', {
+                        device_serial_no: deviceSerialNo,
+                        qc_status: qcStatus
+                    });
+                    
+                    if (response.data.success) {
+                        alert(\`✅ \${response.data.message}\\nNew Status: \${response.data.newStatus}\`);
+                        loadQCData(); // Reload the QC table
+                    } else {
+                        alert('❌ Error: ' + response.data.error);
+                    }
+                } catch (error) {
+                    console.error('Error updating QC status:', error);
+                    alert('❌ Failed to update QC status: ' + (error.response?.data?.error || error.message));
+                }
             }
             
             // Delete QC Record
