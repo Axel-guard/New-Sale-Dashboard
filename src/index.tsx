@@ -15099,17 +15099,32 @@ Prices are subject to change without prior notice.</textarea>
             // Open create dispatch modal for specific order
             async function openCreateDispatchModalForOrder(orderId) {
                 // Open the create dispatch modal
-                openCreateDispatchModal();
+                document.getElementById('createDispatchModal').classList.add('show');
+                document.getElementById('dispatchStep1').style.display = 'none';
+                document.getElementById('dispatchStep2').style.display = 'none';
                 
-                // Wait a bit for modal to open, then search for the order
-                setTimeout(async () => {
-                    const searchInput = document.getElementById('newDispatchOrderSearch');
-                    if (searchInput) {
-                        searchInput.value = orderId;
-                        // Trigger search
-                        await searchCreateDispatchOrders();
+                // Show loading state
+                document.getElementById('dispatchStep1').style.display = 'block';
+                document.getElementById('orderSearchInput').value = orderId;
+                document.getElementById('orderSearchResults').innerHTML = '<div style="padding: 40px; text-align: center; color: #3b82f6;"><i class="fas fa-spinner fa-spin fa-3x"></i><p style="margin-top: 15px; font-size: 16px;">Loading order details...</p></div>';
+                
+                // Load orders and directly select the specific order
+                try {
+                    const response = await axios.get('/api/dispatch/summary');
+                    if (response.data.success) {
+                        allOrders = response.data.data.orders;
+                        
+                        // Directly select the order (which will show Step 2)
+                        await selectOrder(orderId);
+                    } else {
+                        alert('Failed to load order details');
+                        closeCreateDispatchModal();
                     }
-                }, 300);
+                } catch (error) {
+                    console.error('Error loading order:', error);
+                    alert('Error loading order: ' + error.message);
+                    closeCreateDispatchModal();
+                }
             }
             
             // View dispatch details for completed order
@@ -15118,15 +15133,167 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.get('/api/inventory/dispatches');
                     if (response.data.success) {
                         const orderDispatches = response.data.data.filter(d => d.order_id === orderId);
-                        if (orderDispatches.length > 0) {
-                            // Show modal with dispatch details
-                            const dispatch = orderDispatches[0];
-                            alert(\`Order: \${orderId}\\nCustomer: \${dispatch.customer_name}\\nTotal Dispatched Items: \${orderDispatches.length}\\nDispatch Date: \${dispatch.dispatch_date}\`);
+                        if (orderDispatches.length === 0) {
+                            alert('No dispatch records found for this order');
+                            return;
                         }
+                        
+                        // Group by dispatch date
+                        const groupedByDate = {};
+                        orderDispatches.forEach(d => {
+                            const date = d.dispatch_date;
+                            if (!groupedByDate[date]) {
+                                groupedByDate[date] = [];
+                            }
+                            groupedByDate[date].push(d);
+                        });
+                        
+                        const dispatch = orderDispatches[0];
+                        
+                        // Create modal HTML
+                        const modalHtml = \`
+                            <div id="viewDispatchModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;">
+                                <div style="background: white; border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                                    <!-- Header -->
+                                    <div style="padding: 25px; border-bottom: 2px solid #e5e7eb; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <h2 style="margin: 0; font-size: 24px; font-weight: 700;">
+                                                    <i class="fas fa-shipping-fast"></i> Dispatch Details
+                                                </h2>
+                                                <div style="font-size: 14px; opacity: 0.9; margin-top: 5px;">Order #\${orderId}</div>
+                                            </div>
+                                            <button onclick="closeViewDispatchModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 18px; transition: all 0.2s;">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Content -->
+                                    <div style="padding: 25px;">
+                                        <!-- Customer Info -->
+                                        <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                                                <div>
+                                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Customer Name</div>
+                                                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">
+                                                        <i class="fas fa-user" style="color: #10b981;"></i> \${dispatch.customer_name}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Company</div>
+                                                    <div style="font-size: 16px; font-weight: 600; color: #1f2937;">
+                                                        <i class="fas fa-building" style="color: #3b82f6;"></i> \${dispatch.company_name || 'N/A'}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 5px;">Total Devices</div>
+                                                    <div style="font-size: 20px; font-weight: 700; color: #10b981;">
+                                                        \${orderDispatches.length}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Dispatch Groups by Date -->
+                                        \${Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a)).map(date => {
+                                            const items = groupedByDate[date];
+                                            return \`
+                                                <div style="margin-bottom: 25px;">
+                                                    <div style="background: #eff6ff; padding: 12px 15px; border-left: 4px solid #3b82f6; margin-bottom: 15px; border-radius: 4px;">
+                                                        <div style="font-weight: 700; color: #1e40af; font-size: 16px;">
+                                                            <i class="fas fa-calendar-alt"></i> Dispatch Date: \${formatDispatchDate(date)}
+                                                        </div>
+                                                        <div style="font-size: 13px; color: #6b7280; margin-top: 5px;">
+                                                            \${items.length} device\${items.length > 1 ? 's' : ''} dispatched
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Devices Table -->
+                                                    <div style="overflow-x: auto;">
+                                                        <table style="width: 100%; border-collapse: collapse;">
+                                                            <thead>
+                                                                <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                                                                    <th style="padding: 10px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280;">S.No</th>
+                                                                    <th style="padding: 10px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280;">Serial Number</th>
+                                                                    <th style="padding: 10px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280;">Courier</th>
+                                                                    <th style="padding: 10px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280;">Tracking</th>
+                                                                    <th style="padding: 10px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280;">Method</th>
+                                                                    <th style="padding: 10px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280;">QC Status</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                \${items.map((item, idx) => \`
+                                                                    <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                                        <td style="padding: 12px; font-weight: 600;">\${idx + 1}</td>
+                                                                        <td style="padding: 12px;">
+                                                                            <span style="font-family: monospace; background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 13px;">
+                                                                                \${item.device_serial_no}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style="padding: 12px;">\${item.courier_name || 'N/A'}</td>
+                                                                        <td style="padding: 12px;">
+                                                                            \${item.tracking_number && item.tracking_number !== 'null' ? 
+                                                                                \`<span style="font-family: monospace; color: #3b82f6; font-size: 12px;">\${item.tracking_number}</span>\` : 
+                                                                                '<span style="color: #9ca3af;">-</span>'}
+                                                                        </td>
+                                                                        <td style="padding: 12px;">
+                                                                            <span style="background: #dbeafe; color: #1e40af; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">
+                                                                                \${item.dispatch_method || 'N/A'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style="padding: 12px;">
+                                                                            <span style="background: \${item.qc_status === 'QC Pass' ? '#d1fae5' : '#fee2e2'}; color: \${item.qc_status === 'QC Pass' ? '#065f46' : '#991b1b'}; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">
+                                                                                \${item.qc_status || 'N/A'}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                \`).join('')}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            \`;
+                                        }).join('')}
+                                        
+                                        <!-- Additional Info -->
+                                        \${dispatch.notes && dispatch.notes !== 'null' && dispatch.notes.trim() ? \`
+                                            <div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                                <div style="font-weight: 600; color: #92400e; margin-bottom: 5px;">
+                                                    <i class="fas fa-sticky-note"></i> Notes
+                                                </div>
+                                                <div style="font-size: 14px; color: #78350f;">\${dispatch.notes}</div>
+                                            </div>
+                                        \` : ''}
+                                    </div>
+                                    
+                                    <!-- Footer -->
+                                    <div style="padding: 20px 25px; border-top: 2px solid #e5e7eb; background: #f9fafb; display: flex; justify-content: flex-end;">
+                                        <button onclick="closeViewDispatchModal()" class="btn-secondary" style="padding: 10px 24px;">
+                                            <i class="fas fa-times"></i> Close
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        \`;
+                        
+                        // Add modal to body
+                        document.body.insertAdjacentHTML('beforeend', modalHtml);
+                        
+                    } else {
+                        alert('Failed to load dispatch details');
                     }
                 } catch (error) {
                     console.error('Error viewing dispatch details:', error);
-                    alert('Failed to load dispatch details');
+                    alert('Failed to load dispatch details: ' + error.message);
+                }
+            }
+            
+            // Close view dispatch modal
+            function closeViewDispatchModal() {
+                const modal = document.getElementById('viewDispatchModal');
+                if (modal) {
+                    modal.remove();
                 }
             }
             
