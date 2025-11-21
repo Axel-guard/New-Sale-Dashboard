@@ -16182,6 +16182,7 @@ Prices are subject to change without prior notice.</textarea>
                                     product_name: item.product_name,
                                     product_category: item.product_category,
                                     status: 'In Stock',
+                                    qc_status: 'Pass',
                                     auto_completed: true
                                 });
                             }
