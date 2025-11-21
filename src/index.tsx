@@ -1932,7 +1932,8 @@ app.put('/api/sales/:orderId', async (c) => {
       subtotal += item.quantity * item.unit_price;
     });
     
-    const gstAmount = sale_type === 'With' ? subtotal * 0.18 : 0;
+    // GST should be calculated on subtotal + courier_cost (both are taxable)
+    const gstAmount = sale_type === 'With' ? (subtotal + (courier_cost || 0)) * 0.18 : 0;
     const totalAmount = subtotal + (courier_cost || 0) + gstAmount;
     const balanceAmount = totalAmount - (amount_received || 0);
     
@@ -6690,7 +6691,7 @@ app.get('/', (c) => {
                     <div>
                         <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin-bottom: 5px;">Dispatch Management</h1>
                         <p style="color: #6b7280; font-size: 14px; margin: 0;">
-                            <span id="totalOrdersCount">0</span> Orders | <span id="totalItemsCount">0</span> Items Dispatched
+                            <span id="totalOrdersCount">0</span> Orders Completed | <span id="totalItemsCount">0</span> Orders Pending Dispatch
                         </p>
                     </div>
                     <div style="display: flex; gap: 10px;">
@@ -11052,7 +11053,8 @@ Prices are subject to change without prior notice.</textarea>
                 const courierCost = parseFloat(document.getElementById('editCourierCost').value) || 0;
                 const saleType = document.getElementById('editSaleType').value;
                 const gstRate = saleType === 'With' ? 0.18 : 0;
-                const gstAmount = subtotal * gstRate;
+                // GST should be calculated on subtotal + courierCost (both are taxable)
+                const gstAmount = (subtotal + courierCost) * gstRate;
                 const totalAmount = subtotal + courierCost + gstAmount;
                 
                 document.getElementById('editSubtotalDisplay').textContent = '₹' + subtotal.toFixed(2);
@@ -15006,10 +15008,21 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.get(\`/api/inventory/dispatches?sortBy=\${sortBy}&sortOrder=\${sortOrder}\`);
                     const container = document.getElementById('groupedDispatchesContainer');
                     
+                    // Fetch pending orders count from dispatch summary API
+                    let pendingOrdersCount = 0;
+                    try {
+                        const summaryResponse = await axios.get('/api/dispatch/summary');
+                        if (summaryResponse.data.success) {
+                            pendingOrdersCount = summaryResponse.data.data.pendingOrders || 0;
+                        }
+                    } catch (err) {
+                        console.error('Failed to fetch pending orders count:', err);
+                    }
+                    
                     if (!response.data.success || response.data.data.length === 0) {
                         container.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;"><i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 15px;"></i><p style="font-size: 16px;">No dispatch orders found</p></div>';
                         document.getElementById('totalOrdersCount').textContent = '0';
-                        document.getElementById('totalItemsCount').textContent = '0';
+                        document.getElementById('totalItemsCount').textContent = pendingOrdersCount;
                         return;
                     }
                     
@@ -15018,7 +15031,7 @@ Prices are subject to change without prior notice.</textarea>
                     // Group by serial_number (which represents order batches)
                     const serialNumbers = new Set(dispatches.map(d => d.serial_number).filter(id => id));
                     document.getElementById('totalOrdersCount').textContent = serialNumbers.size;
-                    document.getElementById('totalItemsCount').textContent = dispatches.length;
+                    document.getElementById('totalItemsCount').textContent = pendingOrdersCount;
                     
                     // Group dispatches by order_id (so same order shows in one row)
                     const grouped = {};
@@ -15136,6 +15149,17 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.get(\`/api/inventory/dispatches?sortBy=\${sortBy}&sortOrder=\${sortOrder}\`);
                     const container = document.getElementById('groupedDispatchesContainer');
                     
+                    // Fetch pending orders count from dispatch summary API
+                    let pendingOrdersCount = 0;
+                    try {
+                        const summaryResponse = await axios.get('/api/dispatch/summary');
+                        if (summaryResponse.data.success) {
+                            pendingOrdersCount = summaryResponse.data.data.pendingOrders || 0;
+                        }
+                    } catch (err) {
+                        console.error('Failed to fetch pending orders count:', err);
+                    }
+                    
                     if (!response.data.success || response.data.data.length === 0) {
                         container.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;"><i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 15px;"></i><p style="font-size: 16px;">No dispatch orders found</p></div>';
                         return;
@@ -15181,20 +15205,15 @@ Prices are subject to change without prior notice.</textarea>
                     if (filteredOrders.length === 0) {
                         container.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;"><i class="fas fa-search" style="font-size: 48px; margin-bottom: 15px;"></i><p style="font-size: 16px;">No orders match your search</p></div>';
                         document.getElementById('totalOrdersCount').textContent = '0';
-                        document.getElementById('totalItemsCount').textContent = '0';
+                        document.getElementById('totalItemsCount').textContent = pendingOrdersCount;
                         return;
                     }
                     
                     // Update totals with filtered results
-                    const serialNumbers = new Set();
-                    filteredOrders.forEach(order => {
-                        order.items.forEach(item => {
-                            if (item.serial_number) serialNumbers.add(item.serial_number);
-                        });
-                    });
                     const totalItems = filteredOrders.reduce((sum, order) => sum + order.items.length, 0);
-                    document.getElementById('totalOrdersCount').textContent = serialNumbers.size || filteredOrders.length;
-                    document.getElementById('totalItemsCount').textContent = totalItems;
+                    // Show count of completed dispatch orders and pending orders
+                    document.getElementById('totalOrdersCount').textContent = filteredOrders.length;
+                    document.getElementById('totalItemsCount').textContent = pendingOrdersCount;
                     
                     // Render filtered orders in same format as loadGroupedDispatches
                     container.innerHTML = \`
