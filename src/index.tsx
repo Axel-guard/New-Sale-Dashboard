@@ -16112,7 +16112,7 @@ Prices are subject to change without prior notice.</textarea>
                 // Filter out completed orders and apply search
                 const filtered = allOrders.filter(order => {
                     // Hide completed orders
-                    if (order.dispatch_status === 'Complete') return false;
+                    if (order.dispatch_status === 'Completed') return false;
                     
                     // Apply search filter
                     return order.order_id.toString().includes(searchTerm) ||
