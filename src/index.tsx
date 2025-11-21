@@ -7258,6 +7258,19 @@ app.get('/', (c) => {
                         </button>
                     </div>
 
+                    <!-- Device Info Display -->
+                    <div id="updateQCDeviceInfo" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); 
+                                                        padding: 20px; 
+                                                        border-radius: 12px; 
+                                                        margin-bottom: 20px; 
+                                                        border: 2px solid #10b981;
+                                                        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.1);">
+                        <div style="font-weight: 700; color: #065f46; margin-bottom: 12px; font-size: 16px;">
+                            <i class="fas fa-check-circle"></i> Device Information
+                        </div>
+                        <div style="color: #374151;">Device details will appear here</div>
+                    </div>
+
                     <form id="updateQCForm" onsubmit="submitUpdateQC(event)">
                         <!-- Row 1: Basic Information -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
@@ -18086,7 +18099,36 @@ Prices are subject to change without prior notice.</textarea>
                 loadQCData();
             }
             
-            // Update QC status for pending items
+            // Open Update QC Modal with pre-populated device info
+            function openUpdateQCModal(deviceSerialNo, modelName) {
+                // Pre-fill the Update QC form fields
+                document.getElementById('update_serial_number').value = deviceSerialNo;
+                document.getElementById('update_qc_date').valueAsDate = new Date();
+                
+                // Display device info banner
+                const deviceInfoHTML = \`
+                    <div style="font-weight: 700; color: #065f46; margin-bottom: 12px; font-size: 16px;">
+                        <i class="fas fa-check-circle"></i> Device Loaded Successfully
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                        <div>
+                            <strong style="color: #047857; font-size: 13px;">Serial Number:</strong>
+                            <div style="color: #1f2937; font-size: 18px; font-weight: 700; margin-top: 4px;">\${deviceSerialNo}</div>
+                        </div>
+                        <div>
+                            <strong style="color: #047857; font-size: 13px;">Model Name:</strong>
+                            <div style="color: #1f2937; font-size: 16px; font-weight: 600; margin-top: 4px;">\${modelName || 'N/A'}</div>
+                        </div>
+                    </div>
+                \`;
+                
+                document.getElementById('updateQCDeviceInfo').innerHTML = deviceInfoHTML;
+                
+                // Show the modal
+                document.getElementById('updateQCModal').classList.add('show');
+            }
+            
+            // Update QC status for pending items (quick Pass/Fail)
             async function updateQCStatus(deviceSerialNo, qcStatus) {
                 const confirmMsg = qcStatus === 'QC Pass' 
                     ? \`Mark device \${deviceSerialNo} as QC PASS?\\nThis will set status to "In Stock".\`
