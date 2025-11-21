@@ -4219,25 +4219,15 @@ app.get('/api/dispatch/summary', async (c) => {
   
   try {
     // Get all sales/orders with their items and dispatch counts
-    // Exclude auto-completed products from total_items count (MDVR Installation, RFID Tags, RFID Reader)
     const salesQuery = await env.DB.prepare(`
       SELECT 
         s.order_id,
         s.customer_name,
         s.company_name,
         s.sale_date as order_date,
-        COALESCE(SUM(
-          CASE 
-            WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
-            WHEN LOWER(pc.category_name) LIKE '%rfid tags%' THEN 0
-            WHEN LOWER(pc.category_name) LIKE '%rfid reader%' THEN 0
-            ELSE si.quantity
-          END
-        ), 0) as total_items
+        COALESCE(SUM(si.quantity), 0) as total_items
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
-      LEFT JOIN products p ON si.product_name = p.product_name
-      LEFT JOIN product_categories pc ON p.category_id = pc.id
       GROUP BY s.order_id
     `).all();
     
@@ -4640,23 +4630,11 @@ app.post('/api/dispatch/create', async (c) => {
     
     const dispatchResults = [];
     const errors = [];
-    let autoCompletedCount = 0;
-    const autoCompletedDevices = []; // Track auto-completed devices for summary record
     
     // Create dispatch record for each device
     for (const dev of devices) {
       try {
-        // Check if this is an auto-completed device (starts with "AUTO-")
-        const isAutoCompleted = dev.auto_completed || (dev.device_serial_no || dev.serial_no || '').startsWith('AUTO-');
-        
-        if (isAutoCompleted) {
-          // Track auto-completed devices for summary record
-          autoCompletedCount++;
-          autoCompletedDevices.push(dev);
-          continue;
-        }
-        
-        // Find device in inventory (only for real devices)
+        // Find device in inventory
         const device = await env.DB.prepare(`
           SELECT id, status FROM inventory WHERE device_serial_no = ?
         `).bind(dev.device_serial_no || dev.serial_no).first();
@@ -4716,44 +4694,11 @@ app.post('/api/dispatch/create', async (c) => {
       }
     }
     
-    // Create dispatch records for auto-completed devices
-    // These don't have inventory_id but we need to track them for dispatch count
-    // so the order status changes to "Completed" and disappears from dispatch dropdown
-    for (const dev of autoCompletedDevices) {
-      try {
-        const serialNo = dev.device_serial_no || dev.serial_no;
-        await env.DB.prepare(`
-          INSERT INTO dispatch_records (
-            inventory_id, device_serial_no, order_id, dispatch_date, 
-            customer_name, customer_code, company_name, dispatch_reason,
-            qc_status, courier_name, dispatch_method, dispatched_by, notes
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-          null, // NULL inventory_id for auto-completed devices (now allowed)
-          serialNo, 
-          order_id, 
-          dispatch_date,
-          customer_name, 
-          customer_code, 
-          company_name, 
-          'New Sale - Auto-Completed',
-          dev.qc_status || 'Pass', 
-          courier_name || '', 
-          dispatch_method || '', 
-          'System', 
-          notes || 'Auto-completed device (no physical tracking required)'
-        ).run();
-      } catch (err) {
-        console.error(`Error creating dispatch record for auto-completed device: ${err.message}`);
-      }
-    }
-    
     return c.json({ 
       success: true, 
       data: {
-        dispatched: dispatchResults.length + autoCompletedCount,
+        dispatched: dispatchResults.length,
         total: devices.length,
-        auto_completed: autoCompletedCount,
         results: dispatchResults,
         errors: errors.length > 0 ? errors : null
       }
@@ -16169,31 +16114,6 @@ Prices are subject to change without prior notice.</textarea>
                     selectedOrder = response.data.data;
                     scannedDevices = [];
                     
-                    // Auto-add devices for auto-complete categories (MDVR Installation, RFID Tags, RFID Reader)
-                    selectedOrder.items.forEach(item => {
-                        const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
-                        const productCategory = (item.product_category || '').toLowerCase();
-                        const isRFIDTags = productCategory.includes('rfid tags');
-                        const isRFIDReader = productCategory.includes('rfid reader');
-                        
-                        if (isMDVRInstallation || isRFIDTags || isRFIDReader) {
-                            // Auto-add dummy devices for this product
-                            for (let i = 0; i < item.quantity; i++) {
-                                scannedDevices.push({
-                                    device_serial_no: \`AUTO-\${item.product_name}-\${i + 1}\`,
-                                    model_name: item.product_name,
-                                    product_name: item.product_name,
-                                    product_category: item.product_category,
-                                    status: 'In Stock',
-                                    qc_status: 'Pass',
-                                    qc_passed: true,
-                                    auto_completed: true
-                                });
-                            }
-                            console.log(\`✅ Auto-added \${item.quantity} devices for \${item.product_name}\`);
-                        }
-                    });
-                    
                     // Show Step 2
                     document.getElementById('dispatchStep1').style.display = 'none';
                     document.getElementById('dispatchStep2').style.display = 'block';
@@ -16237,49 +16157,15 @@ Prices are subject to change without prior notice.</textarea>
             function displayOrderProducts() {
                 const products = selectedOrder.items;
                 
-                // Check if order contains any RFID Tags or RFID Reader products
-                // If order has these categories, ALL products in that category are auto-completed
-                const hasRFIDTags = products.some(p => {
-                    const category = (p.product_category || '').toLowerCase();
-                    return category.includes('rfid tags');
-                });
-                
-                const hasRFIDReader = products.some(p => {
-                    const category = (p.product_category || '').toLowerCase();
-                    return category.includes('rfid reader');
-                });
-                
                 document.getElementById('orderProductsList').innerHTML = products.map(item => {
-                    // Check if product is MDVR Installation (should be marked as completed automatically)
-                    const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
-                    
-                    // Check if product belongs to auto-complete categories
-                    const productCategory = (item.product_category || '').toLowerCase();
-                    const isRFIDTags = productCategory.includes('rfid tags');
-                    const isRFIDReader = productCategory.includes('rfid reader');
-                    
-                    // Auto-complete if order contains this category (not based on scanning)
-                    const isAutoCompleteCategory = (isRFIDTags && hasRFIDTags) || 
-                                                   (isRFIDReader && hasRFIDReader);
-                    
-                    // Debug logging
-                    if (isMDVRInstallation) {
-                        console.log('✅ MDVR Installation detected:', item.product_name);
-                    }
-                    if (isAutoCompleteCategory) {
-                        console.log('✅ Auto-complete category detected:', item.product_name, 'Category:', productCategory);
-                    }
-                    
                     // Match scanned devices by product name (model_name)
                     const scannedForThisProduct = scannedDevices.filter(d => 
                         d.model_name === item.product_name || 
                         d.product_name === item.product_name
                     ).length;
                     
-                    // For MDVR Installation or auto-complete categories, show full quantity as completed
-                    const displayScannedCount = (isMDVRInstallation || isAutoCompleteCategory) ? item.quantity : scannedForThisProduct;
                     const remainingToScan = item.quantity - scannedForThisProduct;
-                    const isComplete = isMDVRInstallation || isAutoCompleteCategory || remainingToScan === 0;
+                    const isComplete = remainingToScan === 0;
                     
                     return \`
                         <div style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -16293,10 +16179,10 @@ Prices are subject to change without prior notice.</textarea>
                                 <div style="text-align: right;">
                                     <div style="display: flex; flex-direction: column; gap: 5px;">
                                         <div style="font-size: 24px; font-weight: 700; color: \${isComplete ? '#10b981' : '#f59e0b'};">
-                                            \${displayScannedCount} / \${item.quantity}
+                                            \${scannedForThisProduct} / \${item.quantity}
                                         </div>
                                         <div style="font-size: 14px; font-weight: 600; color: \${isComplete ? '#10b981' : '#dc2626'}; background: \${isComplete ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
-                                            \${(isMDVRInstallation || isAutoCompleteCategory) ? '✅ Completed Already' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
+                                            \${isComplete ? '✅ Complete' : remainingToScan + ' Remaining'}
                                         </div>
                                     </div>
                                 </div>
@@ -16433,16 +16319,11 @@ Prices are subject to change without prior notice.</textarea>
                     const qcColor = device.qc_passed ? '#10b981' : '#f59e0b';
                     const qcBg = device.qc_passed ? '#d1fae5' : '#fef3c7';
                     
-                    // Show auto-completed badge for auto-added devices
-                    const autoCompleteBadge = device.auto_completed ? 
-                        '<span style="background: #d1fae5; color: #10b981; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-left: 8px;">AUTO</span>' : '';
-                    
                     return \`
                         <div style="padding: 12px; margin-bottom: 8px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; display: flex; justify-content: space-between; align-items: center;">
                             <div style="flex: 1;">
                                 <div style="font-weight: 700; color: #1f2937;">
                                     <i class="fas fa-barcode" style="color: #667eea;"></i> \${device.device_serial_no || device.serial_no}
-                                    \${autoCompleteBadge}
                                 </div>
                                 <div style="font-size: 12px; color: #6b7280; margin-top: 3px;">\${device.model_name}</div>
                             </div>
