@@ -16163,13 +16163,36 @@ Prices are subject to change without prior notice.</textarea>
             function displayOrderProducts() {
                 const products = selectedOrder.items;
                 
+                // Check if any RFID Tags or RFID Reader products have been scanned
+                const hasScannedRFIDTags = scannedDevices.some(d => {
+                    const category = d.product_category || d.category || '';
+                    return category.toLowerCase().includes('rfid tags');
+                });
+                
+                const hasScannedRFIDReader = scannedDevices.some(d => {
+                    const category = d.product_category || d.category || '';
+                    return category.toLowerCase().includes('rfid reader');
+                });
+                
                 document.getElementById('orderProductsList').innerHTML = products.map(item => {
                     // Check if product is MDVR Installation (should be marked as completed automatically)
                     const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
                     
+                    // Check if product belongs to auto-complete categories
+                    const productCategory = (item.product_category || '').toLowerCase();
+                    const isRFIDTags = productCategory.includes('rfid tags');
+                    const isRFIDReader = productCategory.includes('rfid reader');
+                    
+                    // Auto-complete if category has any scanned item
+                    const isAutoCompleteCategory = (isRFIDTags && hasScannedRFIDTags) || 
+                                                   (isRFIDReader && hasScannedRFIDReader);
+                    
                     // Debug logging
                     if (isMDVRInstallation) {
                         console.log('✅ MDVR Installation detected:', item.product_name);
+                    }
+                    if (isAutoCompleteCategory) {
+                        console.log('✅ Auto-complete category detected:', item.product_name, 'Category:', productCategory);
                     }
                     
                     // Match scanned devices by product name (model_name)
@@ -16178,10 +16201,10 @@ Prices are subject to change without prior notice.</textarea>
                         d.product_name === item.product_name
                     ).length;
                     
-                    // For MDVR Installation, show full quantity as completed
-                    const displayScannedCount = isMDVRInstallation ? item.quantity : scannedForThisProduct;
+                    // For MDVR Installation or auto-complete categories, show full quantity as completed
+                    const displayScannedCount = (isMDVRInstallation || isAutoCompleteCategory) ? item.quantity : scannedForThisProduct;
                     const remainingToScan = item.quantity - scannedForThisProduct;
-                    const isComplete = isMDVRInstallation || remainingToScan === 0;
+                    const isComplete = isMDVRInstallation || isAutoCompleteCategory || remainingToScan === 0;
                     
                     return \`
                         <div style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -16198,7 +16221,7 @@ Prices are subject to change without prior notice.</textarea>
                                             \${displayScannedCount} / \${item.quantity}
                                         </div>
                                         <div style="font-size: 14px; font-weight: 600; color: \${isComplete ? '#10b981' : '#dc2626'}; background: \${isComplete ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
-                                            \${isMDVRInstallation ? '✅ Completed Already' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
+                                            \${(isMDVRInstallation || isAutoCompleteCategory) ? '✅ Completed Already' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
                                         </div>
                                     </div>
                                 </div>
