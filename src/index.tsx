@@ -15968,11 +15968,11 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('orderSearchInput').value = '';
                 document.getElementById('orderSearchInput').focus();
                 
-                // Load orders
+                // Load orders from dispatch summary (includes correct dispatch counts)
                 try {
-                    const response = await axios.get('/api/orders');
+                    const response = await axios.get('/api/dispatch/summary');
                     if (response.data.success) {
-                        allOrders = response.data.data;
+                        allOrders = response.data.data.orders;
                         searchOrders(); // Show all orders initially
                     }
                 } catch (error) {
