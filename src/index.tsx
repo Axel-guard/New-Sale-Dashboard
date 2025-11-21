@@ -4637,6 +4637,7 @@ app.post('/api/dispatch/create', async (c) => {
     const dispatchResults = [];
     const errors = [];
     let autoCompletedCount = 0;
+    const autoCompletedDevices = []; // Track auto-completed devices for summary record
     
     // Create dispatch record for each device
     for (const dev of devices) {
@@ -4645,9 +4646,9 @@ app.post('/api/dispatch/create', async (c) => {
         const isAutoCompleted = dev.auto_completed || (dev.device_serial_no || dev.serial_no || '').startsWith('AUTO-');
         
         if (isAutoCompleted) {
-          // Skip auto-completed devices - they don't exist in inventory
-          // We'll track them at the order level, not individual device level
+          // Track auto-completed devices for summary record
           autoCompletedCount++;
+          autoCompletedDevices.push(dev);
           continue;
         }
         
@@ -4711,13 +4712,38 @@ app.post('/api/dispatch/create', async (c) => {
       }
     }
     
-    // Update order status
-    await env.DB.prepare(`
-      UPDATE orders SET
-        dispatch_status = 'Completed',
-        updated_at = CURRENT_TIMESTAMP
-      WHERE order_id = ?
-    `).bind(order_id).run();
+    // Create dispatch records for auto-completed devices
+    // These don't have inventory_id but we still need to track them for dispatch count
+    for (const dev of autoCompletedDevices) {
+      try {
+        const serialNo = dev.device_serial_no || dev.serial_no;
+        await env.DB.prepare(`
+          INSERT INTO dispatch_records (
+            inventory_id, device_serial_no, order_id, dispatch_date, 
+            customer_name, customer_code, company_name, dispatch_reason,
+            qc_status, courier_name, dispatch_method, dispatched_by, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          null, // No inventory_id for auto-completed devices
+          serialNo, 
+          order_id, 
+          dispatch_date,
+          customer_name, 
+          customer_code, 
+          company_name, 
+          'New Sale - Auto-Completed',
+          dev.qc_status || 'N/A', 
+          courier_name || '', 
+          dispatch_method || '', 
+          'System', 
+          notes || 'Auto-completed device (no physical tracking required)'
+        ).run();
+      } catch (err) {
+        console.error(`Error creating dispatch record for auto-completed device: ${err.message}`);
+      }
+    }
+    
+    // No need to update orders table - dispatch status is calculated dynamically from dispatch_records count
     
     return c.json({ 
       success: true, 
