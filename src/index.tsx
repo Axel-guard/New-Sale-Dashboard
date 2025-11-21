@@ -4521,15 +4521,18 @@ app.get('/api/orders/:orderId', async (c) => {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
     
-    // Get order items (products) from sale_items table
+    // Get order items (products) from sale_items table with category
     const items = await env.DB.prepare(`
       SELECT 
-        product_name,
-        quantity,
-        unit_price,
-        total_price
-      FROM sale_items 
-      WHERE order_id = ?
+        si.product_name,
+        si.quantity,
+        si.unit_price,
+        si.total_price,
+        pc.category_name as product_category
+      FROM sale_items si
+      LEFT JOIN products p ON si.product_name = p.product_name
+      LEFT JOIN product_categories pc ON p.category_id = pc.id
+      WHERE si.order_id = ?
     `).bind(orderId).all();
     
     return c.json({ 
