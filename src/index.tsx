@@ -4218,9 +4218,10 @@ app.get('/api/dispatch/summary', async (c) => {
   const { env } = c;
   
   try {
+    // OPTIMIZED: Single query with JOIN instead of N+1 queries
     // Get all sales/orders with their items and dispatch counts
     // Exclude MDVR Installation from total_items count (no physical device tracking)
-    const salesQuery = await env.DB.prepare(`
+    const ordersQuery = await env.DB.prepare(`
       SELECT 
         s.order_id,
         s.customer_name,
@@ -4231,41 +4232,38 @@ app.get('/api/dispatch/summary', async (c) => {
             WHEN LOWER(si.product_name) LIKE '%mdvr installation%' THEN 0
             ELSE si.quantity
           END
-        ), 0) as total_items
+        ), 0) as total_items,
+        COALESCE(dispatch_counts.dispatched_items, 0) as dispatched_items,
+        dispatch_counts.last_dispatch_date
       FROM sales s
       LEFT JOIN sale_items si ON s.order_id = si.order_id
-      GROUP BY s.order_id
-    `).all();
-    
-    const salesList = salesQuery.results || [];
-    
-    // For each sale, get dispatch count
-    const ordersWithDispatch = [];
-    
-    for (const sale of salesList) {
-      const dispatchQuery = await env.DB.prepare(`
+      LEFT JOIN (
         SELECT 
+          order_id,
           COUNT(*) as dispatched_items,
           MAX(dispatch_date) as last_dispatch_date
         FROM dispatch_records
-        WHERE order_id = ?
-      `).bind(sale.order_id).first();
-      
-      const dispatchedItems = dispatchQuery?.dispatched_items || 0;
-      const remaining = sale.total_items - dispatchedItems;
+        GROUP BY order_id
+      ) dispatch_counts ON s.order_id = dispatch_counts.order_id
+      GROUP BY s.order_id
+      HAVING total_items > 0
+    `).all();
+    
+    const ordersWithDispatch = (ordersQuery.results || []).map(sale => {
+      const remaining = sale.total_items - sale.dispatched_items;
       const dispatchStatus = remaining <= 0 ? 'Completed' : 'Pending';
       
-      ordersWithDispatch.push({
+      return {
         order_id: sale.order_id,
         customer_name: sale.customer_name,
         company_name: sale.company_name,
         order_date: sale.order_date,
         total_items: sale.total_items,
-        dispatched_items: dispatchedItems,
+        dispatched_items: sale.dispatched_items,
         dispatch_status: dispatchStatus,
-        last_dispatch_date: dispatchQuery?.last_dispatch_date
-      });
-    }
+        last_dispatch_date: sale.last_dispatch_date
+      };
+    });
     
     // Calculate statistics
     const totalOrders = ordersWithDispatch.length;
