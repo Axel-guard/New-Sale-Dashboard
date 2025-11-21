@@ -6928,6 +6928,29 @@ app.get('/', (c) => {
                     <div>
                         <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0;">Quality Check Reports</h1>
                     </div>
+                    
+                    <!-- Update QC Button (Primary Action) -->
+                    <button onclick="openUpdateQCModal()" 
+                        class="btn-primary" 
+                        style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); 
+                               padding: 14px 28px; 
+                               font-size: 15px; 
+                               font-weight: 600; 
+                               box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); 
+                               border: none; 
+                               border-radius: 10px; 
+                               display: flex; 
+                               align-items: center; 
+                               gap: 10px; 
+                               transition: all 0.3s; 
+                               cursor: pointer;
+                               color: white;"
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(245, 158, 11, 0.5)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 14px rgba(245, 158, 11, 0.4)'">
+                        <i class="fas fa-edit" style="font-size: 16px;"></i> 
+                        <span>Update QC</span>
+                    </button>
+                    
                     <div style="position: relative; display: inline-block;">
                         <button onclick="toggleQCActionsDropdown()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 14px 28px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); border: none; border-radius: 10px; display: flex; align-items: center; gap: 10px; transition: all 0.3s; cursor: pointer;">
                             <i class="fas fa-tasks" style="font-size: 16px;"></i> 
@@ -17992,18 +18015,32 @@ Prices are subject to change without prior notice.</textarea>
                             <td>\${isPending ? '-' : ipAddress}</td>
                             <td>
                                 \${isPending ? \`
-                                    <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Pass')" 
-                                        class="btn-primary" 
-                                        style="background: #10b981; padding: 4px 8px; font-size: 11px; margin-right: 4px;" 
-                                        title="Mark as QC Pass">
-                                        <i class="fas fa-check"></i> Pass
-                                    </button>
-                                    <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Fail')" 
-                                        class="btn-primary" 
-                                        style="background: #ef4444; padding: 4px 8px; font-size: 11px;" 
-                                        title="Mark as QC Fail">
-                                        <i class="fas fa-times"></i> Fail
-                                    </button>
+                                    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                        <button onclick="openUpdateQCModal('\${record.device_serial_no}', '\${record.model_name}')" 
+                                            class="btn-primary" 
+                                            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
+                                                   padding: 6px 12px; 
+                                                   font-size: 11px; 
+                                                   border-radius: 6px;
+                                                   box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+                                                   flex: 1;
+                                                   min-width: 90px;" 
+                                            title="Full QC Test">
+                                            <i class="fas fa-edit"></i> Update QC
+                                        </button>
+                                        <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Pass')" 
+                                            class="btn-primary" 
+                                            style="background: #10b981; padding: 6px 10px; font-size: 11px; border-radius: 6px;" 
+                                            title="Quick Pass">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button onclick="updateQCStatus('\${record.device_serial_no}', 'QC Fail')" 
+                                            class="btn-primary" 
+                                            style="background: #ef4444; padding: 6px 10px; font-size: 11px; border-radius: 6px;" 
+                                            title="Quick Fail">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
                                 \` : \`
                                     <button onclick="deleteQCRecord(\${record.id})" 
                                         class="btn-primary" 
