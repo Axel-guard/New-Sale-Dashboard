@@ -16127,6 +16127,29 @@ Prices are subject to change without prior notice.</textarea>
                     selectedOrder = response.data.data;
                     scannedDevices = [];
                     
+                    // Auto-add devices for auto-complete categories (MDVR Installation, RFID Tags, RFID Reader)
+                    selectedOrder.items.forEach(item => {
+                        const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
+                        const productCategory = (item.product_category || '').toLowerCase();
+                        const isRFIDTags = productCategory.includes('rfid tags');
+                        const isRFIDReader = productCategory.includes('rfid reader');
+                        
+                        if (isMDVRInstallation || isRFIDTags || isRFIDReader) {
+                            // Auto-add dummy devices for this product
+                            for (let i = 0; i < item.quantity; i++) {
+                                scannedDevices.push({
+                                    device_serial_no: \`AUTO-\${item.product_name}-\${i + 1}\`,
+                                    model_name: item.product_name,
+                                    product_name: item.product_name,
+                                    product_category: item.product_category,
+                                    status: 'In Stock',
+                                    auto_completed: true
+                                });
+                            }
+                            console.log(\`✅ Auto-added \${item.quantity} devices for \${item.product_name}\`);
+                        }
+                    });
+                    
                     // Show Step 2
                     document.getElementById('dispatchStep1').style.display = 'none';
                     document.getElementById('dispatchStep2').style.display = 'block';
@@ -16150,6 +16173,10 @@ Prices are subject to change without prior notice.</textarea>
                     
                     // Display products to dispatch
                     displayOrderProducts();
+                    
+                    // Display auto-added scanned devices
+                    displayScannedDevices();
+                    updateSubmitButton();
                     
                     // Set dispatch date to today
                     document.getElementById('newDispatchDate').valueAsDate = new Date();
@@ -16362,17 +16389,22 @@ Prices are subject to change without prior notice.</textarea>
                     const qcColor = device.qc_passed ? '#10b981' : '#f59e0b';
                     const qcBg = device.qc_passed ? '#d1fae5' : '#fef3c7';
                     
+                    // Show auto-completed badge for auto-added devices
+                    const autoCompleteBadge = device.auto_completed ? 
+                        '<span style="background: #d1fae5; color: #10b981; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-left: 8px;">AUTO</span>' : '';
+                    
                     return \`
                         <div style="padding: 12px; margin-bottom: 8px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; display: flex; justify-content: space-between; align-items: center;">
                             <div style="flex: 1;">
                                 <div style="font-weight: 700; color: #1f2937;">
-                                    <i class="fas fa-barcode" style="color: #667eea;"></i> \${device.serial_no}
+                                    <i class="fas fa-barcode" style="color: #667eea;"></i> \${device.device_serial_no || device.serial_no}
+                                    \${autoCompleteBadge}
                                 </div>
                                 <div style="font-size: 12px; color: #6b7280; margin-top: 3px;">\${device.model_name}</div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <div style="background: \${qcBg}; color: \${qcColor}; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600;">
-                                    QC: \${device.qc_status}
+                                    QC: \${device.qc_status || 'N/A'}
                                 </div>
                                 <button onclick="removeScannedDevice(\${index})" style="background: #fee2e2; color: #991b1b; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
                                     <i class="fas fa-trash"></i>
