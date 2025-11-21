@@ -4636,26 +4636,38 @@ app.post('/api/dispatch/create', async (c) => {
     
     const dispatchResults = [];
     const errors = [];
+    let autoCompletedCount = 0;
     
     // Create dispatch record for each device
     for (const dev of devices) {
       try {
-        // Find device in inventory
+        // Check if this is an auto-completed device (starts with "AUTO-")
+        const isAutoCompleted = dev.auto_completed || (dev.device_serial_no || dev.serial_no || '').startsWith('AUTO-');
+        
+        if (isAutoCompleted) {
+          // Skip auto-completed devices - they don't exist in inventory
+          // We'll track them at the order level, not individual device level
+          autoCompletedCount++;
+          continue;
+        }
+        
+        // Find device in inventory (only for real devices)
         const device = await env.DB.prepare(`
           SELECT id, status FROM inventory WHERE device_serial_no = ?
-        `).bind(dev.serial_no).first();
+        `).bind(dev.device_serial_no || dev.serial_no).first();
         
         if (!device) {
-          errors.push(`Device ${dev.serial_no} not found`);
+          errors.push(`Device ${dev.device_serial_no || dev.serial_no} not found`);
           continue;
         }
         
         if (device.status === 'Dispatched') {
-          errors.push(`Device ${dev.serial_no} already dispatched`);
+          errors.push(`Device ${dev.device_serial_no || dev.serial_no} already dispatched`);
           continue;
         }
         
         // Insert dispatch record
+        const serialNo = dev.device_serial_no || dev.serial_no;
         const dispatchResult = await env.DB.prepare(`
           INSERT INTO dispatch_records (
             inventory_id, device_serial_no, order_id, dispatch_date, 
@@ -4663,9 +4675,9 @@ app.post('/api/dispatch/create', async (c) => {
             qc_status, courier_name, dispatch_method, dispatched_by, notes
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          device.id, dev.serial_no, order_id, dispatch_date,
+          device.id, serialNo, order_id, dispatch_date,
           customer_name, customer_code, company_name, 'New Sale',
-          dev.qc_status, courier_name || '', dispatch_method || '', 
+          dev.qc_status || 'N/A', courier_name || '', dispatch_method || '', 
           'System', notes || ''
         ).run();
         
@@ -4687,10 +4699,10 @@ app.post('/api/dispatch/create', async (c) => {
             inventory_id, device_serial_no, old_status, new_status,
             changed_by, change_reason
           ) VALUES (?, ?, ?, 'Dispatched', ?, ?)
-        `).bind(device.id, dev.serial_no, device.status, 'System', `Order ${order_id}`).run();
+        `).bind(device.id, serialNo, device.status, 'System', `Order ${order_id}`).run();
         
         dispatchResults.push({
-          serial_no: dev.serial_no,
+          serial_no: serialNo,
           dispatch_id: dispatchResult.meta.last_row_id
         });
         
@@ -4710,8 +4722,9 @@ app.post('/api/dispatch/create', async (c) => {
     return c.json({ 
       success: true, 
       data: {
-        dispatched: dispatchResults.length,
+        dispatched: dispatchResults.length + autoCompletedCount,
         total: devices.length,
+        auto_completed: autoCompletedCount,
         results: dispatchResults,
         errors: errors.length > 0 ? errors : null
       }
