@@ -16166,15 +16166,16 @@ Prices are subject to change without prior notice.</textarea>
             function displayOrderProducts() {
                 const products = selectedOrder.items;
                 
-                // Check if any RFID Tags or RFID Reader products have been scanned
-                const hasScannedRFIDTags = scannedDevices.some(d => {
-                    const category = d.product_category || d.category || '';
-                    return category.toLowerCase().includes('rfid tags');
+                // Check if order contains any RFID Tags or RFID Reader products
+                // If order has these categories, ALL products in that category are auto-completed
+                const hasRFIDTags = products.some(p => {
+                    const category = (p.product_category || '').toLowerCase();
+                    return category.includes('rfid tags');
                 });
                 
-                const hasScannedRFIDReader = scannedDevices.some(d => {
-                    const category = d.product_category || d.category || '';
-                    return category.toLowerCase().includes('rfid reader');
+                const hasRFIDReader = products.some(p => {
+                    const category = (p.product_category || '').toLowerCase();
+                    return category.includes('rfid reader');
                 });
                 
                 document.getElementById('orderProductsList').innerHTML = products.map(item => {
@@ -16186,9 +16187,9 @@ Prices are subject to change without prior notice.</textarea>
                     const isRFIDTags = productCategory.includes('rfid tags');
                     const isRFIDReader = productCategory.includes('rfid reader');
                     
-                    // Auto-complete if category has any scanned item
-                    const isAutoCompleteCategory = (isRFIDTags && hasScannedRFIDTags) || 
-                                                   (isRFIDReader && hasScannedRFIDReader);
+                    // Auto-complete if order contains this category (not based on scanning)
+                    const isAutoCompleteCategory = (isRFIDTags && hasRFIDTags) || 
+                                                   (isRFIDReader && hasRFIDReader);
                     
                     // Debug logging
                     if (isMDVRInstallation) {
