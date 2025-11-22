@@ -5158,8 +5158,26 @@ app.get('/login.html', (c) => {
 
 
 app.get('/', (c) => {
-  // TEMPORARILY DISABLED AUTHENTICATION FOR DEBUGGING
-  // Serve main app without any auth checks
+  // Check for session cookie - redirect to login if not authenticated
+  const cookies = c.req.header('Cookie');
+  if (!cookies || !cookies.includes('session=')) {
+    return c.redirect('/static/login');
+  }
+  
+  // Try to validate session
+  try {
+    const sessionMatch = cookies.match(/session=([^;]+)/);
+    if (!sessionMatch) {
+      return c.redirect('/static/login');
+    }
+    const sessionToken = sessionMatch[1];
+    const sessionData = JSON.parse(atob(sessionToken));
+    // If we got here, session is valid - serve the app
+  } catch (error) {
+    // Invalid session, redirect to login
+    return c.redirect('/static/login');
+  }
+  
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -19896,11 +19914,51 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             
             // ===================================================================
-            // AUTHENTICATION DISABLED FOR DEBUGGING
+            // AUTHENTICATION CHECK - VERIFY SESSION WITH SERVER
             // ===================================================================
-            console.log('[INFO] Authentication checks disabled - app running without login');
+            // Wait for DOM to be fully ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', checkAuthentication);
+            } else {
+                checkAuthentication();
+            }
+            
+            function checkAuthentication() {
+                console.log('[AUTH] Verifying session...');
+                
+                // Verify session with server
+                fetch('/api/auth/verify')
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('Not authenticated');
+                        }
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.success && data.data) {
+                            // Store user data in localStorage for quick access
+                            localStorage.setItem('userId', String(data.data.id));
+                            localStorage.setItem('username', String(data.data.username));
+                            localStorage.setItem('fullName', String(data.data.fullName));
+                            localStorage.setItem('role', String(data.data.role));
+                            localStorage.setItem('employeeName', data.data.employeeName ? String(data.data.employeeName) : '');
+                            localStorage.setItem('permissions', JSON.stringify(data.data.permissions));
+                            
+                            console.log('[AUTH] Session verified:', { username: data.data.username, role: data.data.role });
+                        } else {
+                            throw new Error('Invalid session data');
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('[AUTH] Session verification failed:', error);
+                        // Clear any stale localStorage data
+                        localStorage.clear();
+                        // Redirect to login
+                        window.location.href = '/static/login';
+                    });
+            }
             // ===================================================================
-            // END OF AUTHENTICATION SECTION
+            // END OF AUTHENTICATION CHECK
             // ===================================================================
         </script>
         </div>
