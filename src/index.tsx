@@ -1618,7 +1618,7 @@ app.get('/api/courier-partners', async (c) => {
   
   try {
     const partners = await env.DB.prepare(`
-      SELECT DISTINCT partner_name FROM courier_partners ORDER BY partner_name ASC
+      SELECT DISTINCT courier_partner as partner_name FROM courier_rates ORDER BY courier_partner ASC
     `).all();
     
     return c.json({ success: true, data: partners.results });
@@ -1638,9 +1638,9 @@ app.get('/api/courier-partners/modes', async (c) => {
   
   try {
     const modes = await env.DB.prepare(`
-      SELECT mode_name, rate_per_kg FROM courier_partners 
-      WHERE partner_name = ?
-      ORDER BY mode_name ASC
+      SELECT delivery_method as mode_name, per_kg_rate as rate_per_kg FROM courier_rates 
+      WHERE courier_partner = ?
+      ORDER BY delivery_method ASC
     `).bind(partnerName).all();
     
     return c.json({ success: true, data: modes.results });
