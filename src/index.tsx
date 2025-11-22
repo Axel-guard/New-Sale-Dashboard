@@ -1764,6 +1764,7 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
     // Combine and sort by date
     const allTransactions = [];
     
+    // Add sales as debits (amounts owed)
     (sales.results || []).forEach(sale => {
       allTransactions.push({
         date: sale.sale_date,
@@ -1771,11 +1772,12 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
         order_id: sale.order_id,
         description: 'Sale - ' + sale.order_id,
         debit: sale.total_amount,
-        credit: sale.amount_received || 0,
-        balance: sale.balance_amount
+        credit: 0, // No payment on sale row, only order amount
+        balance: 0 // Will be calculated in running balance
       });
     });
     
+    // Add payments as credits (amounts received)
     (payments.results || []).forEach(payment => {
       allTransactions.push({
         date: payment.payment_date,
@@ -1784,7 +1786,7 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
         description: 'Payment - ' + payment.order_id + (payment.payment_reference ? ' (' + payment.payment_reference + ')' : ''),
         debit: 0,
         credit: payment.amount,
-        balance: 0,
+        balance: 0, // Will be calculated in running balance
         account: payment.account_received
       });
     });
@@ -11103,6 +11105,7 @@ Prices are subject to change without prior notice.</textarea>
                         
                         const row = document.createElement('div');
                         row.className = 'product-row';
+                        row.dataset.id = editProductCount;
                         row.id = 'edit-product-' + editProductCount;
                         row.innerHTML = '<div class="form-group" style="margin: 0;">' +
                                 '<label>Category</label>' +
@@ -11147,7 +11150,7 @@ Prices are subject to change without prior notice.</textarea>
                             const productSelect = row.querySelector('.product-name');
                             productCatalog[productCategory].forEach(product => {
                                 const option = document.createElement('option');
-                                option.value = product.name;
+                                option.value = product.code;
                                 option.textContent = product.name;
                                 if (product.name === item.product_name) {
                                     option.selected = true;
@@ -11357,11 +11360,29 @@ Prices are subject to change without prior notice.</textarea>
                 const row = document.createElement('div');
                 row.className = 'product-row';
                 row.dataset.id = editProductCount;
+                row.id = \`edit-product-\${editProductCount}\`;
                 
                 row.innerHTML = \`
                     <div class="form-group" style="margin: 0;">
+                        <label>Category</label>
+                        <select class="product-category" onchange="updateEditProductOptions(\${editProductCount})">
+                            <option value="">Select Category</option>
+                            <option value="MDVR">MDVR</option>
+                            <option value="Monitor & Monitor Kit">Monitor & Monitor Kit</option>
+                            <option value="Cameras">Cameras</option>
+                            <option value="Dashcam">Dashcam</option>
+                            <option value="Storage">Storage</option>
+                            <option value="RFID Tags">RFID Tags</option>
+                            <option value="RFID Reader">RFID Reader</option>
+                            <option value="MDVR Accessories">MDVR Accessories</option>
+                            <option value="Other product and Accessories">Other product and Accessories</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
                         <label>Product Name</label>
-                        <input type="text" name="items[\${editProductCount}][product_name]" required placeholder="Enter product name">
+                        <select class="product-name" name="items[\${editProductCount}][product_name]" required onchange="calculateEditSaleTotal()">
+                            <option value="">Select Category First</option>
+                        </select>
                     </div>
                     <div class="form-group" style="margin: 0;">
                         <label>Quantity</label>
@@ -11382,6 +11403,28 @@ Prices are subject to change without prior notice.</textarea>
                 
                 container.appendChild(row);
                 editProductCount++;
+            }
+            
+            // Update product options for edit sale modal
+            function updateEditProductOptions(rowId) {
+                const row = document.getElementById(\`edit-product-\${rowId}\`);
+                const categorySelect = row.querySelector('.product-category');
+                const productSelect = row.querySelector('.product-name');
+                const category = categorySelect.value;
+                
+                // Clear product selection
+                productSelect.innerHTML = '<option value="">Select Product</option>';
+                
+                if (category && productCatalog[category]) {
+                    productCatalog[category].forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.code;
+                        option.textContent = product.name;
+                        productSelect.appendChild(option);
+                    });
+                }
+                
+                calculateEditSaleTotal();
             }
             
             // Remove product row in edit sale modal
@@ -12097,9 +12140,8 @@ Prices are subject to change without prior notice.</textarea>
                             '</tr></thead><tbody>';
                         
                         ledger.forEach(entry => {
-                            // Simplified per user request - no advance payment display
+                            // Show running balance - display amount if pending, otherwise show dash
                             const displayBalance = entry.running_balance > 0 ? entry.running_balance : 0;
-                            const isPaid = entry.running_balance <= 0;
                             
                             content += '<tr style="' + (entry.type === 'sale' ? 'background: #fef2f2;' : 'background: #f0fdf4;') + '">' +
                                 '<td>' + new Date(entry.date).toLocaleDateString() + '</td>' +
@@ -12107,8 +12149,8 @@ Prices are subject to change without prior notice.</textarea>
                                 '<td>' + entry.description + (entry.account ? '<br><small style="color: #6b7280;">' + entry.account + '</small>' : '') + '</td>' +
                                 '<td>' + (entry.debit > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + entry.debit.toLocaleString() + '</span>' : '-') + '</td>' +
                                 '<td>' + (entry.credit > 0 ? '<span style="color: #10b981; font-weight: 600;">₹' + entry.credit.toLocaleString() + '</span>' : '-') + '</td>' +
-                                '<td style="font-weight: 600; ' + (displayBalance > 0 ? 'color: #ef4444;' : 'color: #10b981;') + '">' +
-                                    (isPaid ? '<span style="color: #10b981;">✓ Paid</span>' : '₹' + displayBalance.toLocaleString()) +
+                                '<td style="font-weight: 600; ' + (displayBalance > 0 ? 'color: #ef4444;' : 'color: #6b7280;') + '">' +
+                                    (displayBalance > 0 ? '₹' + displayBalance.toLocaleString() : '-') +
                                 '</td>' +
                             '</tr>';
                         });
