@@ -5203,28 +5203,8 @@ app.get('/login.html', (c) => {
 
 
 app.get('/', (c) => {
-  // Check for session cookie
-  const cookies = c.req.header('Cookie');
-  if (!cookies || !cookies.includes('session=')) {
-    return c.redirect('/static/login');
-  }
-  
-  // Validate session cookie
-  try {
-    const sessionMatch = cookies.match(/session=([^;]+)/);
-    if (!sessionMatch) {
-      return c.redirect('/static/login');
-    }
-    // Decode and validate session
-    const sessionData = JSON.parse(atob(sessionMatch[1]));
-    if (!sessionData.id || !sessionData.username) {
-      return c.redirect('/static/login');
-    }
-    // Session is valid, proceed to serve app
-  } catch (error) {
-    return c.redirect('/static/login');
-  }
-  
+  // AUTHENTICATION DISABLED - Direct access to app
+  // Will add login back after everything is working
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
