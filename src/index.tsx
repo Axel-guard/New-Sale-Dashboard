@@ -6251,6 +6251,28 @@ app.get('/', (c) => {
                 background: #e5e7eb;
                 margin: 8px 0;
             }
+            
+            /* Button hover styles to replace inline handlers */
+            .customer-action-btn {
+                color: white;
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .customer-action-btn:hover {
+                transform: translateY(-2px);
+            }
+            
+            .dropdown-menu-item:hover {
+                background: #f3f4f6 !important;
+            }
+            
+            .delete-btn:hover {
+                background: #dc2626 !important;
+            }
         </style>
     </head>
     <body>
@@ -6772,19 +6794,19 @@ app.get('/', (c) => {
                     <!-- 5-Button Dropdown Menu (appears after customer found) -->
                     <div id="customerActionButtons" style="display: none; margin-bottom: 20px;">
                         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <button type="button" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerBasicInfo()" onmouseover="this.style.transform=&#39;translateY(-2px)&#39;" onmouseout="this.style.transform=&#39;translateY(0)&#39;">
+                            <button type="button" class="btn customer-action-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="showCustomerBasicInfo()">
                                 <i class="fas fa-user"></i> Basic
                             </button>
-                            <button type="button" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerHistory()" onmouseover="this.style.transform=&#39;translateY(-2px)&#39;" onmouseout="this.style.transform=&#39;translateY(0)&#39;">
+                            <button type="button" class="btn customer-action-btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);" onclick="showCustomerHistory()">
                                 <i class="fas fa-history"></i> History
                             </button>
-                            <button type="button" class="btn" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerOrders()" onmouseover="this.style.transform=&#39;translateY(-2px)&#39;" onmouseout="this.style.transform=&#39;translateY(0)&#39;">
+                            <button type="button" class="btn customer-action-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);" onclick="showCustomerOrders()">
                                 <i class="fas fa-shopping-cart"></i> Orders
                             </button>
-                            <button type="button" class="btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerLedger()" onmouseover="this.style.transform=&#39;translateY(-2px)&#39;" onmouseout="this.style.transform=&#39;translateY(0)&#39;">
+                            <button type="button" class="btn customer-action-btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" onclick="showCustomerLedger()">
                                 <i class="fas fa-book"></i> Account Ledger
                             </button>
-                            <button type="button" class="btn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onclick="showCustomerTickets()" onmouseover="this.style.transform=&#39;translateY(-2px)&#39;" onmouseout="this.style.transform=&#39;translateY(0)&#39;">
+                            <button type="button" class="btn customer-action-btn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="showCustomerTickets()">
                                 <i class="fas fa-ticket-alt"></i> Tickets
                             </button>
                         </div>
@@ -7160,13 +7182,13 @@ app.get('/', (c) => {
                                 <i class="fas fa-plus-circle"></i> Create <i class="fas fa-chevron-down" style="margin-left: 8px; font-size: 12px;"></i>
                             </button>
                             <div id="createDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 5px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); min-width: 200px; z-index: 1000;">
-                                <button onclick="openCreateDispatchModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background=&#39;#f3f4f6&#39;" onmouseout="this.style.background=&#39;none&#39;">
+                                <button onclick="openCreateDispatchModal(); toggleCreateDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; border-radius: 8px 8px 0 0;">
                                     <i class="fas fa-shipping-fast" style="color: #10b981; width: 20px;"></i> Create Dispatch
                                 </button>
-                                <button onclick="openReplacementModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s;" onmouseover="this.style.background=&#39;#f3f4f6&#39;" onmouseout="this.style.background=&#39;none&#39;">
+                                <button onclick="openReplacementModal(); toggleCreateDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151;">
                                     <i class="fas fa-exchange-alt" style="color: #f59e0b; width: 20px;"></i> Replacement
                                 </button>
-                                <button onclick="openTrackingModal(); toggleCreateDropdown();" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background=&#39;#f3f4f6&#39;" onmouseout="this.style.background=&#39;none&#39;">
+                                <button onclick="openTrackingModal(); toggleCreateDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; border-radius: 0 0 8px 8px;">
                                     <i class="fas fa-truck" style="color: #8b5cf6; width: 20px;"></i> Add Tracking Details
                                 </button>
                             </div>
@@ -7319,11 +7341,11 @@ app.get('/', (c) => {
                             <i class="fas fa-chevron-down" style="font-size: 12px;"></i>
                         </button>
                         <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); min-width: 220px; z-index: 1000; overflow: hidden;">
-                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: all 0.2s; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; border-radius: 12px 12px 0 0;" onmouseover="this.style.background=&#39;linear-gradient(90deg, #f0fdf4 0%, #dcfce7 100%)&#39;; this.style.paddingLeft=&#39;24px&#39;" onmouseout="this.style.background=&#39;none&#39;; this.style.paddingLeft=&#39;20px&#39;">
+                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; border-radius: 12px 12px 0 0;">
                                 <i class="fas fa-file-excel" style="color: #059669; font-size: 16px; width: 22px; text-align: center;"></i>
                                 <span>Export Excel</span>
                             </button>
-                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; transition: all 0.2s; display: flex; align-items: center; gap: 12px; border-radius: 0 0 12px 12px;" onmouseover="this.style.background=&#39;linear-gradient(90deg, #fef3c7 0%, #fde68a 100%)&#39;; this.style.paddingLeft=&#39;24px&#39;" onmouseout="this.style.background=&#39;none&#39;; this.style.paddingLeft=&#39;20px&#39;">
+                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 12px; border-radius: 0 0 12px 12px;">
                                 <i class="fas fa-edit" style="color: #f59e0b; font-size: 16px; width: 22px; text-align: center;"></i>
                                 <span>Update QC</span>
                             </button>
@@ -15877,7 +15899,7 @@ Prices are subject to change without prior notice.</textarea>
                         '<td style="padding: 12px; font-family: monospace; color: #7c3aed; font-weight: 600;">' + record.tracking_id + '</td>' +
                         '<td style="padding: 12px; text-align: right; font-weight: 600; color: #f59e0b;">' + weight + ' Kg</td>' +
                         '<td style="padding: 12px; text-align: right; font-weight: 600; color: #059669;">₹' + actualPrice.toLocaleString() + '</td>' +
-                        '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecordTab(' + record.id + ')" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;" onmouseover="this.style.background=&#39;#dc2626&#39;" onmouseout="this.style.background=&#39;#ef4444&#39;"><i class="fas fa-trash"></i></button></td>' +
+                        '<td style="padding: 12px; text-align: center;"><button onclick="deleteTrackingRecordTab(' + record.id + ')" class="delete-btn" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fas fa-trash"></i></button></td>' +
                     '</tr>';
                 }).join('');
             }
