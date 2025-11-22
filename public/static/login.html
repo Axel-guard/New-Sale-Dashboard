@@ -580,17 +580,8 @@
                 });
             }
 
-            // Check if already logged in via session cookie
-            fetch('/api/auth/verify')
-                .then(function(response) {
-                    if (response.ok) {
-                        // Already logged in, redirect to main app
-                        window.location.href = '/';
-                    }
-                })
-                .catch(function() {
-                    // Not logged in, stay on login page
-                });
+            // Auto-redirect check removed to prevent race conditions
+            // Server-side auth check at root route handles this instead
 
             // Forgot password handler
             const forgotPassword = document.getElementById('forgotPassword');
