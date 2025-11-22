@@ -19859,6 +19859,38 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             // END OF INVENTORY MANAGEMENT FUNCTIONS
             // ===================================================================
+            
+            // ===================================================================
+            // AUTHENTICATION CHECK - REDIRECT TO LOGIN IF NOT LOGGED IN
+            // ===================================================================
+            (function() {
+                // Check if user is logged in
+                const authToken = localStorage.getItem('authToken');
+                const userId = localStorage.getItem('userId');
+                
+                // If not logged in, redirect to login page
+                if (!authToken || !userId) {
+                    window.location.href = '/static/login';
+                    return;
+                }
+                
+                // If authToken doesn't start with 'logged-in', it's invalid
+                if (!authToken.startsWith('logged-in')) {
+                    localStorage.clear();
+                    window.location.href = '/static/login';
+                    return;
+                }
+                
+                // Load user info from localStorage
+                const username = localStorage.getItem('username');
+                const fullName = localStorage.getItem('fullName');
+                const role = localStorage.getItem('role');
+                
+                console.log('User authenticated:', { username: username, role: role });
+            })();
+            // ===================================================================
+            // END OF AUTHENTICATION CHECK
+            // ===================================================================
         </script>
         </div>
     </body>
