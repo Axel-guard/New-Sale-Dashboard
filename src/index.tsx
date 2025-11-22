@@ -1472,11 +1472,11 @@ app.get('/api/customer-details/basic/:query', async (c) => {
         complete_address,
         status,
         created_at,
-        mobile_number as customer_code
+        customer_code
       FROM leads 
-      WHERE mobile_number = ? OR alternate_mobile = ?
+      WHERE mobile_number = ? OR alternate_mobile = ? OR customer_code = ?
       LIMIT 1
-    `).bind(query, query).first();
+    `).bind(query, query, query).first();
     
     // If not found in leads, try sales table with customer_code
     if (!customer) {
@@ -1526,7 +1526,7 @@ app.get('/api/customer-details/history/:query', async (c) => {
         id,
         customer_name,
         mobile_number,
-        mobile_number as customer_code,
+        customer_code,
         alternate_mobile,
         location,
         company_name,
@@ -1536,9 +1536,9 @@ app.get('/api/customer-details/history/:query', async (c) => {
         status,
         created_at
       FROM leads 
-      WHERE mobile_number = ? OR alternate_mobile = ?
+      WHERE mobile_number = ? OR alternate_mobile = ? OR customer_code = ?
       LIMIT 1
-    `).bind(query, query).first();
+    `).bind(query, query, query).first();
     
     // Fallback to sales table if not in leads
     if (!customer) {
@@ -1602,6 +1602,15 @@ app.get('/api/customer-details/history/:query', async (c) => {
       ORDER BY q.created_at DESC
     `).bind(customer.customer_code).all();
     
+    // Get all dispatch records for this customer
+    const dispatches = await env.DB.prepare(`
+      SELECT dr.*, i.model_name
+      FROM dispatch_records dr
+      LEFT JOIN inventory i ON dr.inventory_id = i.id
+      WHERE dr.customer_code = ? OR dr.customer_mobile = ?
+      ORDER BY dr.dispatch_date DESC
+    `).bind(searchCode, searchMobile).all();
+    
     return c.json({
       success: true,
       data: {
@@ -1609,10 +1618,12 @@ app.get('/api/customer-details/history/:query', async (c) => {
         sales: sales.results || [],
         payments: payments.results || [],
         quotations: quotations.results || [],
+        dispatches: dispatches.results || [],
         summary: {
           total_sales: sales.results?.length || 0,
           total_payments: payments.results?.length || 0,
           total_quotations: quotations.results?.length || 0,
+          total_dispatches: dispatches.results?.length || 0,
           total_sale_amount: sales.results?.reduce((sum, s) => sum + (s.total_amount || 0), 0) || 0,
           total_balance: sales.results?.reduce((sum, s) => sum + (s.balance_amount || 0), 0) || 0,
           total_paid: payments.results?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
@@ -1698,11 +1709,11 @@ app.get('/api/customer-details/ledger/:query', async (c) => {
       SELECT 
         mobile_number, 
         customer_name,
-        mobile_number as customer_code
+        customer_code
       FROM leads 
-      WHERE mobile_number = ? OR alternate_mobile = ?
+      WHERE mobile_number = ? OR alternate_mobile = ? OR customer_code = ?
       LIMIT 1
-    `).bind(query, query).first();
+    `).bind(query, query, query).first();
     
     // Fallback to sales table if not in leads
     if (!customer) {
@@ -11539,13 +11550,62 @@ Prices are subject to change without prior notice.</textarea>
                     // Store the mobile number as the customer identifier
                     currentCustomerQuery = leads[0].mobile_number;
                     
+                    // Store customer info for persistent header
+                    window.currentCustomerInfo = leads[0];
+                    
                     // Show the 5-button menu
                     document.getElementById('customerActionButtons').style.display = 'block';
                     document.getElementById('customerDetailsContent').style.display = 'none';
                     
+                    // Show persistent customer header
+                    showPersistentCustomerHeader(leads[0]);
+                    
                 } catch (error) {
                     console.error('Error loading customer:', error);
                     alert('Error loading customer');
+                }
+            }
+            
+            // Show persistent customer header across all tabs
+            function showPersistentCustomerHeader(customer) {
+                const headerHtml = \`
+                    <div id="persistentCustomerHeader" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px 20px; border-radius: 8px; color: white; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; align-items: center;">
+                            <div>
+                                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">Customer Code</div>
+                                <div style="font-size: 16px; font-weight: 700;">\${customer.customer_code || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">Customer Name</div>
+                                <div style="font-size: 16px; font-weight: 700;">\${customer.customer_name || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">Mobile Number</div>
+                                <div style="font-size: 16px; font-weight: 700;">\${customer.mobile_number || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">Company</div>
+                                <div style="font-size: 16px; font-weight: 700;">\${customer.company_name || 'N/A'}</div>
+                            </div>
+                            <div style="grid-column: 1 / -1;">
+                                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">Location</div>
+                                <div style="font-size: 14px; font-weight: 600;">\${customer.location || customer.complete_address || 'N/A'}</div>
+                            </div>
+                        </div>
+                    </div>
+                \`;
+                
+                // Insert header before action buttons
+                const actionButtons = document.getElementById('customerActionButtons');
+                if (actionButtons) {
+                    // Remove existing header if any
+                    const existingHeader = document.getElementById('persistentCustomerHeader');
+                    if (existingHeader) {
+                        existingHeader.remove();
+                    }
+                    
+                    // Insert new header
+                    actionButtons.insertAdjacentHTML('beforebegin', headerHtml);
                 }
             }
             
@@ -11554,6 +11614,11 @@ Prices are subject to change without prior notice.</textarea>
                 if (!currentCustomerQuery) {
                     alert('Please search for a customer first');
                     return;
+                }
+                
+                // Show persistent header
+                if (window.currentCustomerInfo) {
+                    showPersistentCustomerHeader(window.currentCustomerInfo);
                 }
                 
                 try {
@@ -11636,6 +11701,11 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
+                // Show persistent header
+                if (window.currentCustomerInfo) {
+                    showPersistentCustomerHeader(window.currentCustomerInfo);
+                }
+                
                 try {
                     console.log('Fetching history for:', currentCustomerQuery);
                     const response = await axios.get('/api/customer-details/history/' + encodeURIComponent(currentCustomerQuery));
@@ -11702,6 +11772,19 @@ Prices are subject to change without prior notice.</textarea>
                         });
                     });
                     
+                    // Add all dispatch records
+                    const dispatches = data.dispatches || [];
+                    dispatches.forEach(dispatch => {
+                        timeline.push({
+                            date: new Date(dispatch.dispatch_date),
+                            type: 'dispatch',
+                            title: 'Order Dispatched',
+                            icon: 'fa-shipping-fast',
+                            color: '#8b5cf6',
+                            data: dispatch
+                        });
+                    });
+                    
                     // Sort by date descending (most recent first)
                     timeline.sort((a, b) => b.date - a.date);
                     
@@ -11721,7 +11804,7 @@ Prices are subject to change without prior notice.</textarea>
                         '</div>' +
                         
                         // Summary Cards
-                        '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px;">' +
+                        '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 25px;">' +
                             '<div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 15px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
                                 '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Total Sales</div>' +
                                 '<div style="font-size: 24px; font-weight: 700;">' + summary.total_sales + '</div>' +
@@ -11731,6 +11814,11 @@ Prices are subject to change without prior notice.</textarea>
                                 '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Payments</div>' +
                                 '<div style="font-size: 24px; font-weight: 700;">' + summary.total_payments + '</div>' +
                                 '<div style="font-size: 11px; opacity: 0.8; margin-top: 5px;">₹' + (summary.total_paid || 0).toLocaleString() + '</div>' +
+                            '</div>' +
+                            '<div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 15px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Dispatches</div>' +
+                                '<div style="font-size: 24px; font-weight: 700;">' + (summary.total_dispatches || 0) + '</div>' +
+                                '<div style="font-size: 11px; opacity: 0.8; margin-top: 5px;">Devices Sent</div>' +
                             '</div>' +
                             '<div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 15px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
                                 '<div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">Quotations</div>' +
@@ -11801,6 +11889,16 @@ Prices are subject to change without prior notice.</textarea>
                                     '</div>' +
                                     (event.data.products ? '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #fef3c7;"><strong>Products:</strong> ' + event.data.products + '</div>' : '') +
                                 '</div>';
+                            } else if (event.type === 'dispatch') {
+                                content += '<div style="background: #f5f3ff; padding: 12px; border-radius: 6px; font-size: 13px;">' +
+                                    '<div style="font-weight: 600; margin-bottom: 8px; color: #6d28d9;">Order #' + (event.data.order_id || 'N/A') + ' Dispatched</div>' +
+                                    '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">' +
+                                        '<div><strong>Device:</strong> ' + (event.data.device_serial_no || 'N/A') + '</div>' +
+                                        '<div><strong>Model:</strong> ' + (event.data.model_name || 'N/A') + '</div>' +
+                                        '<div><strong>Courier:</strong> ' + (event.data.courier_name || 'N/A') + '</div>' +
+                                        '<div><strong>Tracking:</strong> ' + (event.data.tracking_number || 'N/A') + '</div>' +
+                                    '</div>' +
+                                '</div>';
                             }
                             
                             content += '</div></div>';
@@ -11823,6 +11921,11 @@ Prices are subject to change without prior notice.</textarea>
                 if (!currentCustomerQuery) {
                     alert('Please search for a customer first');
                     return;
+                }
+                
+                // Show persistent header
+                if (window.currentCustomerInfo) {
+                    showPersistentCustomerHeader(window.currentCustomerInfo);
                 }
                 
                 try {
@@ -11938,6 +12041,11 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
+                // Show persistent header
+                if (window.currentCustomerInfo) {
+                    showPersistentCustomerHeader(window.currentCustomerInfo);
+                }
+                
                 try {
                     const response = await axios.get('/api/customer-details/ledger/' + encodeURIComponent(currentCustomerQuery));
                     if (!response.data.success) {
@@ -11955,26 +12063,20 @@ Prices are subject to change without prior notice.</textarea>
                             '<i class="fas fa-book" style="color: #f59e0b; margin-right: 10px;"></i>Account Ledger - ' + customer.customer_name +
                         '</h3>' +
                         
-                        // Summary Cards
-                        '<div style="display: grid; grid-template-columns: repeat(' + (summary.advance_payment > 0 ? '4' : '3') + ', 1fr); gap: 15px; margin-bottom: 25px;">' +
-                            '<div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Sales</div>' +
+                        // Summary Cards - Simplified as per user request
+                        '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">' +
+                            '<div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Order Amount</div>' +
                                 '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_debit || 0).toLocaleString() + '</div>' +
                             '</div>' +
                             '<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Payments</div>' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Total Received</div>' +
                                 '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.total_credit || 0).toLocaleString() + '</div>' +
                             '</div>' +
-                            '<div style="background: linear-gradient(135deg, ' + (summary.final_balance > 0 ? '#f59e0b 0%, #d97706 100%' : '#10b981 0%, #059669 100%') + '); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">' + (summary.final_balance > 0 ? 'Outstanding Balance' : 'Balance Paid') + '</div>' +
-                                '<div style="font-size: 28px; font-weight: 700;">₹' + (summary.final_balance || 0).toLocaleString() + '</div>' +
+                            '<div style="background: linear-gradient(135deg, ' + (summary.final_balance > 0 ? '#ef4444 0%, #dc2626 100%' : '#10b981 0%, #059669 100%') + '); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                                '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">' + (summary.final_balance > 0 ? 'Amount Due (Pending)' : 'Fully Paid') + '</div>' +
+                                '<div style="font-size: 28px; font-weight: 700;">' + (summary.final_balance > 0 ? '₹' + summary.final_balance.toLocaleString() : '✓ ₹0') + '</div>' +
                             '</div>' +
-                            (summary.advance_payment > 0 ? 
-                                '<div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                                    '<div style="font-size: 13px; opacity: 0.9; margin-bottom: 5px;">Advance Payment</div>' +
-                                    '<div style="font-size: 28px; font-weight: 700;">₹' + summary.advance_payment.toLocaleString() + '</div>' +
-                                '</div>' 
-                            : '') +
                         '</div>' +
                         
                         // Ledger Table
@@ -11995,9 +12097,9 @@ Prices are subject to change without prior notice.</textarea>
                             '</tr></thead><tbody>';
                         
                         ledger.forEach(entry => {
-                            const displayBalance = entry.running_balance >= 0 ? entry.running_balance : 0;
-                            const isAdvance = entry.running_balance < 0;
-                            const advanceAmount = isAdvance ? Math.abs(entry.running_balance) : 0;
+                            // Simplified per user request - no advance payment display
+                            const displayBalance = entry.running_balance > 0 ? entry.running_balance : 0;
+                            const isPaid = entry.running_balance <= 0;
                             
                             content += '<tr style="' + (entry.type === 'sale' ? 'background: #fef2f2;' : 'background: #f0fdf4;') + '">' +
                                 '<td>' + new Date(entry.date).toLocaleDateString() + '</td>' +
@@ -12005,10 +12107,8 @@ Prices are subject to change without prior notice.</textarea>
                                 '<td>' + entry.description + (entry.account ? '<br><small style="color: #6b7280;">' + entry.account + '</small>' : '') + '</td>' +
                                 '<td>' + (entry.debit > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + entry.debit.toLocaleString() + '</span>' : '-') + '</td>' +
                                 '<td>' + (entry.credit > 0 ? '<span style="color: #10b981; font-weight: 600;">₹' + entry.credit.toLocaleString() + '</span>' : '-') + '</td>' +
-                                '<td style="font-weight: 600; ' + (displayBalance > 0 ? 'color: #f59e0b;' : 'color: #10b981;') + '">' +
-                                    (isAdvance ? 
-                                        '<span style="color: #3b82f6;">Advance: ₹' + advanceAmount.toLocaleString() + '</span>' : 
-                                        '₹' + displayBalance.toLocaleString()) +
+                                '<td style="font-weight: 600; ' + (displayBalance > 0 ? 'color: #ef4444;' : 'color: #10b981;') + '">' +
+                                    (isPaid ? '<span style="color: #10b981;">✓ Paid</span>' : '₹' + displayBalance.toLocaleString()) +
                                 '</td>' +
                             '</tr>';
                         });
@@ -12031,6 +12131,11 @@ Prices are subject to change without prior notice.</textarea>
                 if (!currentCustomerQuery) {
                     alert('Please search for a customer first');
                     return;
+                }
+                
+                // Show persistent header
+                if (window.currentCustomerInfo) {
+                    showPersistentCustomerHeader(window.currentCustomerInfo);
                 }
                 
                 try {
