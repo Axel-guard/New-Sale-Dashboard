@@ -19863,19 +19863,30 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             // AUTHENTICATION CHECK - REDIRECT TO LOGIN IF NOT LOGGED IN
             // ===================================================================
-            (function() {
+            // Wait for DOM and localStorage to be fully ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', checkAuthentication);
+            } else {
+                checkAuthentication();
+            }
+            
+            function checkAuthentication() {
                 // Check if user is logged in
                 const authToken = localStorage.getItem('authToken');
                 const userId = localStorage.getItem('userId');
                 
+                console.log('Auth check:', { authToken: authToken, userId: userId });
+                
                 // If not logged in, redirect to login page
                 if (!authToken || !userId) {
+                    console.log('No auth token or userId, redirecting to login');
                     window.location.href = '/static/login';
                     return;
                 }
                 
                 // If authToken doesn't start with 'logged-in', it's invalid
                 if (!authToken.startsWith('logged-in')) {
+                    console.log('Invalid auth token format, clearing and redirecting');
                     localStorage.clear();
                     window.location.href = '/static/login';
                     return;
@@ -19886,8 +19897,8 @@ Prices are subject to change without prior notice.</textarea>
                 const fullName = localStorage.getItem('fullName');
                 const role = localStorage.getItem('role');
                 
-                console.log('User authenticated:', { username: username, role: role });
-            })();
+                console.log('User authenticated successfully:', { username: username, role: role });
+            }
             // ===================================================================
             // END OF AUTHENTICATION CHECK
             // ===================================================================
