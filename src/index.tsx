@@ -6256,8 +6256,8 @@ app.get('/', (c) => {
         </style>
     </head>
     <body>
-        <!-- Login Screen -->
-        <div id="loginScreen" class="login-container">
+        <!-- Login Screen - HIDDEN (authentication disabled) -->
+        <div id="loginScreen" class="login-container" style="display: none;">
             <!-- Left Side with Animated Characters -->
             <div class="left-side">
                 <div class="characters-container">
@@ -6355,8 +6355,8 @@ app.get('/', (c) => {
             </div>
         </div>
 
-        <!-- Main Dashboard (hidden until logged in) -->
-        <div id="mainDashboard" style="display: none;">
+        <!-- Main Dashboard (visible - no login required) -->
+        <div id="mainDashboard" style="display: block;">
             <div class="top-bar">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <div class="menu-toggle" onclick="toggleSidebar()">
