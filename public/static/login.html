@@ -556,20 +556,36 @@
                         if (data.success && data.data) {
                             // Store user data
                             const userData = data.data;
-                            localStorage.setItem('userId', userData.id);
-                            localStorage.setItem('username', userData.username);
-                            localStorage.setItem('fullName', userData.fullName);
-                            localStorage.setItem('role', userData.role);
-                            localStorage.setItem('employeeName', userData.employeeName || '');
+                            
+                            // Store all data in localStorage (convert to strings)
+                            localStorage.setItem('userId', String(userData.id));
+                            localStorage.setItem('username', String(userData.username));
+                            localStorage.setItem('fullName', String(userData.fullName));
+                            localStorage.setItem('role', String(userData.role));
+                            localStorage.setItem('employeeName', userData.employeeName ? String(userData.employeeName) : '');
                             localStorage.setItem('permissions', JSON.stringify(userData.permissions));
                             localStorage.setItem('authToken', 'logged-in-' + Date.now());
+                            
+                            // Force localStorage to sync (critical!)
+                            console.log('Stored in localStorage:', {
+                                userId: localStorage.getItem('userId'),
+                                username: localStorage.getItem('username'),
+                                authToken: localStorage.getItem('authToken')
+                            });
 
                             showSuccess('Login successful! Redirecting...');
                             
-                            // Redirect after a short delay
+                            // Redirect after longer delay to ensure localStorage is written
                             setTimeout(function() {
-                                window.location.href = '/';
-                            }, 500);
+                                // Double-check localStorage before redirect
+                                const checkToken = localStorage.getItem('authToken');
+                                console.log('Pre-redirect check - authToken:', checkToken);
+                                if (checkToken && checkToken.startsWith('logged-in')) {
+                                    window.location.href = '/';
+                                } else {
+                                    showError('Session storage failed. Please try again.');
+                                }
+                            }, 1000);
                         } else {
                             showError(data.error || 'Login failed. Please check your credentials.');
                             if (loginButton) {
