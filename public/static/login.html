@@ -318,66 +318,24 @@
             transform: translateY(0);
         }
 
-        .divider {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin: 30px 0;
-        }
-
-        .divider span {
-            color: #9ca3af;
-            font-size: 14px;
-        }
-
-        .divider-line {
-            flex: 1;
-            height: 1px;
-            background: #e5e7eb;
-        }
-
-        .btn-google {
-            width: 100%;
-            padding: 14px;
-            background: white;
-            color: #374151;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .btn-google:hover {
-            border-color: #667eea;
-            background: #f9fafb;
-        }
-
-        .signup-link {
-            text-align: center;
-            margin-top: 30px;
-            color: #6b7280;
-            font-size: 14px;
-        }
-
-        .signup-link a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-
-        .signup-link a:hover {
-            text-decoration: underline;
+        .btn-login:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .error-message {
             background: #fee2e2;
             color: #991b1b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .success-message {
+            background: #d1fae5;
+            color: #065f46;
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -402,7 +360,7 @@
         <div class="left-side">
             <div class="characters-container">
                 <!-- Orange Semi-Circle Character -->
-                <div class="character orange-character" data-character="orange">
+                <div class="character orange-character">
                     <div class="eyes">
                         <div class="eye">
                             <div class="pupil"></div>
@@ -415,7 +373,7 @@
                 </div>
 
                 <!-- Purple Rectangle Character -->
-                <div class="character purple-character" data-character="purple">
+                <div class="character purple-character">
                     <div class="eyes">
                         <div class="eye">
                             <div class="pupil"></div>
@@ -427,7 +385,7 @@
                 </div>
 
                 <!-- Black Rectangle Character -->
-                <div class="character black-character" data-character="black">
+                <div class="character black-character">
                     <div class="eyes">
                         <div class="eye">
                             <div class="pupil"></div>
@@ -439,7 +397,7 @@
                 </div>
 
                 <!-- Yellow Capsule Character -->
-                <div class="character yellow-character" data-character="yellow">
+                <div class="character yellow-character">
                     <div class="eyes">
                         <div class="eye">
                             <div class="pupil"></div>
@@ -462,17 +420,18 @@
                 </div>
 
                 <div id="errorMessage" class="error-message"></div>
+                <div id="successMessage" class="success-message"></div>
 
                 <form id="loginForm">
                     <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="text" id="email" name="email" placeholder="Enter your username" required>
+                        <label for="email">Email / Username</label>
+                        <input type="text" id="email" name="email" placeholder="Enter your username or email" required autocomplete="username">
                     </div>
 
                     <div class="form-group">
                         <label for="password">Password</label>
                         <div class="input-wrapper">
-                            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                            <input type="password" id="password" name="password" placeholder="Enter your password" required autocomplete="current-password">
                             <i class="fas fa-eye password-toggle" id="togglePassword"></i>
                         </div>
                     </div>
@@ -482,26 +441,12 @@
                             <input type="checkbox" id="remember" name="remember">
                             <label for="remember">Remember for 30 days</label>
                         </div>
-                        <a href="#" class="forgot-password">Forgot password?</a>
+                        <a href="#" class="forgot-password" id="forgotPassword">Forgot password?</a>
                     </div>
 
-                    <button type="submit" class="btn-login">
-                        <i class="fas fa-sign-in-alt"></i> Log In
+                    <button type="submit" class="btn-login" id="loginButton">
+                        Log In
                     </button>
-
-                    <div class="divider">
-                        <div class="divider-line"></div>
-                        <span>OR</span>
-                        <div class="divider-line"></div>
-                    </div>
-
-                    <button type="button" class="btn-google">
-                        <i class="fab fa-google"></i> Log in with Google
-                    </button>
-
-                    <div class="signup-link">
-                        Don't have an account? <a href="#">Sign Up</a>
-                    </div>
                 </form>
             </div>
         </div>
@@ -509,90 +454,156 @@
 
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
     <script>
-        // Eye tracking functionality
-        const characters = document.querySelectorAll('.character');
-        
-        document.addEventListener('mousemove', (e) => {
-            characters.forEach(character => {
-                const pupils = character.querySelectorAll('.pupil');
-                const eyes = character.querySelectorAll('.eye');
-                
-                eyes.forEach((eye, index) => {
-                    const eyeRect = eye.getBoundingClientRect();
-                    const eyeCenterX = eyeRect.left + eyeRect.width / 2;
-                    const eyeCenterY = eyeRect.top + eyeRect.height / 2;
+        // SECURE LOGIN SCRIPT - ISOLATED FROM APP CODE
+        (function() {
+            'use strict';
+
+            // Eye tracking functionality
+            const characters = document.querySelectorAll('.character');
+            
+            document.addEventListener('mousemove', function(e) {
+                characters.forEach(function(character) {
+                    const pupils = character.querySelectorAll('.pupil');
+                    const eyes = character.querySelectorAll('.eye');
                     
-                    const angle = Math.atan2(e.clientY - eyeCenterY, e.clientX - eyeCenterX);
-                    const distance = Math.min(8, Math.sqrt(Math.pow(e.clientX - eyeCenterX, 2) + Math.pow(e.clientY - eyeCenterY, 2)) / 20);
-                    
-                    const pupilX = Math.cos(angle) * distance;
-                    const pupilY = Math.sin(angle) * distance;
-                    
-                    pupils[index].style.transform = `translate(calc(-50% + ${pupilX}px), calc(-50% + ${pupilY}px))`;
+                    eyes.forEach(function(eye, index) {
+                        const eyeRect = eye.getBoundingClientRect();
+                        const eyeCenterX = eyeRect.left + eyeRect.width / 2;
+                        const eyeCenterY = eyeRect.top + eyeRect.height / 2;
+                        
+                        const angle = Math.atan2(e.clientY - eyeCenterY, e.clientX - eyeCenterX);
+                        const distance = Math.min(8, Math.sqrt(Math.pow(e.clientX - eyeCenterX, 2) + Math.pow(e.clientY - eyeCenterY, 2)) / 20);
+                        
+                        const pupilX = Math.cos(angle) * distance;
+                        const pupilY = Math.sin(angle) * distance;
+                        
+                        pupils[index].style.transform = 'translate(calc(-50% + ' + pupilX + 'px), calc(-50% + ' + pupilY + 'px))';
+                    });
                 });
             });
-        });
 
-        // Password toggle functionality
-        const togglePassword = document.getElementById('togglePassword');
-        const passwordInput = document.getElementById('password');
+            // Password toggle functionality
+            const togglePassword = document.getElementById('togglePassword');
+            const passwordInput = document.getElementById('password');
 
-        togglePassword.addEventListener('click', () => {
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordInput.setAttribute('type', type);
-            togglePassword.classList.toggle('fa-eye');
-            togglePassword.classList.toggle('fa-eye-slash');
-        });
-
-        // Login form submission
-        const loginForm = document.getElementById('loginForm');
-        const errorMessage = document.getElementById('errorMessage');
-
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const username = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-
-            try {
-                const response = await axios.post('/api/auth/login', {
-                    username: username,
-                    password: password
+            if (togglePassword && passwordInput) {
+                togglePassword.addEventListener('click', function() {
+                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                    passwordInput.setAttribute('type', type);
+                    togglePassword.classList.toggle('fa-eye');
+                    togglePassword.classList.toggle('fa-eye-slash');
                 });
-
-                if (response.data.success) {
-                    // Store user data from the correct response format
-                    const userData = response.data.data;
-                    localStorage.setItem('userId', userData.id);
-                    localStorage.setItem('username', userData.username);
-                    localStorage.setItem('fullName', userData.fullName);
-                    localStorage.setItem('role', userData.role);
-                    localStorage.setItem('employeeName', userData.employeeName || '');
-                    localStorage.setItem('permissions', JSON.stringify(userData.permissions));
-                    localStorage.setItem('authToken', 'logged-in'); // Simple token for demo
-
-                    // Redirect to main app
-                    window.location.href = '/';
-                } else {
-                    showError(response.data.error || 'Login failed');
-                }
-            } catch (error) {
-                showError(error.response?.data?.error || error.message || 'Login failed. Please try again.');
             }
-        });
 
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-            setTimeout(() => {
-                errorMessage.style.display = 'none';
-            }, 5000);
-        }
+            // Login form submission
+            const loginForm = document.getElementById('loginForm');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            const loginButton = document.getElementById('loginButton');
 
-        // Check if already logged in
-        if (localStorage.getItem('authToken')) {
-            window.location.href = '/';
-        }
+            function showError(message) {
+                if (errorMessage) {
+                    errorMessage.textContent = message;
+                    errorMessage.style.display = 'block';
+                    if (successMessage) successMessage.style.display = 'none';
+                    setTimeout(function() {
+                        errorMessage.style.display = 'none';
+                    }, 5000);
+                }
+            }
+
+            function showSuccess(message) {
+                if (successMessage) {
+                    successMessage.textContent = message;
+                    successMessage.style.display = 'block';
+                    if (errorMessage) errorMessage.style.display = 'none';
+                }
+            }
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const username = document.getElementById('email').value;
+                    const password = document.getElementById('password').value;
+
+                    if (!username || !password) {
+                        showError('Please enter both username and password');
+                        return;
+                    }
+
+                    // Disable button during login
+                    if (loginButton) {
+                        loginButton.disabled = true;
+                        loginButton.textContent = 'Logging in...';
+                    }
+
+                    // Use fetch API instead of axios for better compatibility
+                    fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            password: password
+                        })
+                    })
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.success && data.data) {
+                            // Store user data
+                            const userData = data.data;
+                            localStorage.setItem('userId', userData.id);
+                            localStorage.setItem('username', userData.username);
+                            localStorage.setItem('fullName', userData.fullName);
+                            localStorage.setItem('role', userData.role);
+                            localStorage.setItem('employeeName', userData.employeeName || '');
+                            localStorage.setItem('permissions', JSON.stringify(userData.permissions));
+                            localStorage.setItem('authToken', 'logged-in-' + Date.now());
+
+                            showSuccess('Login successful! Redirecting...');
+                            
+                            // Redirect after a short delay
+                            setTimeout(function() {
+                                window.location.href = '/';
+                            }, 500);
+                        } else {
+                            showError(data.error || 'Login failed. Please check your credentials.');
+                            if (loginButton) {
+                                loginButton.disabled = false;
+                                loginButton.textContent = 'Log In';
+                            }
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('Login error:', error);
+                        showError('Login failed. Please try again.');
+                        if (loginButton) {
+                            loginButton.disabled = false;
+                            loginButton.textContent = 'Log In';
+                        }
+                    });
+                });
+            }
+
+            // Check if already logged in
+            const authToken = localStorage.getItem('authToken');
+            if (authToken && authToken.startsWith('logged-in')) {
+                window.location.href = '/';
+            }
+
+            // Forgot password handler
+            const forgotPassword = document.getElementById('forgotPassword');
+            if (forgotPassword) {
+                forgotPassword.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    alert('Please contact your administrator to reset your password.');
+                });
+            }
+        })();
     </script>
 </body>
 </html>

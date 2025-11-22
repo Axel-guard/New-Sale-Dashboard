@@ -5112,10 +5112,15 @@ app.put('/api/orders/:orderId/dockets', async (c) => {
 // END OF ORDER-BASED DISPATCH WORKFLOW API ENDPOINTS
 // ===================================================================
 
-// Home page with dashboard
-// Login page route - redirect to static file
+// Login page route - SECURE, ISOLATED LOGIN PAGE
+// Note: serveStatic auto-redirects /static/login.html to /static/login
 app.get('/login', (c) => {
-  return c.redirect('/login.html');
+  return c.redirect('/static/login');
+});
+
+// Also serve login.html directly from static
+app.get('/login.html', (c) => {
+  return c.redirect('/static/login');
 });
 
 
