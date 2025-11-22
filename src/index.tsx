@@ -49,42 +49,52 @@ app.post('/api/auth/login', async (c) => {
       return c.json({ success: false, error: 'Invalid credentials' }, 401);
     }
     
-    console.log('[LOGIN] Success for user:', username);
-    return c.json({
-      success: true,
-      data: {
-        id: user.id,
-        username: user.username,
-        fullName: user.full_name,
-        role: user.role,
-        employeeName: user.employee_name,
-        permissions: {
-          canEdit: user.can_edit === 1,
-          canDelete: user.can_delete === 1,
-          canView: user.can_view === 1,
-          modules: {
-            sales: {
-              view: user.sales_view === 1,
-              edit: user.sales_edit === 1,
-              delete: user.sales_delete === 1
-            },
-            inventory: {
-              view: user.inventory_view === 1,
-              edit: user.inventory_edit === 1,
-              delete: user.inventory_delete === 1
-            },
-            leads: {
-              view: user.leads_view === 1,
-              edit: user.leads_edit === 1,
-              delete: user.leads_delete === 1
-            },
-            reports: {
-              view: user.reports_view === 1,
-              edit: user.reports_edit === 1
-            }
+    // Create session data
+    const sessionData = {
+      id: user.id,
+      username: user.username,
+      fullName: user.full_name,
+      role: user.role,
+      employeeName: user.employee_name,
+      permissions: {
+        canEdit: user.can_edit === 1,
+        canDelete: user.can_delete === 1,
+        canView: user.can_view === 1,
+        modules: {
+          sales: {
+            view: user.sales_view === 1,
+            edit: user.sales_edit === 1,
+            delete: user.sales_delete === 1
+          },
+          inventory: {
+            view: user.inventory_view === 1,
+            edit: user.inventory_edit === 1,
+            delete: user.inventory_delete === 1
+          },
+          leads: {
+            view: user.leads_view === 1,
+            edit: user.leads_edit === 1,
+            delete: user.leads_delete === 1
+          },
+          reports: {
+            view: user.reports_view === 1,
+            edit: user.reports_edit === 1
           }
         }
       }
+    };
+    
+    // Encode session data as base64
+    const sessionToken = btoa(JSON.stringify(sessionData));
+    
+    console.log('[LOGIN] Success for user:', username);
+    
+    // Set cookie with session data (expires in 7 days)
+    c.header('Set-Cookie', `session=${sessionToken}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax`);
+    
+    return c.json({
+      success: true,
+      data: sessionData
     });
   } catch (error) {
     console.error('[LOGIN] Error:', error);
@@ -93,8 +103,31 @@ app.post('/api/auth/login', async (c) => {
 });
 
 app.get('/api/auth/verify', async (c) => {
-  // This would verify a session token in production
-  // For now, we'll rely on client-side session storage
+  try {
+    // Get session cookie
+    const cookies = c.req.header('Cookie');
+    if (!cookies) {
+      return c.json({ success: false, error: 'Not authenticated' }, 401);
+    }
+    
+    // Parse session cookie
+    const sessionMatch = cookies.match(/session=([^;]+)/);
+    if (!sessionMatch) {
+      return c.json({ success: false, error: 'No session found' }, 401);
+    }
+    
+    const sessionToken = sessionMatch[1];
+    const sessionData = JSON.parse(atob(sessionToken));
+    
+    return c.json({ success: true, data: sessionData });
+  } catch (error) {
+    return c.json({ success: false, error: 'Invalid session' }, 401);
+  }
+});
+
+app.post('/api/auth/logout', async (c) => {
+  // Clear session cookie
+  c.header('Set-Cookie', 'session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
   return c.json({ success: true });
 });
 
@@ -19861,9 +19894,9 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             
             // ===================================================================
-            // AUTHENTICATION CHECK - REDIRECT TO LOGIN IF NOT LOGGED IN
+            // AUTHENTICATION CHECK - VERIFY SESSION WITH SERVER
             // ===================================================================
-            // Wait for DOM and localStorage to be fully ready
+            // Wait for DOM to be fully ready
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', checkAuthentication);
             } else {
@@ -19871,33 +19904,38 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             function checkAuthentication() {
-                // Check if user is logged in
-                const authToken = localStorage.getItem('authToken');
-                const userId = localStorage.getItem('userId');
+                console.log('[AUTH] Verifying session...');
                 
-                console.log('Auth check:', { authToken: authToken, userId: userId });
-                
-                // If not logged in, redirect to login page
-                if (!authToken || !userId) {
-                    console.log('No auth token or userId, redirecting to login');
-                    window.location.href = '/static/login';
-                    return;
-                }
-                
-                // If authToken doesn't start with 'logged-in', it's invalid
-                if (!authToken.startsWith('logged-in')) {
-                    console.log('Invalid auth token format, clearing and redirecting');
-                    localStorage.clear();
-                    window.location.href = '/static/login';
-                    return;
-                }
-                
-                // Load user info from localStorage
-                const username = localStorage.getItem('username');
-                const fullName = localStorage.getItem('fullName');
-                const role = localStorage.getItem('role');
-                
-                console.log('User authenticated successfully:', { username: username, role: role });
+                // Verify session with server
+                fetch('/api/auth/verify')
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('Not authenticated');
+                        }
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.success && data.data) {
+                            // Store user data in localStorage for quick access
+                            localStorage.setItem('userId', String(data.data.id));
+                            localStorage.setItem('username', String(data.data.username));
+                            localStorage.setItem('fullName', String(data.data.fullName));
+                            localStorage.setItem('role', String(data.data.role));
+                            localStorage.setItem('employeeName', data.data.employeeName ? String(data.data.employeeName) : '');
+                            localStorage.setItem('permissions', JSON.stringify(data.data.permissions));
+                            
+                            console.log('[AUTH] Session verified:', { username: data.data.username, role: data.data.role });
+                        } else {
+                            throw new Error('Invalid session data');
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('[AUTH] Session verification failed:', error);
+                        // Clear any stale localStorage data
+                        localStorage.clear();
+                        // Redirect to login
+                        window.location.href = '/static/login';
+                    });
             }
             // ===================================================================
             // END OF AUTHENTICATION CHECK

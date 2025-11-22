@@ -554,38 +554,13 @@
                     })
                     .then(function(data) {
                         if (data.success && data.data) {
-                            // Store user data
-                            const userData = data.data;
-                            
-                            // Store all data in localStorage (convert to strings)
-                            localStorage.setItem('userId', String(userData.id));
-                            localStorage.setItem('username', String(userData.username));
-                            localStorage.setItem('fullName', String(userData.fullName));
-                            localStorage.setItem('role', String(userData.role));
-                            localStorage.setItem('employeeName', userData.employeeName ? String(userData.employeeName) : '');
-                            localStorage.setItem('permissions', JSON.stringify(userData.permissions));
-                            localStorage.setItem('authToken', 'logged-in-' + Date.now());
-                            
-                            // Force localStorage to sync (critical!)
-                            console.log('Stored in localStorage:', {
-                                userId: localStorage.getItem('userId'),
-                                username: localStorage.getItem('username'),
-                                authToken: localStorage.getItem('authToken')
-                            });
-
+                            console.log('[LOGIN] Success! Server set session cookie.');
                             showSuccess('Login successful! Redirecting...');
                             
-                            // Redirect after longer delay to ensure localStorage is written
+                            // Redirect immediately - session is now in cookie
                             setTimeout(function() {
-                                // Double-check localStorage before redirect
-                                const checkToken = localStorage.getItem('authToken');
-                                console.log('Pre-redirect check - authToken:', checkToken);
-                                if (checkToken && checkToken.startsWith('logged-in')) {
-                                    window.location.href = '/';
-                                } else {
-                                    showError('Session storage failed. Please try again.');
-                                }
-                            }, 1000);
+                                window.location.href = '/';
+                            }, 500);
                         } else {
                             showError(data.error || 'Login failed. Please check your credentials.');
                             if (loginButton) {
@@ -605,11 +580,17 @@
                 });
             }
 
-            // Check if already logged in
-            const authToken = localStorage.getItem('authToken');
-            if (authToken && authToken.startsWith('logged-in')) {
-                window.location.href = '/';
-            }
+            // Check if already logged in via session cookie
+            fetch('/api/auth/verify')
+                .then(function(response) {
+                    if (response.ok) {
+                        // Already logged in, redirect to main app
+                        window.location.href = '/';
+                    }
+                })
+                .catch(function() {
+                    // Not logged in, stay on login page
+                });
 
             // Forgot password handler
             const forgotPassword = document.getElementById('forgotPassword');
