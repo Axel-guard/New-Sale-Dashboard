@@ -1610,6 +1610,45 @@ app.delete('/api/products/:productId', async (c) => {
   }
 });
 
+// ===== COURIER PARTNERS API ENDPOINTS =====
+
+// Get all courier partners
+app.get('/api/courier-partners', async (c) => {
+  const { env } = c;
+  
+  try {
+    const partners = await env.DB.prepare(`
+      SELECT DISTINCT partner_name FROM courier_partners ORDER BY partner_name ASC
+    `).all();
+    
+    return c.json({ success: true, data: partners.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch courier partners' }, 500);
+  }
+});
+
+// Get delivery modes for a courier partner
+app.get('/api/courier-partners/modes', async (c) => {
+  const { env } = c;
+  const partnerName = c.req.query('partner');
+  
+  if (!partnerName) {
+    return c.json({ success: false, error: 'Partner name required' }, 400);
+  }
+  
+  try {
+    const modes = await env.DB.prepare(`
+      SELECT mode_name, rate_per_kg FROM courier_partners 
+      WHERE partner_name = ?
+      ORDER BY mode_name ASC
+    `).bind(partnerName).all();
+    
+    return c.json({ success: true, data: modes.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch delivery modes' }, 500);
+  }
+});
+
 // ===== CUSTOMER DETAILS API ENDPOINTS =====
 
 // Get customer basic info from leads table (fallback to sales table if not in leads)
