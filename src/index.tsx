@@ -1450,6 +1450,166 @@ app.get('/api/leads/by-code/:customerCode', async (c) => {
   }
 });
 
+// ===== PRODUCTS API ENDPOINTS =====
+
+// Get all products
+app.get('/api/products', async (c) => {
+  const { env } = c;
+  
+  try {
+    const search = c.req.query('search') || '';
+    
+    let query = `SELECT * FROM products`;
+    let params = [];
+    
+    if (search) {
+      query += ` WHERE product_code LIKE ? OR product_name LIKE ? OR category LIKE ?`;
+      const searchTerm = `%${search}%`;
+      params = [searchTerm, searchTerm, searchTerm];
+    }
+    
+    query += ` ORDER BY category ASC, product_name ASC`;
+    
+    const products = await env.DB.prepare(query).bind(...params).all();
+    
+    return c.json({ success: true, data: products.results });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch products' }, 500);
+  }
+});
+
+// Get single product by ID
+app.get('/api/products/:productId', async (c) => {
+  const { env } = c;
+  const productId = c.req.param('productId');
+  
+  try {
+    const product = await env.DB.prepare(`
+      SELECT * FROM products WHERE id = ?
+    `).bind(productId).first();
+    
+    if (!product) {
+      return c.json({ success: false, error: 'Product not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: product });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch product' }, 500);
+  }
+});
+
+// Get product by code
+app.get('/api/products/by-code/:productCode', async (c) => {
+  const { env } = c;
+  const productCode = c.req.param('productCode');
+  
+  try {
+    const product = await env.DB.prepare(`
+      SELECT * FROM products WHERE product_code = ?
+    `).bind(productCode).first();
+    
+    if (!product) {
+      return c.json({ success: false, error: 'Product not found' }, 404);
+    }
+    
+    return c.json({ success: true, data: product });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to fetch product' }, 500);
+  }
+});
+
+// Add new product
+app.post('/api/products', async (c) => {
+  const { env } = c;
+  
+  try {
+    const body = await c.req.json();
+    const { product_code, product_name, category, weight } = body;
+    
+    // Check if product code already exists
+    const existing = await env.DB.prepare(`
+      SELECT id FROM products WHERE product_code = ?
+    `).bind(product_code).first();
+    
+    if (existing) {
+      return c.json({ success: false, error: 'Product code already exists' }, 400);
+    }
+    
+    const result = await env.DB.prepare(`
+      INSERT INTO products (product_code, product_name, category, weight)
+      VALUES (?, ?, ?, ?)
+    `).bind(product_code, product_name, category, weight || 0).run();
+    
+    return c.json({
+      success: true,
+      data: { id: result.meta.last_row_id }
+    }, 201);
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to create product' }, 500);
+  }
+});
+
+// Update product
+app.put('/api/products/:productId', async (c) => {
+  const { env } = c;
+  const productId = c.req.param('productId');
+  
+  try {
+    const body = await c.req.json();
+    const { product_code, product_name, category, weight } = body;
+    
+    // Check if product exists
+    const existing = await env.DB.prepare(`
+      SELECT id FROM products WHERE id = ?
+    `).bind(productId).first();
+    
+    if (!existing) {
+      return c.json({ success: false, error: 'Product not found' }, 404);
+    }
+    
+    // Check if new product code conflicts with another product
+    if (product_code) {
+      const conflict = await env.DB.prepare(`
+        SELECT id FROM products WHERE product_code = ? AND id != ?
+      `).bind(product_code, productId).first();
+      
+      if (conflict) {
+        return c.json({ success: false, error: 'Product code already exists' }, 400);
+      }
+    }
+    
+    await env.DB.prepare(`
+      UPDATE products 
+      SET product_code = ?, product_name = ?, category = ?, weight = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(product_code, product_name, category, weight || 0, productId).run();
+    
+    return c.json({ success: true, message: 'Product updated successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to update product' }, 500);
+  }
+});
+
+// Delete product
+app.delete('/api/products/:productId', async (c) => {
+  const { env } = c;
+  const productId = c.req.param('productId');
+  
+  try {
+    const result = await env.DB.prepare(`
+      DELETE FROM products WHERE id = ?
+    `).bind(productId).run();
+    
+    if (result.meta.changes === 0) {
+      return c.json({ success: false, error: 'Product not found' }, 404);
+    }
+    
+    return c.json({ success: true, message: 'Product deleted successfully' });
+  } catch (error) {
+    return c.json({ success: false, error: 'Failed to delete product' }, 500);
+  }
+});
+
 // ===== CUSTOMER DETAILS API ENDPOINTS =====
 
 // Get customer basic info from leads table (fallback to sales table if not in leads)
@@ -8677,6 +8837,92 @@ app.get('/', (c) => {
             </div>
         </div>
 
+        <!-- Add Product Modal -->
+        <div class="modal" id="addProductModal">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Add New Product</h2>
+                    <span class="close" onclick="document.getElementById('addProductModal').classList.remove('show')">&times;</span>
+                </div>
+                <form id="addProductForm" onsubmit="submitAddProduct(event)">
+                    <div class="form-group">
+                        <label>Product Code *</label>
+                        <input type="text" name="product_code" id="addProductCode" required placeholder="e.g., AXG01">
+                    </div>
+                    <div class="form-group">
+                        <label>Product Name *</label>
+                        <input type="text" name="product_name" id="addProductName" required placeholder="e.g., 4ch 1080p SD Card MDVR">
+                    </div>
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select name="category" id="addProductCategory" required>
+                            <option value="">Select Category</option>
+                            <option value="MDVR">MDVR</option>
+                            <option value="Monitor & Monitor Kit">Monitor & Monitor Kit</option>
+                            <option value="Cameras">Cameras</option>
+                            <option value="Dashcam">Dashcam</option>
+                            <option value="Storage">Storage</option>
+                            <option value="RFID Tags">RFID Tags</option>
+                            <option value="RFID Reader">RFID Reader</option>
+                            <option value="MDVR Accessories">MDVR Accessories</option>
+                            <option value="Other product and Accessories">Other product and Accessories</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Weight (kg) *</label>
+                        <input type="number" name="weight" id="addProductWeight" step="0.01" min="0" value="0" required>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="fas fa-plus-circle"></i> Add Product
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Product Modal -->
+        <div class="modal" id="editProductModal">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2 style="font-size: 20px; font-weight: 600;">Edit Product</h2>
+                    <span class="close" onclick="document.getElementById('editProductModal').classList.remove('show')">&times;</span>
+                </div>
+                <form id="editProductForm" onsubmit="submitEditProduct(event)">
+                    <input type="hidden" name="product_id" id="editProductId">
+                    
+                    <div class="form-group">
+                        <label>Product Code *</label>
+                        <input type="text" name="product_code" id="editProductCode" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Product Name *</label>
+                        <input type="text" name="product_name" id="editProductName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select name="category" id="editProductCategory" required>
+                            <option value="">Select Category</option>
+                            <option value="MDVR">MDVR</option>
+                            <option value="Monitor & Monitor Kit">Monitor & Monitor Kit</option>
+                            <option value="Cameras">Cameras</option>
+                            <option value="Dashcam">Dashcam</option>
+                            <option value="Storage">Storage</option>
+                            <option value="RFID Tags">RFID Tags</option>
+                            <option value="RFID Reader">RFID Reader</option>
+                            <option value="MDVR Accessories">MDVR Accessories</option>
+                            <option value="Other product and Accessories">Other product and Accessories</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Weight (kg) *</label>
+                        <input type="number" name="weight" id="editProductWeight" step="0.01" min="0" required>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                        <i class="fas fa-save"></i> Update Product
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <!-- Create User Modal (Admin Only) -->
         <div class="modal" id="createUserModal">
             <div class="modal-content" style="max-width: 600px;">
@@ -10899,22 +11145,12 @@ Prices are subject to change without prior notice.</textarea>
                 try {
                     const container = document.getElementById('productsContainer');
                     
-                    // Filter products based on search
-                    const searchLower = search.toLowerCase();
-                    const filteredCatalog = {};
+                    // Fetch products from database
+                    const url = search ? '/api/products?search=' + encodeURIComponent(search) : '/api/products';
+                    const response = await axios.get(url);
+                    const products = response.data.data;
                     
-                    for (const [category, products] of Object.entries(productCatalog)) {
-                        const filteredProducts = products.filter(product => 
-                            product.name.toLowerCase().includes(searchLower) ||
-                            product.code.toLowerCase().includes(searchLower) ||
-                            category.toLowerCase().includes(searchLower)
-                        );
-                        if (filteredProducts.length > 0) {
-                            filteredCatalog[category] = filteredProducts;
-                        }
-                    }
-                    
-                    if (Object.keys(filteredCatalog).length === 0) {
+                    if (!products || products.length === 0) {
                         container.innerHTML = \`
                             <div style="text-align: center; padding: 40px; color: #6b7280;">
                                 <i class="fas fa-search" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
@@ -10924,11 +11160,20 @@ Prices are subject to change without prior notice.</textarea>
                         return;
                     }
                     
+                    // Group products by category
+                    const groupedProducts = {};
+                    products.forEach(product => {
+                        if (!groupedProducts[product.category]) {
+                            groupedProducts[product.category] = [];
+                        }
+                        groupedProducts[product.category].push(product);
+                    });
+                    
                     // Render products by category
-                    container.innerHTML = Object.entries(filteredCatalog).map(([category, products]) => \`
+                    container.innerHTML = Object.entries(groupedProducts).map(([category, categoryProducts]) => \`
                         <div style="margin-bottom: 30px;">
                             <h3 style="font-size: 18px; font-weight: 700; color: #1f2937; margin-bottom: 15px; padding: 10px 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
-                                <i class="fas fa-box"></i> \${category} (\${products.length})
+                                <i class="fas fa-box"></i> \${category} (\${categoryProducts.length})
                             </h3>
                             <div class="table-container">
                                 <table>
@@ -10941,13 +11186,13 @@ Prices are subject to change without prior notice.</textarea>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        \${products.map(product => \`
+                                        \${categoryProducts.map(product => \`
                                             <tr>
-                                                <td><strong>\${product.code}</strong></td>
-                                                <td>\${product.name}</td>
+                                                <td><strong>\${product.product_code}</strong></td>
+                                                <td>\${product.product_name}</td>
                                                 <td>\${product.weight}</td>
                                                 <td>
-                                                    <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editProduct('\${category}', '\${product.code}')">
+                                                    <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="openEditProductModal(\${product.id})">
                                                         <i class="fas fa-edit"></i> Edit
                                                     </button>
                                                 </td>
@@ -10961,7 +11206,7 @@ Prices are subject to change without prior notice.</textarea>
                 } catch (error) {
                     console.error('Error loading products:', error);
                     const container = document.getElementById('productsContainer');
-                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Error loading products</div>';
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Error loading products: ' + error.message + '</div>';
                 }
             }
             
@@ -10975,13 +11220,83 @@ Prices are subject to change without prior notice.</textarea>
                 }, 300); // Debounce 300ms
             }
             
-            // Placeholder functions for product add/edit (to be implemented)
+            // Open Add Product Modal
             function openAddProductModal() {
-                alert('Add Product functionality will be implemented in the next update.');
+                document.getElementById('addProductForm').reset();
+                document.getElementById('addProductModal').classList.add('show');
             }
             
-            function editProduct(category, code) {
-                alert('Edit Product functionality will be implemented in the next update.\\n\\nCategory: ' + category + '\\nCode: ' + code);
+            // Submit Add Product Form
+            async function submitAddProduct(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                
+                const data = {
+                    product_code: formData.get('product_code'),
+                    product_name: formData.get('product_name'),
+                    category: formData.get('category'),
+                    weight: parseFloat(formData.get('weight')) || 0
+                };
+                
+                try {
+                    const response = await axios.post('/api/products', data);
+                    
+                    if (response.data.success) {
+                        alert('Product added successfully!');
+                        document.getElementById('addProductModal').classList.remove('show');
+                        loadProducts(); // Reload products list
+                    }
+                } catch (error) {
+                    alert('Error adding product: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Open Edit Product Modal
+            async function openEditProductModal(productId) {
+                try {
+                    const response = await axios.get('/api/products/' + productId);
+                    const product = response.data.data;
+                    
+                    document.getElementById('editProductId').value = product.id;
+                    document.getElementById('editProductCode').value = product.product_code;
+                    document.getElementById('editProductName').value = product.product_name;
+                    document.getElementById('editProductCategory').value = product.category;
+                    document.getElementById('editProductWeight').value = product.weight;
+                    
+                    document.getElementById('editProductModal').classList.add('show');
+                } catch (error) {
+                    alert('Error loading product: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            // Submit Edit Product Form
+            async function submitEditProduct(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                const productId = formData.get('product_id');
+                
+                const data = {
+                    product_code: formData.get('product_code'),
+                    product_name: formData.get('product_name'),
+                    category: formData.get('category'),
+                    weight: parseFloat(formData.get('weight')) || 0
+                };
+                
+                try {
+                    const response = await axios.put('/api/products/' + productId, data);
+                    
+                    if (response.data.success) {
+                        alert('Product updated successfully!');
+                        document.getElementById('editProductModal').classList.remove('show');
+                        loadProducts(); // Reload products list
+                    }
+                } catch (error) {
+                    alert('Error updating product: ' + (error.response?.data?.error || error.message));
+                }
             }
 
             async function searchOrder() {
