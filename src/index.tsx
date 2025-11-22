@@ -5158,6 +5158,26 @@ app.get('/login.html', (c) => {
 
 
 app.get('/', (c) => {
+  // Check for session cookie - redirect to login if not authenticated
+  const cookies = c.req.header('Cookie');
+  if (!cookies || !cookies.includes('session=')) {
+    return c.redirect('/static/login');
+  }
+  
+  // Try to validate session
+  try {
+    const sessionMatch = cookies.match(/session=([^;]+)/);
+    if (!sessionMatch) {
+      return c.redirect('/static/login');
+    }
+    const sessionToken = sessionMatch[1];
+    const sessionData = JSON.parse(atob(sessionToken));
+    // If we got here, session is valid - serve the app
+  } catch (error) {
+    // Invalid session, redirect to login
+    return c.redirect('/static/login');
+  }
+  
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
