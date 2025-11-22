@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Authentication Cookie Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Login and Set Cookie</h2>
+        <button onclick="testLogin()">Login with Test Credentials</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Verify Session</h2>
+        <button onclick="verifySession()">Verify Session Cookie</button>
+        <div id="verifyResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Navigate to Main App</h2>
+        <button onclick="goToApp()">Go to Main App</button>
+        <div id="navResult" class="result"></div>
+    </div>
+    
+    <script>
+        function testLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            resultDiv.textContent = 'Logging in...';
+            
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: 'info@axel-guard.com',
+                    password: 'admin123'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <strong style="color: green;">✓ Login Successful!</strong><br>
+                        User: ${data.data.username}<br>
+                        Role: ${data.data.role}<br>
+                        <em>Session cookie has been set by server</em>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<strong style="color: red;">✗ Login Failed:</strong> ${data.error}`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<strong style="color: red;">✗ Error:</strong> ${error.message}`;
+            });
+        }
+        
+        function verifySession() {
+            const resultDiv = document.getElementById('verifyResult');
+            resultDiv.textContent = 'Verifying session...';
+            
+            fetch('/api/auth/verify')
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Not authenticated');
+                }
+            })
+            .then(data => {
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <strong style="color: green;">✓ Session Valid!</strong><br>
+                        User: ${data.data.username}<br>
+                        Role: ${data.data.role}<br>
+                        <em>Cookie is working correctly</em>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<strong style="color: orange;">⚠ Session Invalid</strong>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<strong style="color: red;">✗ No active session</strong><br><em>Please login first</em>`;
+            });
+        }
+        
+        function goToApp() {
+            const resultDiv = document.getElementById('navResult');
+            resultDiv.textContent = 'Navigating to main app...';
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
