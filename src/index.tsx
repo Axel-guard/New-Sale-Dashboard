@@ -5145,6 +5145,51 @@ app.put('/api/orders/:orderId/dockets', async (c) => {
 // END OF ORDER-BASED DISPATCH WORKFLOW API ENDPOINTS
 // ===================================================================
 
+// Test route to verify no JavaScript errors
+app.get('/test-clean', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Clean Test Page</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 50px auto;
+                padding: 20px;
+                background: #f5f5f5;
+            }
+            .success {
+                background: #4CAF50;
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                text-align: center;
+                font-size: 24px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="success">
+            ✓ JavaScript is working correctly!<br>
+            No syntax errors found.
+        </div>
+        <script>
+            console.log('✓ Clean JavaScript test passed');
+            async function testAsync() {
+                const result = await Promise.resolve('Async/await working');
+                console.log('✓', result);
+            }
+            testAsync();
+        </script>
+    </body>
+    </html>
+  `);
+});
+
 // Login page route - SECURE, ISOLATED LOGIN PAGE
 // Note: serveStatic auto-redirects /static/login.html to /static/login
 app.get('/login', (c) => {
@@ -5158,8 +5203,28 @@ app.get('/login.html', (c) => {
 
 
 app.get('/', (c) => {
-  // TEMPORARILY DISABLED AUTHENTICATION FOR DEBUGGING
-  // Serve main app without any auth checks
+  // Check for session cookie
+  const cookies = c.req.header('Cookie');
+  if (!cookies || !cookies.includes('session=')) {
+    return c.redirect('/static/login');
+  }
+  
+  // Validate session cookie
+  try {
+    const sessionMatch = cookies.match(/session=([^;]+)/);
+    if (!sessionMatch) {
+      return c.redirect('/static/login');
+    }
+    // Decode and validate session
+    const sessionData = JSON.parse(atob(sessionMatch[1]));
+    if (!sessionData.id || !sessionData.username) {
+      return c.redirect('/static/login');
+    }
+    // Session is valid, proceed to serve app
+  } catch (error) {
+    return c.redirect('/static/login');
+  }
+  
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -19896,11 +19961,13 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             
             // ===================================================================
-            // AUTHENTICATION DISABLED FOR DEBUGGING
+            // SIMPLE SESSION CHECK - NO COMPLEX LOGIC
             // ===================================================================
-            console.log('[INFO] Authentication checks disabled - app running without login');
+            // This code only runs if user already passed server-side auth check
+            // Just log that we're in the app
+            console.log('[APP] Main application loaded successfully');
             // ===================================================================
-            // END OF AUTHENTICATION SECTION
+            // END OF SESSION CHECK
             // ===================================================================
         </script>
         </div>
