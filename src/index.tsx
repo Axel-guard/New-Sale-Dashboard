@@ -6180,12 +6180,6 @@ app.get('/', (c) => {
                 </div>
             </div>
             
-            <!-- Leads Database (standalone) -->
-            <div class="sidebar-item" onclick="showPage('leads')">
-                <i class="fas fa-user-plus"></i>
-                <span>Leads Database</span>
-            </div>
-            
             <!-- Inventory Management -->
             <div class="sidebar-parent" onclick="toggleSubmenu('inventory-menu')">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -6210,6 +6204,25 @@ app.get('/', (c) => {
                 <div class="sidebar-child" onclick="showPage('inventory-reports')">
                     <i class="fas fa-chart-bar"></i>
                     <span>Reports</span>
+                </div>
+            </div>
+            
+            <!-- Database -->
+            <div class="sidebar-parent" onclick="toggleSubmenu('database-menu')">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-database"></i>
+                    <span>Database</span>
+                </div>
+                <i class="fas fa-chevron-down chevron"></i>
+            </div>
+            <div class="sidebar-children" id="database-menu">
+                <div class="sidebar-child" onclick="showPage('leads')">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Leads Database</span>
+                </div>
+                <div class="sidebar-child" onclick="showPage('products')">
+                    <i class="fas fa-box-open"></i>
+                    <span>Products Database</span>
                 </div>
             </div>
             
@@ -6730,6 +6743,37 @@ app.get('/', (c) => {
                                 <tr><td colspan="11" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products Database Page -->
+            <div class="page-content" id="products-page">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="card-title" style="margin: 0;">Products Database</h2>
+                        <button onclick="openAddProductModal()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <i class="fas fa-plus-circle"></i> Add Product
+                        </button>
+                    </div>
+                    
+                    <!-- Search Box -->
+                    <div style="margin-bottom: 20px;">
+                        <input 
+                            type="text" 
+                            id="productSearchInput" 
+                            placeholder="Search by Product Name, Code, or Category..." 
+                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                            oninput="searchProducts()"
+                        >
+                    </div>
+                    
+                    <div id="productsContainer">
+                        <!-- Products will be loaded here by category -->
+                        <div class="loading" style="text-align: center; padding: 40px; color: #6b7280;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px;"></i>
+                            <div>Loading products...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -9652,6 +9696,9 @@ Prices are subject to change without prior notice.</textarea>
                     case 'leads':
                         loadLeads();
                         break;
+                    case 'products':
+                        loadProducts();
+                        break;
                     case 'user-management':
                         loadUsers();
                         break;
@@ -10845,6 +10892,96 @@ Prices are subject to change without prior notice.</textarea>
                     const searchTerm = document.getElementById('leadSearchInput').value.trim();
                     loadLeads(searchTerm);
                 }, 300); // Debounce 300ms
+            }
+            
+            // Load Products function
+            async function loadProducts(search = '') {
+                try {
+                    const container = document.getElementById('productsContainer');
+                    
+                    // Filter products based on search
+                    const searchLower = search.toLowerCase();
+                    const filteredCatalog = {};
+                    
+                    for (const [category, products] of Object.entries(productCatalog)) {
+                        const filteredProducts = products.filter(product => 
+                            product.name.toLowerCase().includes(searchLower) ||
+                            product.code.toLowerCase().includes(searchLower) ||
+                            category.toLowerCase().includes(searchLower)
+                        );
+                        if (filteredProducts.length > 0) {
+                            filteredCatalog[category] = filteredProducts;
+                        }
+                    }
+                    
+                    if (Object.keys(filteredCatalog).length === 0) {
+                        container.innerHTML = \`
+                            <div style="text-align: center; padding: 40px; color: #6b7280;">
+                                <i class="fas fa-search" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                                <p style="font-size: 16px;">No products found</p>
+                            </div>
+                        \`;
+                        return;
+                    }
+                    
+                    // Render products by category
+                    container.innerHTML = Object.entries(filteredCatalog).map(([category, products]) => \`
+                        <div style="margin-bottom: 30px;">
+                            <h3 style="font-size: 18px; font-weight: 700; color: #1f2937; margin-bottom: 15px; padding: 10px 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
+                                <i class="fas fa-box"></i> \${category} (\${products.length})
+                            </h3>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Product Code</th>
+                                            <th>Product Name</th>
+                                            <th>Weight (kg)</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        \${products.map(product => \`
+                                            <tr>
+                                                <td><strong>\${product.code}</strong></td>
+                                                <td>\${product.name}</td>
+                                                <td>\${product.weight}</td>
+                                                <td>
+                                                    <button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editProduct('\${category}', '\${product.code}')">
+                                                        <i class="fas fa-edit"></i> Edit
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        \`).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading products:', error);
+                    const container = document.getElementById('productsContainer');
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Error loading products</div>';
+                }
+            }
+            
+            // Search products function
+            let searchProductsTimeout;
+            function searchProducts() {
+                clearTimeout(searchProductsTimeout);
+                searchProductsTimeout = setTimeout(() => {
+                    const searchTerm = document.getElementById('productSearchInput').value.trim();
+                    loadProducts(searchTerm);
+                }, 300); // Debounce 300ms
+            }
+            
+            // Placeholder functions for product add/edit (to be implemented)
+            function openAddProductModal() {
+                alert('Add Product functionality will be implemented in the next update.');
+            }
+            
+            function editProduct(category, code) {
+                alert('Edit Product functionality will be implemented in the next update.\\n\\nCategory: ' + category + '\\nCode: ' + code);
             }
 
             async function searchOrder() {
