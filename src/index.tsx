@@ -9245,20 +9245,14 @@ app.get('/', (c) => {
                     <div class="form-row" style="margin-top: 20px;">
                         <div class="form-group">
                             <label>Courier Partner</label>
-                            <select id="quotationCourierPartner" name="courier_partner" onchange="loadDeliveryMethods()">
+                            <select id="quotationCourierPartner" name="courier_partner" onchange="loadQuotationDeliveryMethods()">
                                 <option value="">Select Courier Partner</option>
-                                <option value="DTDC">DTDC</option>
-                                <option value="Blue Dart">Blue Dart</option>
-                                <option value="Delhivery">Delhivery</option>
-                                <option value="Professional Courier">Professional Courier</option>
-                                <option value="Self Pickup">Self Pickup</option>
-                                <option value="Hand Delivery">Hand Delivery</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Delivery Method</label>
-                            <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateCourierCharges()">
-                                <option value="">Select Delivery Method</option>
+                            <label>Delivery Mode</label>
+                            <select id="quotationDeliveryMethod" name="delivery_method" onchange="calculateQuotationCourierCharges()">
+                                <option value="">Select Delivery Mode</option>
                             </select>
                         </div>
                     </div>
@@ -9266,8 +9260,18 @@ app.get('/', (c) => {
                     <div class="form-row">
                         <div class="form-group">
                             <label>Estimated Weight (kg)</label>
-                            <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="1" onchange="calculateCourierCharges()" placeholder="Package weight">
+                            <input type="number" id="quotationWeight" name="weight" min="0" step="0.1" value="1" onchange="calculateQuotationCourierCharges()" placeholder="Package weight">
                         </div>
+                        <div class="form-group">
+                            <label>Courier Charges Inclusion</label>
+                            <select id="quotationCourierInclusion" name="courier_inclusion" onchange="calculateQuotationTotal()">
+                                <option value="included">Included in Total (Free Delivery)</option>
+                                <option value="excluded" selected>Excluded (Add to Total)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
                         <div class="form-group">
                             <label>Courier Charges (Auto-calculated)</label>
                             <input type="number" id="quotationCourierCost" name="courier_cost" min="0" step="0.01" value="0" readonly style="background: #f3f4f6;">
@@ -9720,6 +9724,8 @@ Prices are subject to change without prior notice.</textarea>
             
             function openQuotationModal() {
                 document.getElementById('newQuotationModal').classList.add('show');
+                loadQuotationCourierPartners(); // Load courier partners from database
+                addQuotationItem(); // Add first item row
             }
             
             function openAddInventoryModal() {
@@ -12922,22 +12928,23 @@ Prices are subject to change without prior notice.</textarea>
                 statusEl.textContent = 'Searching customer...';
                 
                 try {
-                    const response = await axios.get('/api/customers/search/' + encodeURIComponent(searchTerm));
+                    // Search in leads table by customer_code OR mobile_number
+                    const response = await axios.get('/api/leads?search=' + encodeURIComponent(searchTerm));
                     
-                    if (response.data.success) {
-                        const customer = response.data.data;
+                    if (response.data.success && response.data.data && response.data.data.length > 0) {
+                        const customer = response.data.data[0]; // Take first match
                         
-                        // Fill in customer details from customers table
+                        // Fill in customer details from leads table
                         document.getElementById('quotationCustomerCode').value = customer.customer_code || '';
-                        document.getElementById('quotationCustomerName').value = customer.name || '';
-                        document.getElementById('quotationCustomerContact').value = customer.phone || '';
+                        document.getElementById('quotationCustomerName').value = customer.customer_name || '';
+                        document.getElementById('quotationCustomerContact').value = customer.mobile_number || '';
                         document.getElementById('quotationCustomerEmail').value = customer.email || '';
                         document.getElementById('quotationCompanyName').value = customer.company_name || '';
                         document.getElementById('quotationGSTNumber').value = customer.gst_number || '';
-                        document.getElementById('quotationGSTAddress').value = customer.gst_registered_address || '';
-                        document.getElementById('quotationCustomerAddress').value = customer.address || '';
-                        document.getElementById('quotationConcernPerson').value = customer.concern_person_name || '';
-                        document.getElementById('quotationConcernContact').value = customer.concern_person_contact || '';
+                        document.getElementById('quotationGSTAddress').value = '';
+                        document.getElementById('quotationCustomerAddress').value = customer.complete_address || customer.location || '';
+                        document.getElementById('quotationConcernPerson').value = customer.customer_name || '';
+                        document.getElementById('quotationConcernContact').value = customer.alternate_mobile || customer.mobile_number || '';
                         
                         statusEl.style.color = '#10b981';
                         statusEl.textContent = '✓ Customer found and details filled!';
@@ -12971,28 +12978,22 @@ Prices are subject to change without prior notice.</textarea>
                 const row = document.createElement('tr');
                 row.setAttribute('data-item-id', quotationItemCounter);
                 
-                // Fetch categories for dropdown
+                // Get unique categories from productCatalog
+                const categories = Object.keys(productCatalog);
                 let categoriesOptions = '<option value="">Select Category</option>';
-                try {
-                    const catResponse = await axios.get('/api/categories');
-                    if (catResponse.data.success) {
-                        categoriesOptions += catResponse.data.data.map(cat => 
-                            '<option value="' + cat.id + '">' + cat.category_name + '</option>'
-                        ).join('');
-                    }
-                } catch (error) {
-                    console.error('Error loading categories:', error);
-                }
+                categories.forEach(cat => {
+                    categoriesOptions += '<option value="' + cat + '">' + cat + '</option>';
+                });
                 
                 row.innerHTML = '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + quotationItemCounter + '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<select class="quotation-item-category" onchange="loadProductsByCategory(this)" ' +
+                        '<select class="quotation-item-category" onchange="loadQuotationProductsByCategory(this)" ' +
                                'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
                             categoriesOptions +
                         '</select>' +
                     '</td>' +
                     '<td style="padding: 8px; border: 1px solid #e5e7eb;">' +
-                        '<select class="quotation-item-product" onchange="fillProductPrice(this)" ' +
+                        '<select class="quotation-item-product" onchange="fillQuotationProductPrice(this)" ' +
                                'style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;" required>' +
                             '<option value="">Select Product</option>' +
                         '</select>' +
@@ -13017,41 +13018,41 @@ Prices are subject to change without prior notice.</textarea>
                 tbody.appendChild(row);
             }
             
-            // Load products by category
-            async function loadProductsByCategory(selectElement) {
-                const categoryId = selectElement.value;
+            // Load products by category for quotation
+            function loadQuotationProductsByCategory(selectElement) {
+                const category = selectElement.value;
                 const row = selectElement.closest('tr');
                 const productSelect = row.querySelector('.quotation-item-product');
                 
                 productSelect.innerHTML = '<option value="">Select Product</option>';
                 
-                if (!categoryId) return;
+                if (!category || !productCatalog[category]) return;
                 
-                try {
-                    const response = await axios.get('/api/products/category/' + categoryId);
-                    if (response.data.success) {
-                        const products = response.data.data;
-                        products.forEach(product => {
-                            const option = document.createElement('option');
-                            option.value = product.id;
-                            option.textContent = product.product_name;
-                            option.dataset.price = product.unit_price;
-                            productSelect.appendChild(option);
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error loading products:', error);
-                }
+                productCatalog[category].forEach(product => {
+                    const option = document.createElement('option');
+                    option.value = product.code;
+                    option.textContent = product.name;
+                    option.dataset.weight = product.weight;
+                    productSelect.appendChild(option);
+                });
             }
             
-            // Fill product price when product selected
-            function fillProductPrice(selectElement) {
+            // Fill product price when product selected (for quotation)
+            function fillQuotationProductPrice(selectElement) {
                 const selectedOption = selectElement.options[selectElement.selectedIndex];
-                const price = selectedOption.dataset.price || 0;
+                const weight = selectedOption.dataset.weight || 0;
                 const row = selectElement.closest('tr');
                 const priceInput = row.querySelector('.quotation-item-price');
-                priceInput.value = price;
+                // Price will be entered manually or can be pre-filled if you have prices
+                // For now, user enters the price manually
                 calculateQuotationItemTotal(priceInput);
+                
+                // Auto-update weight for courier calculation
+                const currentWeight = parseFloat(document.getElementById('quotationWeight').value) || 0;
+                const itemQty = parseFloat(row.querySelector('.quotation-item-quantity').value) || 1;
+                const newWeight = currentWeight + (parseFloat(weight) * itemQty);
+                document.getElementById('quotationWeight').value = newWeight.toFixed(2);
+                calculateQuotationCourierCharges();
             }
 
             // Remove Quotation Item
@@ -13079,40 +13080,98 @@ Prices are subject to change without prior notice.</textarea>
                 calculateQuotationTotal();
             }
             
-            // Load delivery methods based on courier partner
-            function loadDeliveryMethods() {
-                const partner = document.getElementById('quotationCourierPartner').value;
+            // Load courier partners from database
+            async function loadQuotationCourierPartners() {
+                try {
+                    const response = await axios.get('/api/courier-partners');
+                    if (response.data.success) {
+                        const select = document.getElementById('quotationCourierPartner');
+                        select.innerHTML = '<option value="">Select Courier Partner</option>';
+                        response.data.data.forEach(partner => {
+                            select.innerHTML += '<option value="' + partner.partner_name + '">' + partner.partner_name + '</option>';
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading courier partners:', error);
+                    // Fallback to hardcoded list
+                    const select = document.getElementById('quotationCourierPartner');
+                    select.innerHTML = '<option value="">Select Courier Partner</option>' +
+                        '<option value="DTDC">DTDC</option>' +
+                        '<option value="Blue Dart">Blue Dart</option>' +
+                        '<option value="Delhivery">Delhivery</option>' +
+                        '<option value="Professional Courier">Professional Courier</option>' +
+                        '<option value="Self Pickup">Self Pickup</option>' +
+                        '<option value="Hand Delivery">Hand Delivery</option>';
+                }
+            }
+            
+            // Load delivery methods/modes based on courier partner
+            async function loadQuotationDeliveryMethods() {
+                const partnerName = document.getElementById('quotationCourierPartner').value;
                 const methodSelect = document.getElementById('quotationDeliveryMethod');
                 
-                methodSelect.innerHTML = '<option value="">Select Delivery Method</option>';
+                methodSelect.innerHTML = '<option value="">Select Delivery Mode</option>';
                 
-                if (!partner) {
+                if (!partnerName) {
                     document.getElementById('quotationCourierCost').value = 0;
                     calculateQuotationTotal();
                     return;
                 }
                 
-                // Load delivery methods based on partner
-                if (partner === 'Self Pickup') {
-                    methodSelect.innerHTML += '<option value="Self Pickup">Self Pickup</option>';
-                } else if (partner === 'Hand Delivery') {
-                    methodSelect.innerHTML += '<option value="Hand Delivery">Hand Delivery</option>';
-                } else {
-                    methodSelect.innerHTML += '<option value="Surface">Surface</option>';
-                    methodSelect.innerHTML += '<option value="Express">Express</option>';
+                try {
+                    const response = await axios.get('/api/courier-partners/modes?partner=' + encodeURIComponent(partnerName));
+                    if (response.data.success && response.data.data.length > 0) {
+                        response.data.data.forEach(mode => {
+                            methodSelect.innerHTML += '<option value="' + mode.mode_name + '" data-rate="' + mode.rate_per_kg + '">' + mode.mode_name + ' (\u20b9' + mode.rate_per_kg + '/kg)</option>';
+                        });
+                    } else {
+                        // Fallback for partners without modes in DB
+                        if (partnerName === 'Self Pickup') {
+                            methodSelect.innerHTML += '<option value="Self Pickup" data-rate="0">Self Pickup (Free)</option>';
+                        } else if (partnerName === 'Hand Delivery') {
+                            methodSelect.innerHTML += '<option value="Hand Delivery" data-rate="0">Hand Delivery (Free)</option>';
+                        } else {
+                            methodSelect.innerHTML += '<option value="Surface" data-rate="50">Surface (₹50/kg)</option>';
+                            methodSelect.innerHTML += '<option value="Express" data-rate="100">Express (₹100/kg)</option>';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading delivery modes:', error);
+                    // Fallback to default modes
+                    if (partnerName === 'Self Pickup') {
+                        methodSelect.innerHTML += '<option value="Self Pickup" data-rate="0">Self Pickup (Free)</option>';
+                    } else if (partnerName === 'Hand Delivery') {
+                        methodSelect.innerHTML += '<option value="Hand Delivery" data-rate="0">Hand Delivery (Free)</option>';
+                    } else {
+                        methodSelect.innerHTML += '<option value="Surface" data-rate="50">Surface (₹50/kg)</option>';
+                        methodSelect.innerHTML += '<option value="Express" data-rate="100">Express (₹100/kg)</option>';
+                    }
                 }
+                
+                calculateQuotationCourierCharges();
             }
             
             // Calculate courier charges based on partner, method and weight
-            async function calculateCourierCharges() {
+            async function calculateQuotationCourierCharges() {
                 const partner = document.getElementById('quotationCourierPartner').value;
-                const method = document.getElementById('quotationDeliveryMethod').value;
+                const methodSelect = document.getElementById('quotationDeliveryMethod');
+                const method = methodSelect.value;
                 const weight = parseFloat(document.getElementById('quotationWeight').value) || 1;
                 
                 if (!partner || !method) {
                     document.getElementById('quotationCourierCost').value = 0;
                     calculateQuotationTotal();
                     return;
+                }
+                
+                // Get rate from selected option's data attribute
+                const selectedOption = methodSelect.options[methodSelect.selectedIndex];
+                const ratePerKg = parseFloat(selectedOption.dataset.rate) || 0;
+                
+                const courierCost = ratePerKg * weight;
+                document.getElementById('quotationCourierCost').value = courierCost.toFixed(2);
+                
+                calculateQuotationTotal();
                 }
                 
                 try {
@@ -13142,12 +13201,23 @@ Prices are subject to change without prior notice.</textarea>
                 });
                 
                 const courierCost = parseFloat(document.getElementById('quotationCourierCost').value) || 0;
+                const courierInclusion = document.getElementById('quotationCourierInclusion').value;
                 const billType = document.getElementById('quotationBillType').value;
-                const gst = billType === 'with' ? (subtotal + courierCost) * 0.18 : 0;
-                const total = subtotal + courierCost + gst;
+                
+                // If courier is included (free delivery), don't add to total
+                const courierToAdd = courierInclusion === 'excluded' ? courierCost : 0;
+                
+                const gst = billType === 'with' ? (subtotal + courierToAdd) * 0.18 : 0;
+                const total = subtotal + courierToAdd + gst;
                 
                 document.getElementById('quotationSubtotal').textContent = '₹' + subtotal.toFixed(2);
-                document.getElementById('quotationCourierDisplay').textContent = '₹' + courierCost.toFixed(2);
+                
+                // Show courier display with inclusion status
+                const courierDisplay = courierInclusion === 'included' 
+                    ? '₹' + courierCost.toFixed(2) + ' (Included - Free)' 
+                    : '₹' + courierCost.toFixed(2);
+                document.getElementById('quotationCourierDisplay').textContent = courierDisplay;
+                
                 document.getElementById('quotationGST').textContent = '₹' + gst.toFixed(2);
                 document.getElementById('quotationTotal').textContent = '₹' + total.toFixed(2);
                 
