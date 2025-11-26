@@ -1017,7 +1017,13 @@ app.get('/api/sales/order/:orderId', async (c) => {
     }
     
     const items = await env.DB.prepare(`
-      SELECT * FROM sale_items WHERE order_id = ?
+      SELECT 
+        si.*,
+        COALESCE(p.product_name, si.product_name) as product_name,
+        COALESCE(p.product_code, si.product_code) as product_code
+      FROM sale_items si
+      LEFT JOIN products p ON si.product_code = p.product_code
+      WHERE si.order_id = ?
     `).bind(orderId).all();
     
     const payments = await env.DB.prepare(`
@@ -7119,12 +7125,12 @@ app.get('/', (c) => {
                     </div>
                     
                     <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
-                        <table class="data-table">
+                        <table class="data-table" style="table-layout: fixed; width: 100%;">
                             <thead style="position: sticky; top: 0; z-index: 10;">
                                 <tr>
-                                    <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">S. No</th>
-                                    <th style="position: sticky; left: 60px; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">Device Serial No</th>
-                                    <th style="background: #f9fafb; min-width: 200px;">Model Name</th>
+                                    <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 60px; min-width: 60px;">S. No</th>
+                                    <th style="position: sticky; left: 60px; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 150px; min-width: 150px;">Device Serial No</th>
+                                    <th style="background: #f9fafb; width: 250px; min-width: 250px;">Model Name</th>
                                     <th style="background: #f9fafb;">Status</th>
                                     <th style="background: #f9fafb;">QC Result</th>
                                     <th style="background: #f9fafb;">In Date</th>
@@ -10633,7 +10639,10 @@ Prices are subject to change without prior notice.</textarea>
                         
                         \${sale.remarks ? '<div style="margin-top: 15px;"><label style="font-weight: 600; color: #6b7280;">Remarks:</label><div style="padding: 10px; background: #f9fafb; border-radius: 6px; margin-top: 5px;">' + sale.remarks + '</div></div>' : ''}
                         
-                        \${currentUser && currentUser.role === 'admin' ? '<div style="display: flex; gap: 10px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #e5e7eb;"><button class="btn-primary" style="flex: 1;" onclick="closeSaleDetailsModal(); editSale(\\'' + sale.order_id + '\\');"><i class="fas fa-edit"></i> Edit Sale</button><button class="btn-danger" style="flex: 1;" onclick="if(confirm(\\'Are you sure you want to delete this sale?\\')) { closeSaleDetailsModal(); deleteSale(\\'' + sale.order_id + '\\'); }"><i class="fas fa-trash"></i> Delete Sale</button></div>' : ''}
+                        <div style="display: flex; gap: 10px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                            \${sale.balance_amount > 0 ? '<button class="btn-primary" style="flex: 1; background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);" onclick="closeSaleDetailsModal(); updatePaymentFor(\\'' + sale.order_id + '\\');"><i class="fas fa-money-bill-wave"></i> Update Payment</button>' : ''}
+                            \${currentUser && currentUser.role === 'admin' ? '<button class="btn-primary" style="flex: 1;" onclick="closeSaleDetailsModal(); editSale(\\'' + sale.order_id + '\\');"><i class="fas fa-edit"></i> Edit Sale</button><button class="btn-danger" style="flex: 1;" onclick="if(confirm(\\'Are you sure you want to delete this sale?\\')) { closeSaleDetailsModal(); deleteSale(\\'' + sale.order_id + '\\'); }"><i class="fas fa-trash"></i> Delete Sale</button>' : ''}
+                        </div>
                     \`;
                 } catch (error) {
                     console.error('Error loading sale details:', error);
@@ -10668,16 +10677,16 @@ Prices are subject to change without prior notice.</textarea>
                         <label>Category</label>
                         <select class="courier-category" onchange="updateCourierProductOptions(\${courierProductCount})">
                             <option value="">Select Category</option>
-                            <option value="A-MDVR">MDVR</option>
-                            <option value="B-Monitors & Monitor Kit">Monitors & Monitor Kit</option>
-                            <option value="C-Cameras">Cameras</option>
-                            <option value="D-Dashcam">Dashcam</option>
-                            <option value="E-GPS">GPS</option>
-                            <option value="F-Storage">Storage</option>
-                            <option value="G-RFID Tags">RFID Tags</option>
-                            <option value="H-RFID Reader">RFID Reader</option>
-                            <option value="I-MDVR Accessories">MDVR Accessories</option>
-                            <option value="J-Other Products">Other Products</option>
+                            <option value="MDVR">MDVR</option>
+                            <option value="Monitor & Monitor Kit">Monitor & Monitor Kit</option>
+                            <option value="Dashcam">Dashcam</option>
+                            <option value="Cameras">Cameras</option>
+                            <option value="GPS">GPS</option>
+                            <option value="Storage">Storage</option>
+                            <option value="RFID Tags">RFID Tags</option>
+                            <option value="RFID Reader">RFID Reader</option>
+                            <option value="MDVR Accessories">MDVR Accessories</option>
+                            <option value="Other product and Accessories">Other Products</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin: 0;">
@@ -15247,10 +15256,10 @@ Prices are subject to change without prior notice.</textarea>
                         }
                         
                         return \`
-                            <tr>
-                                <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">\${index + 1}</td>
-                                <td style="position: sticky; left: 60px; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);"><strong>\${item.device_serial_no}</strong></td>
-                                <td style="min-width: 200px; max-width: 300px; white-space: normal; word-wrap: break-word;">\${item.model_name}</td>
+                            <tr style="height: 50px;">
+                                <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px;">\${index + 1}</td>
+                                <td style="position: sticky; left: 60px; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px;"><strong>\${item.device_serial_no}</strong></td>
+                                <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px;" title="\${item.model_name}">\${item.model_name}</td>
                                 <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[displayStatus] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
                                 <td>\${qcBadge}</td>
                                 <td>\${formatDate(item.in_date)}</td>
