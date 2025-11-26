@@ -7127,12 +7127,12 @@ app.get('/', (c) => {
                         </div>
                     </div>
                     
-                    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto; position: relative;">
-                        <table class="data-table" style="border-collapse: separate; border-spacing: 0;">
-                            <thead style="position: sticky; top: 0; z-index: 10;">
+                    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
+                        <table class="data-table" style="width: max-content; border-collapse: separate; border-spacing: 0;">
+                            <thead style="position: sticky; top: 0; z-index: 50;">
                                 <tr>
-                                    <th style="position: sticky; left: 0; z-index: 20; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 60px; min-width: 60px;">S. No</th>
-                                    <th style="position: sticky; left: 60px; z-index: 20; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 150px; min-width: 150px;">Device Serial No</th>
+                                    <th style="position: sticky; left: 0; z-index: 100; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 60px; min-width: 60px; border-right: 2px solid #d1d5db;">S. No</th>
+                                    <th style="position: sticky; left: 60px; z-index: 100; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 150px; min-width: 150px; border-right: 2px solid #d1d5db;">Device Serial No</th>
                                     <th style="background: #f9fafb; width: 250px; min-width: 250px;">Model Name</th>
                                     <th style="background: #f9fafb; min-width: 120px;">Status</th>
                                     <th style="background: #f9fafb; min-width: 100px;">QC Result</th>
@@ -15256,8 +15256,8 @@ Prices are subject to change without prior notice.</textarea>
                         
                         return \`
                             <tr style="height: 50px;">
-                                <td style="position: sticky; left: 0; z-index: 15; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; border-right: 1px solid #e5e7eb;">\${index + 1}</td>
-                                <td style="position: sticky; left: 60px; z-index: 15; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; border-right: 1px solid #e5e7eb;"><strong>\${item.device_serial_no}</strong></td>
+                                <td style="position: sticky; left: 0; z-index: 95; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; border-right: 2px solid #e5e7eb;">\${index + 1}</td>
+                                <td style="position: sticky; left: 60px; z-index: 95; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; border-right: 2px solid #e5e7eb;"><strong>\${item.device_serial_no}</strong></td>
                                 <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; background: white;" title="\${item.model_name}">\${item.model_name}</td>
                                 <td style="background: white; padding: 8px; vertical-align: middle;"><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[displayStatus] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
                                 <td style="background: white; padding: 8px; vertical-align: middle;">\${qcBadge}</td>
