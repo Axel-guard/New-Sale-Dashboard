@@ -1125,9 +1125,9 @@ app.post('/api/sales', async (c) => {
       if (item.product_name && item.quantity > 0 && item.unit_price > 0) {
         const total_price = item.quantity * item.unit_price;
         await env.DB.prepare(`
-          INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(sale_id, order_id, item.product_name, item.quantity, item.unit_price, total_price).run();
+          INSERT INTO sale_items (sale_id, order_id, product_code, product_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(sale_id, order_id, item.product_code || null, item.product_name, item.quantity, item.unit_price, total_price).run();
       }
     }
     
@@ -2233,11 +2233,12 @@ app.put('/api/sales/:orderId', async (c) => {
     // Insert new items
     for (const item of items) {
       await env.DB.prepare(`
-        INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO sale_items (sale_id, order_id, product_code, product_name, quantity, unit_price, total_price)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(
         sale.id,
         orderId,
+        item.product_code || null,
         item.product_name,
         item.quantity,
         item.unit_price,
@@ -2448,6 +2449,7 @@ app.post('/api/sales/upload-csv', async (c) => {
         
         for (const [codeIdx, nameIdx, qtyIdx, rateIdx] of productIndexes) {
           if (values[nameIdx] && values[nameIdx].trim() !== '') {
+            const product_code = values[codeIdx] || null;
             const product_name = values[nameIdx];
             const quantity = parseFloat(values[qtyIdx]) || 0;
             const unit_price = parseFloat(values[rateIdx]) || 0;
@@ -2455,11 +2457,12 @@ app.post('/api/sales/upload-csv', async (c) => {
             
             if (quantity > 0 && unit_price > 0) {
               await env.DB.prepare(`
-                INSERT INTO sale_items (sale_id, order_id, product_name, quantity, unit_price, total_price)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO sale_items (sale_id, order_id, product_code, product_name, quantity, unit_price, total_price)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 sale_id,
-                order_id, 
+                order_id,
+                product_code,
                 product_name, 
                 quantity, 
                 unit_price,
@@ -9869,10 +9872,6 @@ Prices are subject to change without prior notice.</textarea>
             
             function openNewLeadModal() {
                 document.getElementById('newLeadModal').classList.add('show');
-            }
-            
-            function openBalancePaymentModal() {
-                document.getElementById('balancePaymentModal').classList.add('show');
             }
             
             function openQuotationModal() {
