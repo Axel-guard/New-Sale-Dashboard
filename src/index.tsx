@@ -5616,6 +5616,7 @@ app.get('/', (c) => {
             
             .main-content {
                 margin-top: 60px;
+                margin-left: 0;
                 padding: 20px;
                 transition: margin-left 0.3s ease;
             }
@@ -7123,7 +7124,7 @@ app.get('/', (c) => {
                                 <tr>
                                     <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">S. No</th>
                                     <th style="position: sticky; left: 60px; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">Device Serial No</th>
-                                    <th style="background: #f9fafb;">Model Name</th>
+                                    <th style="background: #f9fafb; min-width: 200px;">Model Name</th>
                                     <th style="background: #f9fafb;">Status</th>
                                     <th style="background: #f9fafb;">QC Result</th>
                                     <th style="background: #f9fafb;">In Date</th>
@@ -13318,21 +13319,6 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('quotationCourierCost').value = courierCost.toFixed(2);
                 
                 calculateQuotationTotal();
-                }
-                
-                try {
-                    const response = await axios.get('/api/courier-rates/' + encodeURIComponent(partner) + '/' + encodeURIComponent(method));
-                    if (response.data.success) {
-                        const rate = response.data.data;
-                        const charges = rate.base_rate + (rate.per_kg_rate * weight);
-                        document.getElementById('quotationCourierCost').value = charges.toFixed(2);
-                        calculateQuotationTotal();
-                    }
-                } catch (error) {
-                    console.error('Error calculating courier charges:', error);
-                    document.getElementById('quotationCourierCost').value = 0;
-                    calculateQuotationTotal();
-                }
             }
 
             // Calculate Quotation Total
@@ -14053,7 +14039,19 @@ Prices are subject to change without prior notice.</textarea>
             // DATABASE-BASED LOGIN SYSTEM
             // Uses API endpoint to authenticate against users table
             // ============================================
-            let currentUser = null;
+            // Mock user for authentication-free mode
+            let currentUser = {
+                id: 1,
+                username: 'admin',
+                fullName: 'Admin User',
+                employeeName: 'Admin',
+                role: 'admin',
+                permissions: {
+                    canEdit: true,
+                    canDelete: true,
+                    canView: true
+                }
+            };
             
             // Eye-tracking animation for login characters
             document.addEventListener('mousemove', (e) => {
@@ -14278,13 +14276,8 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Check for existing session on page load
-            window.addEventListener('DOMContentLoaded', () => {
-                const storedUser = sessionStorage.getItem('user');
-                if (storedUser) {
-                    currentUser = JSON.parse(storedUser);
-                    showDashboard();
-                }
-            });
+            // Authentication disabled - dashboard is always visible
+            // Removed DOMContentLoaded listener that was checking for sessionStorage user
             
             // CSV Upload Functions
             async function uploadSalesCSV(event) {
@@ -15233,9 +15226,13 @@ Prices are subject to change without prior notice.</textarea>
                             'Returned': 'background: #e5e7eb; color: #374151;'
                         };
                         
-                        // Display status - rename Quality Check to QC Pending
+                        // Determine correct status based on dispatch_date
                         let displayStatus = item.status;
-                        if (displayStatus === 'Quality Check') displayStatus = 'QC Pending';
+                        if (item.dispatch_date && item.dispatch_date !== '-' && item.dispatch_date !== 'null' && item.dispatch_date !== null) {
+                            displayStatus = 'Dispatched';
+                        } else if (displayStatus === 'Quality Check') {
+                            displayStatus = 'QC Pending';
+                        }
                         
                         // QC Result badge styling (teal for Pass, red for Fail)
                         let qcBadge = '-';
