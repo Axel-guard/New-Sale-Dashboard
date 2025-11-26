@@ -11179,9 +11179,30 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
 
-            function updatePaymentFor(orderId) {
-                openBalancePaymentModal();
-                document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
+            async function updatePaymentFor(orderId) {
+                try {
+                    // Fetch sale details to get balance amount
+                    const response = await axios.get('/api/sales/order/' + orderId);
+                    const sale = response.data.data;
+                    
+                    openBalancePaymentModal();
+                    
+                    // Set order ID
+                    document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
+                    
+                    // Set amount to the balance amount
+                    if (sale.balance_amount && sale.balance_amount > 0) {
+                        document.querySelector('#balancePaymentForm input[name="amount"]').value = sale.balance_amount;
+                    }
+                    
+                    // Set today's date as default
+                    const today = new Date().toISOString().split('T')[0];
+                    document.querySelector('#balancePaymentForm input[name="payment_date"]').value = today;
+                } catch (error) {
+                    console.error('Error fetching sale details:', error);
+                    openBalancePaymentModal();
+                    document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
+                }
             }
 
             // Switch Balance Payment Tabs
@@ -11679,12 +11700,35 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.get('/api/sales/' + orderId);
                     const sale = response.data.data;
                     
-                    // Populate form fields
-                    document.getElementById('editOrderId').value = sale.order_id;
-                    document.getElementById('editCustomerCode').value = sale.customer_code;
-                    document.getElementById('editSaleDate').value = sale.sale_date.split('T')[0];
-                    document.getElementById('editEmployeeName').value = sale.employee_name;
-                    document.getElementById('editSaleType').value = sale.sale_type;
+                    // Populate form fields with safe defaults
+                    document.getElementById('editOrderId').value = sale.order_id || '';
+                    document.getElementById('editCustomerCode').value = sale.customer_code || '';
+                    
+                    // Handle sale_date safely - ensure it's in YYYY-MM-DD format
+                    if (sale.sale_date) {
+                        const dateValue = sale.sale_date.includes('T') ? sale.sale_date.split('T')[0] : sale.sale_date;
+                        document.getElementById('editSaleDate').value = dateValue;
+                    } else {
+                        document.getElementById('editSaleDate').value = '';
+                    }
+                    
+                    // Set employee name explicitly
+                    const employeeSelect = document.getElementById('editEmployeeName');
+                    if (sale.employee_name) {
+                        employeeSelect.value = sale.employee_name;
+                        // If value not set, try to find matching option
+                        if (!employeeSelect.value) {
+                            const options = employeeSelect.options;
+                            for (let i = 0; i < options.length; i++) {
+                                if (options[i].text === sale.employee_name || options[i].value === sale.employee_name) {
+                                    employeeSelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    document.getElementById('editSaleType').value = sale.sale_type || '';
                     document.getElementById('editCourierCost').value = sale.courier_cost || 0;
                     document.getElementById('editAmountReceived').value = sale.amount_received || 0;
                     document.getElementById('editAccountReceived').value = sale.account_received || '';
