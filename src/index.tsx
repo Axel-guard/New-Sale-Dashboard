@@ -7124,21 +7124,21 @@ app.get('/', (c) => {
                         </div>
                     </div>
                     
-                    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
-                        <table class="data-table" style="table-layout: fixed; width: 100%;">
+                    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto; position: relative;">
+                        <table class="data-table" style="border-collapse: separate; border-spacing: 0;">
                             <thead style="position: sticky; top: 0; z-index: 10;">
                                 <tr>
-                                    <th style="position: sticky; left: 0; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 60px; min-width: 60px;">S. No</th>
-                                    <th style="position: sticky; left: 60px; z-index: 12; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 150px; min-width: 150px;">Device Serial No</th>
+                                    <th style="position: sticky; left: 0; z-index: 20; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 60px; min-width: 60px;">S. No</th>
+                                    <th style="position: sticky; left: 60px; z-index: 20; background: #f9fafb; box-shadow: 2px 0 4px rgba(0,0,0,0.1); width: 150px; min-width: 150px;">Device Serial No</th>
                                     <th style="background: #f9fafb; width: 250px; min-width: 250px;">Model Name</th>
-                                    <th style="background: #f9fafb;">Status</th>
-                                    <th style="background: #f9fafb;">QC Result</th>
-                                    <th style="background: #f9fafb;">In Date</th>
-                                    <th style="background: #f9fafb;">Customer</th>
-                                    <th style="background: #f9fafb;">Dispatch Date</th>
-                                    <th style="background: #f9fafb;">Cust Code</th>
-                                    <th style="background: #f9fafb;">Order ID</th>
-                                    <th style="background: #f9fafb;">Actions</th>
+                                    <th style="background: #f9fafb; min-width: 120px;">Status</th>
+                                    <th style="background: #f9fafb; min-width: 100px;">QC Result</th>
+                                    <th style="background: #f9fafb; min-width: 100px;">In Date</th>
+                                    <th style="background: #f9fafb; min-width: 150px;">Customer</th>
+                                    <th style="background: #f9fafb; min-width: 120px;">Dispatch Date</th>
+                                    <th style="background: #f9fafb; min-width: 100px;">Cust Code</th>
+                                    <th style="background: #f9fafb; min-width: 100px;">Order ID</th>
+                                    <th style="background: #f9fafb; min-width: 100px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
@@ -15257,17 +15257,17 @@ Prices are subject to change without prior notice.</textarea>
                         
                         return \`
                             <tr style="height: 50px;">
-                                <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px;">\${index + 1}</td>
-                                <td style="position: sticky; left: 60px; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px;"><strong>\${item.device_serial_no}</strong></td>
-                                <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px;" title="\${item.model_name}">\${item.model_name}</td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[displayStatus] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
-                                <td>\${qcBadge}</td>
-                                <td>\${formatDate(item.in_date)}</td>
-                                <td>\${item.customer_name || '-'}</td>
-                                <td>\${formatDate(item.dispatch_date)}</td>
-                                <td>\${item.cust_code || '-'}</td>
-                                <td>\${item.order_id || '-'}</td>
-                                <td>
+                                <td style="position: sticky; left: 0; z-index: 15; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; border-right: 1px solid #e5e7eb;">\${index + 1}</td>
+                                <td style="position: sticky; left: 60px; z-index: 15; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; border-right: 1px solid #e5e7eb;"><strong>\${item.device_serial_no}</strong></td>
+                                <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 8px; background: white;" title="\${item.model_name}">\${item.model_name}</td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;"><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[displayStatus] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;">\${qcBadge}</td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;">\${formatDate(item.in_date)}</td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;">\${item.customer_name || '-'}</td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;">\${formatDate(item.dispatch_date)}</td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;">\${item.cust_code || '-'}</td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;">\${item.order_id || '-'}</td>
+                                <td style="background: white; padding: 8px; vertical-align: middle;">
                                     <button class="btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="viewDevice('\${item.device_serial_no}')">
                                         <i class="fas fa-eye"></i> View
                                     </button>
