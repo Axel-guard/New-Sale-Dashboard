@@ -11181,25 +11181,35 @@ Prices are subject to change without prior notice.</textarea>
 
             async function updatePaymentFor(orderId) {
                 try {
+                    console.log('Fetching balance payment details for order:', orderId);
                     // Fetch sale details to get balance amount
                     const response = await axios.get('/api/sales/order/' + orderId);
                     const sale = response.data.data;
+                    console.log('Balance payment data:', sale);
                     
                     openBalancePaymentModal();
                     
                     // Set order ID
-                    document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
+                    const orderIdInput = document.querySelector('#balancePaymentForm input[name="order_id"]');
+                    orderIdInput.value = orderId;
+                    console.log('Set Order ID to:', orderId);
                     
                     // Set amount to the balance amount
+                    const amountInput = document.querySelector('#balancePaymentForm input[name="amount"]');
                     if (sale.balance_amount && sale.balance_amount > 0) {
-                        document.querySelector('#balancePaymentForm input[name="amount"]').value = sale.balance_amount;
+                        amountInput.value = sale.balance_amount;
+                        console.log('Set balance amount to:', sale.balance_amount);
+                    } else {
+                        console.log('No balance amount or zero balance');
                     }
                     
                     // Set today's date as default
                     const today = new Date().toISOString().split('T')[0];
-                    document.querySelector('#balancePaymentForm input[name="payment_date"]').value = today;
+                    const dateInput = document.querySelector('#balancePaymentForm input[name="payment_date"]');
+                    dateInput.value = today;
+                    console.log('Set payment date to:', today);
                 } catch (error) {
-                    console.error('Error fetching sale details:', error);
+                    console.error('Error fetching sale details for balance payment:', error);
                     openBalancePaymentModal();
                     document.querySelector('#balancePaymentForm input[name="order_id"]').value = orderId;
                 }
@@ -11697,31 +11707,40 @@ Prices are subject to change without prior notice.</textarea>
             // Edit Sale Functions
             async function editSale(orderId) {
                 try {
+                    console.log('Fetching sale data for:', orderId);
                     const response = await axios.get('/api/sales/' + orderId);
                     const sale = response.data.data;
+                    console.log('Sale data received:', sale);
                     
                     // Populate form fields with safe defaults
                     document.getElementById('editOrderId').value = sale.order_id || '';
                     document.getElementById('editCustomerCode').value = sale.customer_code || '';
                     
                     // Handle sale_date safely - ensure it's in YYYY-MM-DD format
+                    const saleDateInput = document.getElementById('editSaleDate');
                     if (sale.sale_date) {
                         const dateValue = sale.sale_date.includes('T') ? sale.sale_date.split('T')[0] : sale.sale_date;
-                        document.getElementById('editSaleDate').value = dateValue;
+                        saleDateInput.value = dateValue;
+                        console.log('Set sale date to:', dateValue);
                     } else {
-                        document.getElementById('editSaleDate').value = '';
+                        saleDateInput.value = '';
+                        console.log('No sale date found');
                     }
                     
                     // Set employee name explicitly
                     const employeeSelect = document.getElementById('editEmployeeName');
+                    console.log('Employee from API:', sale.employee_name);
                     if (sale.employee_name) {
                         employeeSelect.value = sale.employee_name;
+                        console.log('Set employee select value to:', sale.employee_name);
                         // If value not set, try to find matching option
                         if (!employeeSelect.value) {
+                            console.log('Direct value assignment failed, searching options');
                             const options = employeeSelect.options;
                             for (let i = 0; i < options.length; i++) {
                                 if (options[i].text === sale.employee_name || options[i].value === sale.employee_name) {
                                     employeeSelect.selectedIndex = i;
+                                    console.log('Found and selected option at index:', i);
                                     break;
                                 }
                             }
