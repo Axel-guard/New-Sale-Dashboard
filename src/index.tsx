@@ -15250,8 +15250,8 @@ Prices are subject to change without prior notice.</textarea>
                             <tr>
                                 <td style="position: sticky; left: 0; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">\${index + 1}</td>
                                 <td style="position: sticky; left: 60px; z-index: 10; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.1);"><strong>\${item.device_serial_no}</strong></td>
-                                <td>\${item.model_name}</td>
-                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[item.status] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
+                                <td style="min-width: 200px; max-width: 300px; white-space: normal; word-wrap: break-word;">\${item.model_name}</td>
+                                <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; \${statusColors[displayStatus] || statusColors['QC Pending'] || ''}">\${displayStatus}</span></td>
                                 <td>\${qcBadge}</td>
                                 <td>\${formatDate(item.in_date)}</td>
                                 <td>\${item.customer_name || '-'}</td>
