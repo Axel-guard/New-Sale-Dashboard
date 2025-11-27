@@ -9874,19 +9874,35 @@ Prices are subject to change without prior notice.</textarea>
                 // Show modal first
                 document.getElementById('newLeadModal').classList.add('show');
                 
+                // Get the customer code input field
+                const customerCodeInput = document.getElementById('leadCustomerCode');
+                
+                // Set loading state
+                customerCodeInput.value = '';
+                customerCodeInput.placeholder = 'Loading next code...';
+                customerCodeInput.style.backgroundColor = '#f3f4f6';
+                
                 // Fetch next customer code
                 try {
+                    console.log('Fetching next customer code...');
                     const response = await axios.get('/api/leads/next-code');
-                    if (response.data.success) {
-                        const customerCodeInput = document.getElementById('leadCustomerCode');
+                    console.log('Customer code response:', response.data);
+                    
+                    if (response.data && response.data.success && response.data.next_code) {
                         customerCodeInput.value = response.data.next_code;
                         customerCodeInput.placeholder = '';
-                        console.log('Next customer code:', response.data.next_code);
+                        console.log('✅ Customer code loaded:', response.data.next_code);
+                    } else {
+                        throw new Error('Invalid response format');
                     }
                 } catch (error) {
-                    console.error('Error fetching next customer code:', error);
-                    const customerCodeInput = document.getElementById('leadCustomerCode');
-                    customerCodeInput.placeholder = 'Error loading code';
+                    console.error('❌ Error fetching next customer code:', error);
+                    customerCodeInput.value = '';
+                    customerCodeInput.placeholder = 'Auto-code unavailable';
+                    customerCodeInput.readOnly = false;
+                    customerCodeInput.style.backgroundColor = '#fff';
+                    customerCodeInput.style.cursor = 'text';
+                    alert('⚠️ Could not load next customer code. Please enter manually or refresh the page.');
                 }
             }
             
@@ -11028,6 +11044,15 @@ Prices are subject to change without prior notice.</textarea>
                     if (response.data.success) {
                         alert('✅ Lead added successfully!');
                         form.reset(); // Reset form fields
+                        
+                        // Reset customer code field to initial state
+                        const customerCodeInput = document.getElementById('leadCustomerCode');
+                        customerCodeInput.value = '';
+                        customerCodeInput.placeholder = 'Loading...';
+                        customerCodeInput.readOnly = true;
+                        customerCodeInput.style.backgroundColor = '#f3f4f6';
+                        customerCodeInput.style.cursor = 'not-allowed';
+                        
                         document.getElementById('newLeadModal').classList.remove('show');
                         
                         // Reload leads if on leads page
