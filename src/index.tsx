@@ -8755,8 +8755,8 @@ app.get('/', (c) => {
                 <form id="newLeadForm" onsubmit="submitNewLead(event)">
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Customer Code</label>
-                            <input type="text" name="customer_code" placeholder="Optional">
+                            <label>Customer Code (Auto-generated)</label>
+                            <input type="text" id="leadCustomerCode" name="customer_code" placeholder="Loading..." readonly style="background-color: #f3f4f6; cursor: not-allowed;">
                         </div>
                         <div class="form-group">
                             <label>Customer Name *</label>
@@ -9870,8 +9870,24 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('newSaleModal').classList.add('show');
             }
             
-            function openNewLeadModal() {
+            async function openNewLeadModal() {
+                // Show modal first
                 document.getElementById('newLeadModal').classList.add('show');
+                
+                // Fetch next customer code
+                try {
+                    const response = await axios.get('/api/leads/next-code');
+                    if (response.data.success) {
+                        const customerCodeInput = document.getElementById('leadCustomerCode');
+                        customerCodeInput.value = response.data.next_code;
+                        customerCodeInput.placeholder = '';
+                        console.log('Next customer code:', response.data.next_code);
+                    }
+                } catch (error) {
+                    console.error('Error fetching next customer code:', error);
+                    const customerCodeInput = document.getElementById('leadCustomerCode');
+                    customerCodeInput.placeholder = 'Error loading code';
+                }
             }
             
             function openQuotationModal() {
