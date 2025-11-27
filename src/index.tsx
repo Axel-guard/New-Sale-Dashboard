@@ -8755,8 +8755,8 @@ app.get('/', (c) => {
                 <form id="newLeadForm" onsubmit="submitNewLead(event)">
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Customer Code (Auto-generated)</label>
-                            <input type="text" id="leadCustomerCode" name="customer_code" placeholder="Loading..." readonly style="background-color: #f3f4f6; cursor: not-allowed;">
+                            <label>Customer Code (Auto-generated) <span id="codeLoadingIndicator" style="color: #3b82f6; font-size: 11px;">⏳ Loading...</span></label>
+                            <input type="text" id="leadCustomerCode" name="customer_code" placeholder="Will auto-load..." readonly style="background-color: #f3f4f6; cursor: not-allowed;">
                         </div>
                         <div class="form-group">
                             <label>Customer Name *</label>
@@ -9874,35 +9874,68 @@ Prices are subject to change without prior notice.</textarea>
                 // Show modal first
                 document.getElementById('newLeadModal').classList.add('show');
                 
-                // Get the customer code input field
-                const customerCodeInput = document.getElementById('leadCustomerCode');
+                // Wait a tiny bit for DOM to be ready
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
-                // Set loading state
+                // Get elements
+                const customerCodeInput = document.getElementById('leadCustomerCode');
+                const loadingIndicator = document.getElementById('codeLoadingIndicator');
+                
+                if (!customerCodeInput) {
+                    console.error('❌ Customer code input field not found!');
+                    return;
+                }
+                
+                // Set initial loading state
                 customerCodeInput.value = '';
-                customerCodeInput.placeholder = 'Loading next code...';
-                customerCodeInput.style.backgroundColor = '#f3f4f6';
+                customerCodeInput.placeholder = '⏳ Fetching...';
+                customerCodeInput.style.backgroundColor = '#fef3c7';
+                customerCodeInput.style.border = '1px solid #fbbf24';
+                if (loadingIndicator) loadingIndicator.style.display = 'inline';
                 
                 // Fetch next customer code
                 try {
-                    console.log('Fetching next customer code...');
+                    console.log('🔄 Fetching next customer code...');
                     const response = await axios.get('/api/leads/next-code');
-                    console.log('Customer code response:', response.data);
+                    console.log('📥 Customer code response:', response.data);
                     
                     if (response.data && response.data.success && response.data.next_code) {
+                        // Success - show the code
                         customerCodeInput.value = response.data.next_code;
                         customerCodeInput.placeholder = '';
-                        console.log('✅ Customer code loaded:', response.data.next_code);
+                        customerCodeInput.style.backgroundColor = '#f3f4f6';
+                        customerCodeInput.style.border = '1px solid #d1d5db';
+                        customerCodeInput.style.fontWeight = '600';
+                        customerCodeInput.style.color = '#059669';
+                        if (loadingIndicator) {
+                            loadingIndicator.textContent = '✅ Loaded';
+                            loadingIndicator.style.color = '#059669';
+                            setTimeout(() => {
+                                if (loadingIndicator) loadingIndicator.style.display = 'none';
+                            }, 2000);
+                        }
+                        console.log('✅ Customer code loaded successfully:', response.data.next_code);
                     } else {
                         throw new Error('Invalid response format');
                     }
                 } catch (error) {
                     console.error('❌ Error fetching next customer code:', error);
+                    
+                    // Error state - allow manual entry
                     customerCodeInput.value = '';
-                    customerCodeInput.placeholder = 'Auto-code unavailable';
+                    customerCodeInput.placeholder = 'Enter code manually';
                     customerCodeInput.readOnly = false;
-                    customerCodeInput.style.backgroundColor = '#fff';
+                    customerCodeInput.style.backgroundColor = '#fee2e2';
+                    customerCodeInput.style.border = '1px solid #ef4444';
                     customerCodeInput.style.cursor = 'text';
-                    alert('⚠️ Could not load next customer code. Please enter manually or refresh the page.');
+                    customerCodeInput.style.color = '#dc2626';
+                    
+                    if (loadingIndicator) {
+                        loadingIndicator.textContent = '❌ Failed - Enter manually';
+                        loadingIndicator.style.color = '#dc2626';
+                    }
+                    
+                    alert('⚠️ Could not auto-generate customer code.\nPlease enter it manually or try again.');
                 }
             }
             
