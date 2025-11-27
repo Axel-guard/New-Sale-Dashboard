@@ -10992,27 +10992,38 @@ Prices are subject to change without prior notice.</textarea>
                 const formData = new FormData(form);
                 
                 const data = {
-                    customer_code: formData.get('customer_code'),
+                    customer_code: formData.get('customer_code') || null,
                     customer_name: formData.get('customer_name'),
                     mobile_number: formData.get('mobile_number'),
-                    alternate_mobile: formData.get('alternate_mobile'),
-                    location: formData.get('location'),
-                    company_name: formData.get('company_name'),
-                    gst_number: formData.get('gst_number'),
-                    email: formData.get('email'),
-                    complete_address: formData.get('complete_address')
+                    alternate_mobile: formData.get('alternate_mobile') || null,
+                    location: formData.get('location') || null,
+                    company_name: formData.get('company_name') || null,
+                    gst_number: formData.get('gst_number') || null,
+                    email: formData.get('email') || null,
+                    complete_address: formData.get('complete_address') || null
                 };
+                
+                console.log('Submitting lead data:', data);
                 
                 try {
                     const response = await axios.post('/api/leads', data);
+                    console.log('Lead response:', response.data);
                     
                     if (response.data.success) {
-                        alert('Lead added successfully!');
+                        alert('✅ Lead added successfully!');
+                        form.reset(); // Reset form fields
                         document.getElementById('newLeadModal').classList.remove('show');
-                        loadLeads();
+                        
+                        // Reload leads if on leads page
+                        if (typeof loadLeads === 'function') {
+                            await loadLeads();
+                        }
+                    } else {
+                        alert('❌ Failed to add lead: ' + (response.data.error || 'Unknown error'));
                     }
                 } catch (error) {
-                    alert('Error adding lead: ' + (error.response?.data?.error || error.message));
+                    console.error('Error adding lead:', error);
+                    alert('❌ Error adding lead: ' + (error.response?.data?.error || error.message));
                 }
             }
 
