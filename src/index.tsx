@@ -10059,14 +10059,26 @@ Prices are subject to change without prior notice.</textarea>
                 ]
             };
 
-            // Set today's date as default
-            document.addEventListener('DOMContentLoaded', () => {
+            // Set today's date as default and initialize app
+            // Use window.onload instead of DOMContentLoaded to ensure all scripts are loaded
+            window.addEventListener('load', () => {
+                console.log('🚀 [APP INIT] Window loaded, initializing application...');
+                console.log('📦 [APP INIT] Chart.js available:', typeof Chart !== 'undefined');
+                console.log('📦 [APP INIT] Axios available:', typeof axios !== 'undefined');
+                
                 const today = new Date().toISOString().split('T')[0];
                 document.querySelectorAll('input[type="date"]').forEach(input => {
                     if (!input.value) input.value = today;
                 });
+                
+                // Load dashboard data
+                console.log('📊 [APP INIT] Loading dashboard...');
                 loadDashboard();
-                addProductRow(); // Add first product row
+                
+                // Add first product row
+                addProductRow();
+                
+                console.log('✅ [APP INIT] Application initialized successfully');
             });
 
             // Toggle Sidebar
@@ -10200,15 +10212,28 @@ Prices are subject to change without prior notice.</textarea>
 
             // Load Dashboard
             async function loadDashboard() {
+                console.log('📊 [DASHBOARD] Starting dashboard load...');
                 try {
                     // Load monthly totals
+                    console.log('📊 [DASHBOARD] Loading monthly totals...');
                     loadMonthlyTotals();
                     
+                    console.log('📊 [DASHBOARD] Fetching dashboard summary from API...');
                     const response = await axios.get('/api/dashboard/summary');
+                    console.log('📊 [DASHBOARD] API response:', response.data);
+                    
                     const { employeeSales, paymentStatusData, monthlySummary } = response.data.data;
+                    console.log('📊 [DASHBOARD] Employee sales:', employeeSales);
+                    console.log('📊 [DASHBOARD] Payment status:', paymentStatusData);
                     
                     // Render employee cards
                     const grid = document.getElementById('employeeSalesGrid');
+                    if (!grid) {
+                        console.error('❌ [DASHBOARD] employeeSalesGrid element not found!');
+                        return;
+                    }
+                    
+                    console.log('📊 [DASHBOARD] Rendering employee cards...');
                     grid.innerHTML = employeeSales.map(emp => \`
                         <div class="employee-card">
                             <h3>\${emp.employee_name}</h3>
@@ -10216,15 +10241,27 @@ Prices are subject to change without prior notice.</textarea>
                             <div class="sub-value">\${emp.total_sales} sales | Balance: ₹\${emp.total_balance.toLocaleString()}</div>
                         </div>
                     \`).join('');
+                    console.log('✅ [DASHBOARD] Employee cards rendered');
                     
                     // Render charts
+                    console.log('📊 [DASHBOARD] Rendering charts...');
                     renderEmployeeChart(employeeSales);
                     renderPaymentChart(paymentStatusData);
+                    console.log('✅ [DASHBOARD] Charts rendered');
                     
                     // Load sales table
+                    console.log('📊 [DASHBOARD] Loading sales table...');
                     loadSalesTable();
+                    console.log('✅ [DASHBOARD] Dashboard loaded successfully');
                 } catch (error) {
-                    console.error('Error loading dashboard:', error);
+                    console.error('❌ [DASHBOARD] Error loading dashboard:', error);
+                    console.error('❌ [DASHBOARD] Error details:', error.message, error.stack);
+                    
+                    // Show error in UI
+                    const grid = document.getElementById('employeeSalesGrid');
+                    if (grid) {
+                        grid.innerHTML = '<div class="loading" style="color: #ef4444;">❌ Failed to load dashboard. Please refresh the page.</div>';
+                    }
                 }
             }
             
