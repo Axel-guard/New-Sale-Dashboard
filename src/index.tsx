@@ -5220,10 +5220,11 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
         <meta http-equiv="Pragma" content="no-cache">
         <meta http-equiv="Expires" content="0">
-        <title>AxelGuard</title>
+        <meta name="version" content="v2.0-dashboard-fix-${Date.now()}">
+        <title>AxelGuard - Office Management</title>
         <!-- Tailwind CSS removed to fix console errors -->
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -10066,6 +10067,9 @@ Prices are subject to change without prior notice.</textarea>
                 console.log('📦 [APP INIT] Chart.js available:', typeof Chart !== 'undefined');
                 console.log('📦 [APP INIT] Axios available:', typeof axios !== 'undefined');
                 
+                // Add visual indicator that JS is loaded
+                document.title = 'AxelGuard - Ready';
+                
                 const today = new Date().toISOString().split('T')[0];
                 document.querySelectorAll('input[type="date"]').forEach(input => {
                     if (!input.value) input.value = today;
@@ -10073,10 +10077,19 @@ Prices are subject to change without prior notice.</textarea>
                 
                 // Load dashboard data
                 console.log('📊 [APP INIT] Loading dashboard...');
-                loadDashboard();
+                try {
+                    loadDashboard();
+                } catch (error) {
+                    console.error('❌ [APP INIT] Failed to load dashboard:', error);
+                    alert('Error loading dashboard: ' + error.message + '\\n\\nPlease clear your browser cache (Ctrl+Shift+R) and refresh.');
+                }
                 
                 // Add first product row
-                addProductRow();
+                try {
+                    addProductRow();
+                } catch (error) {
+                    console.error('❌ [APP INIT] Failed to add product row:', error);
+                }
                 
                 console.log('✅ [APP INIT] Application initialized successfully');
             });
