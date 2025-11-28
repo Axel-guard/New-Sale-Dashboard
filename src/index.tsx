@@ -10790,17 +10790,21 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.get(\`/api/sales/order/\${orderId}\`);
                     const sale = response.data.data;
                     
+                    // Check if any product has a code
+                    const hasProductCodes = sale.items && sale.items.some(item => item.product_code);
+                    const colspan = hasProductCodes ? 5 : 4;
+                    
                     const productsTable = sale.items && sale.items.length > 0
                         ? sale.items.map(item => \`
                             <tr>
                                 <td>\${item.product_name}</td>
-                                <td>\${item.product_code || '-'}</td>
+                                \${hasProductCodes ? '<td>' + (item.product_code || '<span style="color: #9ca3af;">N/A</span>') + '</td>' : ''}
                                 <td>\${item.quantity}</td>
                                 <td>₹\${item.unit_price.toLocaleString()}</td>
                                 <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
                             </tr>
                         \`).join('')
-                        : '<tr><td colspan="5" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
+                        : '<tr><td colspan="' + colspan + '" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
                     
                     const paymentsTable = sale.payments && sale.payments.length > 0
                         ? sale.payments.map(payment => \`
@@ -10855,7 +10859,7 @@ Prices are subject to change without prior notice.</textarea>
                                 <thead>
                                     <tr>
                                         <th>Product Name</th>
-                                        <th>Product Code</th>
+                                        \${hasProductCodes ? '<th>Product Code</th>' : ''}
                                         <th>Quantity</th>
                                         <th>Unit Price</th>
                                         <th>Total</th>
@@ -18359,17 +18363,21 @@ Prices are subject to change without prior notice.</textarea>
                     const response = await axios.get(\`/api/sales/order/\${orderId}\`);
                     const sale = response.data.data;
                     
+                    // Check if any product has a code
+                    const hasProductCodes = sale.items && sale.items.some(item => item.product_code);
+                    const colspan = hasProductCodes ? 5 : 4;
+                    
                     const productsTable = sale.items && sale.items.length > 0
                         ? sale.items.map(item => \`
                             <tr>
                                 <td>\${item.product_name}</td>
-                                <td>\${item.product_code || '-'}</td>
+                                \${hasProductCodes ? '<td>' + (item.product_code || '<span style="color: #9ca3af;">N/A</span>') + '</td>' : ''}
                                 <td>\${item.quantity}</td>
                                 <td>₹\${item.unit_price.toLocaleString()}</td>
                                 <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
                             </tr>
                         \`).join('')
-                        : '<tr><td colspan="5" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
+                        : '<tr><td colspan="' + colspan + '" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
                     
                     const paymentsTable = sale.payments && sale.payments.length > 0
                         ? sale.payments.map(payment => \`
@@ -18424,7 +18432,7 @@ Prices are subject to change without prior notice.</textarea>
                                 <thead>
                                     <tr>
                                         <th>Product Name</th>
-                                        <th>Product Code</th>
+                                        \${hasProductCodes ? '<th>Product Code</th>' : ''}
                                         <th>Quantity</th>
                                         <th>Unit Price</th>
                                         <th>Total</th>
