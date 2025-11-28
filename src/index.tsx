@@ -934,7 +934,7 @@ app.get('/api/sales/current-month', async (c) => {
     const sales = await env.DB.prepare(`
       SELECT * FROM sales
       WHERE DATE(sale_date) >= DATE(?)
-      ORDER BY sale_date DESC
+      ORDER BY updated_at DESC, sale_date DESC
     `).bind(firstDay.toISOString()).all();
     
     // Get items and payments for each sale
@@ -2203,7 +2203,8 @@ app.put('/api/sales/:orderId', async (c) => {
         subtotal = ?,
         gst_amount = ?,
         total_amount = ?,
-        balance_amount = ?
+        balance_amount = ?,
+        updated_at = CURRENT_TIMESTAMP
       WHERE order_id = ?
     `).bind(
       customer_code,
