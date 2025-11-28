@@ -5934,9 +5934,19 @@ app.get('/', (c) => {
                 background: #f9fafb;
             }
             
+            .action-item.view:hover {
+                background: #e0e7ff;
+                color: #4338ca;
+            }
+            
             .action-item.edit:hover {
                 background: #dbeafe;
                 color: #1d4ed8;
+            }
+            
+            .action-item.update:hover {
+                background: #d1fae5;
+                color: #059669;
             }
             
             .action-item.delete:hover {
@@ -6729,29 +6739,31 @@ app.get('/', (c) => {
                     <div class="card-header">
                         <h3 class="card-title">Complete Sale Details - Current Month</h3>
                     </div>
-                    <div class="table-container">
+                    <div class="table-container" style="max-height: 600px; overflow-y: auto;">
                         <table id="salesTable">
-                            <thead>
+                            <thead style="position: sticky; top: 0; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                                 <tr>
-                                    <th>Action</th>
-                                    <th>Order ID</th>
-                                    <th>Date</th>
-                                    <th>Customer Name</th>
-                                    <th>Company Name</th>
-                                    <th>Employee</th>
-                                    <th>Products</th>
-                                    <th>Sale Type</th>
-                                    <th>Subtotal</th>
-                                    <th>GST</th>
-                                    <th>Total</th>
-                                    <th>Received</th>
-                                    <th>Balance</th>
-                                    <th>Payments</th>
-                                    <th>Actions</th>
+                                    <th><i class="fas fa-receipt" style="margin-right: 6px; color: #667eea;"></i>Order ID</th>
+                                    <th><i class="fas fa-calendar" style="margin-right: 6px; color: #667eea;"></i>Date</th>
+                                    <th><i class="fas fa-user" style="margin-right: 6px; color: #667eea;"></i>Customer Name</th>
+                                    <th><i class="fas fa-building" style="margin-right: 6px; color: #667eea;"></i>Company Name</th>
+                                    <th><i class="fas fa-user-tie" style="margin-right: 6px; color: #667eea;"></i>Employee</th>
+                                    <th><i class="fas fa-box" style="margin-right: 6px; color: #667eea;"></i>Products</th>
+                                    <th><i class="fas fa-file-invoice" style="margin-right: 6px; color: #667eea;"></i>Sale Type</th>
+                                    <th><i class="fas fa-rupee-sign" style="margin-right: 6px; color: #667eea;"></i>Subtotal</th>
+                                    <th><i class="fas fa-percentage" style="margin-right: 6px; color: #667eea;"></i>GST</th>
+                                    <th><i class="fas fa-money-bill-wave" style="margin-right: 6px; color: #667eea;"></i>Total</th>
+                                    <th><i class="fas fa-check-circle" style="margin-right: 6px; color: #667eea;"></i>Received</th>
+                                    <th><i class="fas fa-exclamation-circle" style="margin-right: 6px; color: #667eea;"></i>Balance</th>
+                                    <th><i class="fas fa-credit-card" style="margin-right: 6px; color: #667eea;"></i>Payments</th>
+                                    <th style="text-align: center;"><i class="fas fa-cog" style="margin-right: 6px; color: #667eea;"></i>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="salesTableBody">
-                                <tr><td colspan="15" class="loading">Loading...</td></tr>
+                                <tr><td colspan="14" style="text-align: center; padding: 40px; color: #6b7280;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px; color: #667eea;"></i>
+                                    <div>Loading sales...</div>
+                                </td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -10482,6 +10494,29 @@ Prices are subject to change without prior notice.</textarea>
                 });
             }
 
+            // Sale Action menu toggle functions
+            function toggleSaleActionMenu(index) {
+                const menu = document.getElementById('saleActionMenu-' + index);
+                const isOpen = menu.classList.contains('show');
+                
+                // Close all other menus
+                document.querySelectorAll('.action-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
+                
+                // Toggle current menu
+                if (!isOpen) {
+                    menu.classList.add('show');
+                }
+            }
+            
+            function closeSaleActionMenu(index) {
+                const menu = document.getElementById('saleActionMenu-' + index);
+                if (menu) {
+                    menu.classList.remove('show');
+                }
+            }
+            
             // Load Sales Table
             async function loadSalesTable() {
                 try {
@@ -10494,39 +10529,52 @@ Prices are subject to change without prior notice.</textarea>
                         return;
                     }
                     
-                    tbody.innerHTML = sales.map(sale => {
+                    tbody.innerHTML = sales.map((sale, index) => {
                         const items = sale.items || [];
                         const products = items.length > 0 
-                            ? items.map(item => \`\${item.product_name} (x\${item.quantity})\`).join(', ')
+                            ? items.map(item => item.product_name + ' (x' + item.quantity + ')').join(', ')
                             : 'No products';
                         const payments = sale.payments ? sale.payments.length : 0;
+                        const isAdmin = currentUser && currentUser.role === 'admin';
                         
-                        return \`
-                        <tr>
-                            <td>
-                                <button class="btn-view" onclick="viewSaleDetails('\${sale.order_id}')" title="View Full Details">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </td>
-                            <td><strong>\${sale.order_id}</strong></td>
-                            <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
-                            <td>\${sale.customer_name || sale.customer_code}</td>
-                            <td>\${sale.company_name || '-'}</td>
-                            <td>\${sale.employee_name}</td>
-                            <td><small>\${products}</small></td>
-                            <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
-                            <td>₹\${sale.subtotal.toLocaleString()}</td>
-                            <td>₹\${sale.gst_amount.toLocaleString()}</td>
-                            <td>₹\${sale.total_amount.toLocaleString()}</td>
-                            <td>₹\${sale.amount_received.toLocaleString()}</td>
-                            <td>\${sale.balance_amount > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>'}</td>
-                            <td><small>\${payments} payment(s)</small></td>
-                            <td>
-                                \${sale.balance_amount > 0 ? '<button class="btn-update" onclick="openUpdateBalanceModal(\\'' + sale.order_id + '\\')" title="Update Balance Payment"><i class="fas fa-money-bill-wave"></i></button>' : '-'}
-                                \${currentUser && currentUser.role === 'admin' ? '<button class="btn-danger" style="margin-left: 5px; padding: 5px 8px;" onclick="deleteSale(\\'' + sale.order_id + '\\')" title="Delete Sale"><i class="fas fa-trash"></i></button>' : ''}
-                            </td>
-                        </tr>
-                    \`;
+                        return '<tr>' +
+                            '<td><strong>' + sale.order_id + '</strong></td>' +
+                            '<td>' + new Date(sale.sale_date).toLocaleDateString() + '</td>' +
+                            '<td>' + (sale.customer_name || sale.customer_code) + '</td>' +
+                            '<td>' + (sale.company_name || '-') + '</td>' +
+                            '<td>' + sale.employee_name + '</td>' +
+                            '<td><small>' + products + '</small></td>' +
+                            '<td><span class="badge ' + (sale.sale_type === 'With' ? 'badge-success' : 'badge-warning') + '">' + sale.sale_type + ' GST</span></td>' +
+                            '<td>₹' + sale.subtotal.toLocaleString() + '</td>' +
+                            '<td>₹' + sale.gst_amount.toLocaleString() + '</td>' +
+                            '<td>₹' + sale.total_amount.toLocaleString() + '</td>' +
+                            '<td>₹' + sale.amount_received.toLocaleString() + '</td>' +
+                            '<td>' + (sale.balance_amount > 0 ? '<span style="color: #dc2626; font-weight: 600;">₹' + sale.balance_amount.toLocaleString() + '</span>' : '<span class="badge badge-success">Paid</span>') + '</td>' +
+                            '<td><small>' + payments + ' payment(s)</small></td>' +
+                            '<td style="text-align: center;">' +
+                                '<div class="action-menu">' +
+                                    '<button class="action-dots" onclick="toggleSaleActionMenu(' + index + ')" title="More actions">⋮</button>' +
+                                    '<div class="action-dropdown" id="saleActionMenu-' + index + '">' +
+                                        '<div class="action-item view" onclick="viewSaleDetails(\'' + sale.order_id + '\'); closeSaleActionMenu(' + index + ');">' +
+                                            '<i class="fas fa-eye"></i>' +
+                                            '<span>View Details</span>' +
+                                        '</div>' +
+                                        (sale.balance_amount > 0 ? 
+                                            '<div class="action-item update" onclick="openUpdateBalanceModal(\'' + sale.order_id + '\'); closeSaleActionMenu(' + index + ');">' +
+                                                '<i class="fas fa-money-bill-wave"></i>' +
+                                                '<span>Update Balance</span>' +
+                                            '</div>' 
+                                        : '') +
+                                        (isAdmin ? 
+                                            '<div class="action-item delete" onclick="deleteSale(\'' + sale.order_id + '\'); closeSaleActionMenu(' + index + ');">' +
+                                                '<i class="fas fa-trash"></i>' +
+                                                '<span>Delete Sale</span>' +
+                                            '</div>' 
+                                        : '') +
+                                    '</div>' +
+                                '</div>' +
+                            '</td>' +
+                        '</tr>';
                     }).join('');
                 } catch (error) {
                     console.error('Error loading sales:', error);
