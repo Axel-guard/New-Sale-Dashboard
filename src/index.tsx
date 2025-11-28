@@ -9937,7 +9937,7 @@ Prices are subject to change without prior notice.</textarea>
                         loadingIndicator.style.color = '#dc2626';
                     }
                     
-                    alert('⚠️ Could not auto-generate customer code.\nPlease enter it manually or try again.');
+                    alert('⚠️ Could not auto-generate customer code.\\\\nPlease enter it manually or try again.');
                 }
             }
             
@@ -10248,13 +10248,13 @@ Prices are subject to change without prior notice.</textarea>
                     }
                     
                     console.log('📊 [DASHBOARD] Rendering employee cards...');
-                    grid.innerHTML = employeeSales.map(emp => \`
-                        <div class="employee-card">
-                            <h3>\${emp.employee_name}</h3>
-                            <div class="value">₹\${emp.total_revenue.toLocaleString()}</div>
-                            <div class="sub-value">\${emp.total_sales} sales | Balance: ₹\${emp.total_balance.toLocaleString()}</div>
-                        </div>
-                    \`).join('');
+                    grid.innerHTML = employeeSales.map(emp => 
+                        '<div class="employee-card">' +
+                            '<h3>' + emp.employee_name + '</h3>' +
+                            '<div class="value">₹' + emp.total_revenue.toLocaleString() + '</div>' +
+                            '<div class="sub-value">' + emp.total_sales + ' sales | Balance: ₹' + emp.total_balance.toLocaleString() + '</div>' +
+                        '</div>'
+                    ).join('');
                     console.log('✅ [DASHBOARD] Employee cards rendered');
                     
                     // Render charts
