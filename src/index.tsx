@@ -5706,44 +5706,7 @@ app.get('/', (c) => {
                 transform: scale(1.05);
             }
             
-            .action-menu {
-                display: none;
-                position: absolute;
-                top: 100%;
-                right: 0;
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                margin-top: 5px;
-                min-width: 200px;
-                z-index: 1000;
-            }
-            
-            .action-menu.show {
-                display: block;
-            }
-            
-            .action-menu-item {
-                padding: 12px 20px;
-                cursor: pointer;
-                transition: background 0.2s;
-                color: #374151;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            
-            .action-menu-item:hover {
-                background: #f3f4f6;
-            }
-            
-            .action-menu-item:first-child {
-                border-radius: 8px 8px 0 0;
-            }
-            
-            .action-menu-item:last-child {
-                border-radius: 0 0 8px 8px;
-            }
+
             
             .modal {
                 display: none;
@@ -5887,6 +5850,7 @@ app.get('/', (c) => {
                 border-bottom: 1px solid #f3f4f6;
                 color: #374151;
                 white-space: nowrap;
+                position: relative;
             }
             
             tbody tr {
@@ -5902,6 +5866,7 @@ app.get('/', (c) => {
             .action-menu {
                 position: relative;
                 display: inline-block;
+                vertical-align: middle;
             }
             
             .action-dots {
@@ -5914,6 +5879,10 @@ app.get('/', (c) => {
                 color: #6b7280;
                 font-size: 18px;
                 font-weight: bold;
+                line-height: 1;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
             }
             
             .action-dots:hover {
@@ -5925,15 +5894,15 @@ app.get('/', (c) => {
                 display: none;
                 position: absolute;
                 right: 0;
-                top: 100%;
-                margin-top: 4px;
+                top: calc(100% + 4px);
                 background: white;
                 border: 1px solid #e5e7eb;
                 border-radius: 8px;
                 box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
                 min-width: 160px;
-                z-index: 1000;
+                z-index: 9999;
                 overflow: hidden;
+                white-space: normal;
             }
             
             .action-dropdown.show {
