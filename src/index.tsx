@@ -5828,12 +5828,42 @@ app.get('/', (c) => {
             
             .table-container {
                 overflow-x: auto;
+                border-radius: 8px;
+                border: 1px solid #e5e7eb;
+            }
+            
+            /* Custom Scrollbar Styles */
+            .table-container::-webkit-scrollbar {
+                height: 8px;
+                width: 8px;
+            }
+            
+            .table-container::-webkit-scrollbar-track {
+                background: #f3f4f6;
+                border-radius: 10px;
+            }
+            
+            .table-container::-webkit-scrollbar-thumb {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 10px;
+                border: 2px solid #f3f4f6;
+            }
+            
+            .table-container::-webkit-scrollbar-thumb:hover {
+                background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            }
+            
+            /* Firefox Scrollbar */
+            .table-container {
+                scrollbar-width: thin;
+                scrollbar-color: #667eea #f3f4f6;
             }
             
             table {
                 width: 100%;
                 border-collapse: collapse;
-                font-size: 13px;
+                font-size: 14px;
+                background: white;
             }
             
             thead {
@@ -5841,21 +5871,107 @@ app.get('/', (c) => {
             }
             
             th {
-                padding: 10px 8px;
+                padding: 14px 16px;
                 text-align: left;
                 font-weight: 600;
-                color: #374151;
+                color: #1f2937;
                 border-bottom: 2px solid #e5e7eb;
-                font-size: 12px;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                white-space: nowrap;
             }
             
             td {
-                padding: 10px 8px;
-                border-bottom: 1px solid #e5e7eb;
+                padding: 14px 16px;
+                border-bottom: 1px solid #f3f4f6;
+                color: #374151;
+                white-space: nowrap;
+            }
+            
+            tbody tr {
+                transition: all 0.2s ease;
             }
             
             tbody tr:hover {
+                background: #f8fafc;
+                box-shadow: inset 0 0 0 1px #e5e7eb;
+            }
+            
+            /* Action Menu Styles */
+            .action-menu {
+                position: relative;
+                display: inline-block;
+            }
+            
+            .action-dots {
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                padding: 8px 12px;
+                border-radius: 6px;
+                transition: all 0.2s;
+                color: #6b7280;
+                font-size: 18px;
+                font-weight: bold;
+            }
+            
+            .action-dots:hover {
+                background: #f3f4f6;
+                color: #1f2937;
+            }
+            
+            .action-dropdown {
+                display: none;
+                position: absolute;
+                right: 0;
+                top: 100%;
+                margin-top: 4px;
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+                min-width: 160px;
+                z-index: 1000;
+                overflow: hidden;
+            }
+            
+            .action-dropdown.show {
+                display: block;
+            }
+            
+            .action-item {
+                padding: 12px 16px;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                color: #374151;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            
+            .action-item:last-child {
+                border-bottom: none;
+            }
+            
+            .action-item:hover {
                 background: #f9fafb;
+            }
+            
+            .action-item.edit:hover {
+                background: #dbeafe;
+                color: #1d4ed8;
+            }
+            
+            .action-item.delete:hover {
+                background: #fee2e2;
+                color: #dc2626;
+            }
+            
+            .action-item i {
+                width: 16px;
+                font-size: 14px;
             }
             
             .alert-success {
@@ -7040,25 +7156,28 @@ app.get('/', (c) => {
                         >
                     </div>
                     
-                    <div class="table-container">
+                    <div class="table-container" style="max-height: 600px; overflow-y: auto;">
                         <table>
-                            <thead style="position: sticky; top: 0; background: white; z-index: 10;">
+                            <thead style="position: sticky; top: 0; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                                 <tr>
-                                    <th>Customer Code</th>
-                                    <th>Customer Name</th>
-                                    <th>Mobile</th>
-                                    <th>Alternate Mobile</th>
-                                    <th>Location</th>
-                                    <th>Company</th>
-                                    <th>GST Number</th>
-                                    <th>Email</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
+                                    <th><i class="fas fa-hashtag" style="margin-right: 6px; color: #667eea;"></i>Customer Code</th>
+                                    <th><i class="fas fa-user" style="margin-right: 6px; color: #667eea;"></i>Customer Name</th>
+                                    <th><i class="fas fa-phone" style="margin-right: 6px; color: #667eea;"></i>Mobile</th>
+                                    <th><i class="fas fa-phone-alt" style="margin-right: 6px; color: #667eea;"></i>Alternate Mobile</th>
+                                    <th><i class="fas fa-map-marker-alt" style="margin-right: 6px; color: #667eea;"></i>Location</th>
+                                    <th><i class="fas fa-building" style="margin-right: 6px; color: #667eea;"></i>Company</th>
+                                    <th><i class="fas fa-file-invoice" style="margin-right: 6px; color: #667eea;"></i>GST Number</th>
+                                    <th><i class="fas fa-envelope" style="margin-right: 6px; color: #667eea;"></i>Email</th>
+                                    <th><i class="fas fa-info-circle" style="margin-right: 6px; color: #667eea;"></i>Status</th>
+                                    <th><i class="fas fa-calendar" style="margin-right: 6px; color: #667eea;"></i>Created</th>
+                                    <th style="text-align: center;"><i class="fas fa-cog" style="margin-right: 6px; color: #667eea;"></i>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="leadsTableBody">
-                                <tr><td colspan="11" class="loading">Loading...</td></tr>
+                                <tr><td colspan="11" style="text-align: center; padding: 40px; color: #6b7280;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px; color: #667eea;"></i>
+                                    <div>Loading leads...</div>
+                                </td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -11416,23 +11535,35 @@ Prices are subject to change without prior notice.</textarea>
                         return;
                     }
                     
-                    tbody.innerHTML = leads.map(lead => \`
-                        <tr>
-                            <td><strong>\${lead.customer_code || 'N/A'}</strong></td>
-                            <td>\${lead.customer_name}</td>
-                            <td>\${lead.mobile_number}</td>
-                            <td>\${lead.alternate_mobile || 'N/A'}</td>
-                            <td>\${lead.location || 'N/A'}</td>
-                            <td>\${lead.company_name || 'N/A'}</td>
-                            <td>\${lead.gst_number || 'N/A'}</td>
-                            <td>\${lead.email || 'N/A'}</td>
-                            <td><span class="badge badge-success">\${lead.status}</span></td>
-                            <td>\${new Date(lead.created_at).toLocaleDateString()}</td>
-                            <td>
-                                \${isAdmin ? \`<button class="btn-primary" style="padding: 5px 12px; font-size: 12px;" onclick="editLead(\${lead.id})"><i class="fas fa-edit"></i> Edit</button> <button class="btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="deleteLead(\${lead.id})"><i class="fas fa-trash"></i></button>\` : '-'}
-                            </td>
-                        </tr>
-                    \`).join('');
+                    tbody.innerHTML = leads.map((lead, index) => '<tr>' +
+                        '<td><strong style="color: #1f2937;">' + (lead.customer_code || 'N/A') + '</strong></td>' +
+                        '<td>' + lead.customer_name + '</td>' +
+                        '<td>' + lead.mobile_number + '</td>' +
+                        '<td>' + (lead.alternate_mobile || 'N/A') + '</td>' +
+                        '<td>' + (lead.location || 'N/A') + '</td>' +
+                        '<td>' + (lead.company_name || 'N/A') + '</td>' +
+                        '<td>' + (lead.gst_number || 'N/A') + '</td>' +
+                        '<td>' + (lead.email || 'N/A') + '</td>' +
+                        '<td><span class="badge badge-success">' + lead.status + '</span></td>' +
+                        '<td>' + new Date(lead.created_at).toLocaleDateString() + '</td>' +
+                        '<td style="text-align: center;">' +
+                            (isAdmin ? 
+                                '<div class="action-menu">' +
+                                    '<button class="action-dots" onclick="toggleActionMenu(' + index + ')" title="More actions">⋮</button>' +
+                                    '<div class="action-dropdown" id="actionMenu-' + index + '">' +
+                                        '<div class="action-item edit" onclick="editLead(' + lead.id + '); closeActionMenu(' + index + ');">' +
+                                            '<i class="fas fa-edit"></i>' +
+                                            '<span>Edit Lead</span>' +
+                                        '</div>' +
+                                        '<div class="action-item delete" onclick="deleteLead(' + lead.id + '); closeActionMenu(' + index + ');">' +
+                                            '<i class="fas fa-trash"></i>' +
+                                            '<span>Delete Lead</span>' +
+                                        '</div>' +
+                                    '</div>' +
+                                '</div>' 
+                            : '-') +
+                        '</td>' +
+                    '</tr>').join('');
                 } catch (error) {
                     console.error('Error loading leads:', error);
                     const tbody = document.getElementById('leadsTableBody');
@@ -11449,6 +11580,38 @@ Prices are subject to change without prior notice.</textarea>
                     loadLeads(searchTerm);
                 }, 300); // Debounce 300ms
             }
+            
+            // Action menu toggle functions
+            function toggleActionMenu(index) {
+                const menu = document.getElementById('actionMenu-' + index);
+                const isOpen = menu.classList.contains('show');
+                
+                // Close all other menus
+                document.querySelectorAll('.action-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
+                
+                // Toggle current menu
+                if (!isOpen) {
+                    menu.classList.add('show');
+                }
+            }
+            
+            function closeActionMenu(index) {
+                const menu = document.getElementById('actionMenu-' + index);
+                if (menu) {
+                    menu.classList.remove('show');
+                }
+            }
+            
+            // Close action menus when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!event.target.closest('.action-menu')) {
+                    document.querySelectorAll('.action-dropdown').forEach(dropdown => {
+                        dropdown.classList.remove('show');
+                    });
+                }
+            });
             
             // Load Products function
             async function loadProducts(search = '') {
