@@ -10555,24 +10555,24 @@ Prices are subject to change without prior notice.</textarea>
                                 '<div class="action-menu">' +
                                     '<button class="action-dots" onclick="toggleSaleActionMenu(' + index + ')" title="More actions">⋮</button>' +
                                     '<div class="action-dropdown" id="saleActionMenu-' + index + '">' +
-                                        '<div class="action-item view" onclick="viewSaleDetails(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
+                                        '<div class="action-item view" data-action="view" data-order-id="' + sale.order_id + '" data-menu-index="' + index + '">' +
                                             '<i class="fas fa-eye"></i>' +
                                             '<span>View Details</span>' +
                                         '</div>' +
                                         (isAdmin ? 
-                                            '<div class="action-item edit" onclick="editSale(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
+                                            '<div class="action-item edit" data-action="edit" data-order-id="' + sale.order_id + '" data-menu-index="' + index + '">' +
                                                 '<i class="fas fa-edit"></i>' +
                                                 '<span>Edit Sale</span>' +
                                             '</div>' 
                                         : '') +
                                         (sale.balance_amount > 0 ? 
-                                            '<div class="action-item update" onclick="openUpdateBalanceModal(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
+                                            '<div class="action-item update" data-action="update" data-order-id="' + sale.order_id + '" data-menu-index="' + index + '">' +
                                                 '<i class="fas fa-money-bill-wave"></i>' +
                                                 '<span>Update Balance</span>' +
                                             '</div>' 
                                         : '') +
                                         (isAdmin ? 
-                                            '<div class="action-item delete" onclick="deleteSale(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
+                                            '<div class="action-item delete" data-action="delete" data-order-id="' + sale.order_id + '" data-menu-index="' + index + '">' +
                                                 '<i class="fas fa-trash"></i>' +
                                                 '<span>Delete Sale</span>' +
                                             '</div>' 
@@ -10588,6 +10588,41 @@ Prices are subject to change without prior notice.</textarea>
                     tbody.innerHTML = '<tr><td colspan="15" style="text-align: center; color: #dc2626;">Error loading sales data: ' + error.message + '</td></tr>';
                 }
             }
+
+            // Event delegation for sales action menu items
+            document.addEventListener('click', (e) => {
+                const actionItem = e.target.closest('.action-item');
+                if (!actionItem) return;
+                
+                const action = actionItem.dataset.action;
+                const orderId = actionItem.dataset.orderId;
+                const menuIndex = actionItem.dataset.menuIndex;
+                
+                if (!action || !orderId) return;
+                
+                // Close the menu
+                if (menuIndex) {
+                    closeSaleActionMenu(parseInt(menuIndex));
+                }
+                
+                // Execute the action
+                switch(action) {
+                    case 'view':
+                        viewSaleDetails(orderId);
+                        break;
+                    case 'edit':
+                        editSale(orderId);
+                        break;
+                    case 'update':
+                        openUpdateBalanceModal(orderId);
+                        break;
+                    case 'delete':
+                        if (confirm('Are you sure you want to delete this sale?')) {
+                            deleteSale(orderId);
+                        }
+                        break;
+                }
+            });
 
             // Product Row Management
             function addProductRow() {
