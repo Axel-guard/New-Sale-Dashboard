@@ -10559,6 +10559,12 @@ Prices are subject to change without prior notice.</textarea>
                                             '<i class="fas fa-eye"></i>' +
                                             '<span>View Details</span>' +
                                         '</div>' +
+                                        (isAdmin ? 
+                                            '<div class="action-item edit" onclick="editSale(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
+                                                '<i class="fas fa-edit"></i>' +
+                                                '<span>Edit Sale</span>' +
+                                            '</div>' 
+                                        : '') +
                                         (sale.balance_amount > 0 ? 
                                             '<div class="action-item update" onclick="openUpdateBalanceModal(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
                                                 '<i class="fas fa-money-bill-wave"></i>' +
