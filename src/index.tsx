@@ -10520,8 +10520,22 @@ Prices are subject to change without prior notice.</textarea>
             // Load Sales Table
             async function loadSalesTable() {
                 try {
-                    const response = await axios.get('/api/sales/current-month');
-                    const sales = response.data.data;
+                    // Fetch both sales and products catalog
+                    const [salesResponse, productsResponse] = await Promise.all([
+                        axios.get('/api/sales/current-month'),
+                        axios.get('/api/products')
+                    ]);
+                    
+                    const sales = salesResponse.data.data;
+                    const productsCatalog = productsResponse.data.data || [];
+                    
+                    // Create a map of product_code -> product_name for quick lookup
+                    const productMap = {};
+                    productsCatalog.forEach(p => {
+                        if (p.product_code && p.product_name) {
+                            productMap[p.product_code] = p.product_name;
+                        }
+                    });
                     
                     const tbody = document.getElementById('salesTableBody');
                     if (!sales || sales.length === 0) {
@@ -10532,7 +10546,11 @@ Prices are subject to change without prior notice.</textarea>
                     tbody.innerHTML = sales.map((sale, index) => {
                         const items = sale.items || [];
                         const products = items.length > 0 
-                            ? items.map(item => item.product_name + ' (x' + item.quantity + ')').join(', ')
+                            ? items.map(item => {
+                                // Check if product_name is actually a code and lookup real name
+                                const productName = productMap[item.product_name] || item.product_name;
+                                return productName + ' (x' + item.quantity + ')';
+                              }).join(', ')
                             : 'No products';
                         const payments = sale.payments ? sale.payments.length : 0;
                         const isAdmin = currentUser && currentUser.role === 'admin';
