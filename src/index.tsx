@@ -10555,18 +10555,18 @@ Prices are subject to change without prior notice.</textarea>
                                 '<div class="action-menu">' +
                                     '<button class="action-dots" onclick="toggleSaleActionMenu(' + index + ')" title="More actions">⋮</button>' +
                                     '<div class="action-dropdown" id="saleActionMenu-' + index + '">' +
-                                        '<div class="action-item view" onclick="viewSaleDetails(\'' + sale.order_id + '\'); closeSaleActionMenu(' + index + ');">' +
+                                        '<div class="action-item view" onclick="viewSaleDetails(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
                                             '<i class="fas fa-eye"></i>' +
                                             '<span>View Details</span>' +
                                         '</div>' +
                                         (sale.balance_amount > 0 ? 
-                                            '<div class="action-item update" onclick="openUpdateBalanceModal(\'' + sale.order_id + '\'); closeSaleActionMenu(' + index + ');">' +
+                                            '<div class="action-item update" onclick="openUpdateBalanceModal(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
                                                 '<i class="fas fa-money-bill-wave"></i>' +
                                                 '<span>Update Balance</span>' +
                                             '</div>' 
                                         : '') +
                                         (isAdmin ? 
-                                            '<div class="action-item delete" onclick="deleteSale(\'' + sale.order_id + '\'); closeSaleActionMenu(' + index + ');">' +
+                                            '<div class="action-item delete" onclick="deleteSale(\"' + sale.order_id + '\"); closeSaleActionMenu(' + index + ');">' +
                                                 '<i class="fas fa-trash"></i>' +
                                                 '<span>Delete Sale</span>' +
                                             '</div>' 
