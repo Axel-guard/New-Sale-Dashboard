@@ -10590,24 +10590,6 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('balancePaymentForm').reset();
             }
 
-            async function openNewLeadModal() {
-                document.getElementById('newLeadModal').classList.add('show');
-                document.getElementById('actionMenu').classList.remove('show');
-                
-                // Auto-fill next customer code
-                try {
-                    const response = await axios.get('/api/leads/next-code');
-                    if (response.data.success) {
-                        const customerCodeInput = document.querySelector('#newLeadForm input[name="customer_code"]');
-                        if (customerCodeInput) {
-                            customerCodeInput.value = response.data.next_code;
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error fetching next customer code:', error);
-                }
-            }
-
             function closeNewLeadModal() {
                 document.getElementById('newLeadModal').classList.remove('show');
                 document.getElementById('newLeadForm').reset();

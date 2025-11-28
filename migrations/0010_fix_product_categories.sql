@@ -1,4 +1,10 @@
 -- Fix product categories with correct names
+-- Create table if not exists (defensive)
+CREATE TABLE IF NOT EXISTS product_categories (
+  id INTEGER PRIMARY KEY,
+  category_name TEXT NOT NULL UNIQUE
+);
+
 -- Remove old incorrect categories
 DELETE FROM product_categories;
 
