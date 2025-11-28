@@ -10805,23 +10805,41 @@ Prices are subject to change without prior notice.</textarea>
                     modal.classList.add('show');
                     content.innerHTML = '<div class="loading">Loading...</div>';
                     
-                    const response = await axios.get(\`/api/sales/order/\${orderId}\`);
-                    const sale = response.data.data;
+                    // Fetch both sale details and products catalog
+                    const [saleResponse, productsResponse] = await Promise.all([
+                        axios.get(\`/api/sales/order/\${orderId}\`),
+                        axios.get('/api/products')
+                    ]);
+                    
+                    const sale = saleResponse.data.data;
+                    const productsCatalog = productsResponse.data.data || [];
+                    
+                    // Create a map of product_code -> product_name for quick lookup
+                    const productMap = {};
+                    productsCatalog.forEach(p => {
+                        if (p.product_code && p.product_name) {
+                            productMap[p.product_code] = p.product_name;
+                        }
+                    });
                     
                     // Check if any product has a code
                     const hasProductCodes = sale.items && sale.items.some(item => item.product_code);
                     const colspan = hasProductCodes ? 5 : 4;
                     
                     const productsTable = sale.items && sale.items.length > 0
-                        ? sale.items.map(item => \`
+                        ? sale.items.map(item => {
+                            // Lookup real product name from catalog
+                            const productName = productMap[item.product_name] || item.product_name;
+                            return \`
                             <tr>
-                                <td>\${item.product_name}</td>
+                                <td>\${productName}</td>
                                 \${hasProductCodes ? '<td>' + (item.product_code || '<span style="color: #9ca3af;">N/A</span>') + '</td>' : ''}
                                 <td>\${item.quantity}</td>
                                 <td>₹\${item.unit_price.toLocaleString()}</td>
                                 <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
                             </tr>
-                        \`).join('')
+                        \`;
+                        }).join('')
                         : '<tr><td colspan="' + colspan + '" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
                     
                     const paymentsTable = sale.payments && sale.payments.length > 0
@@ -18378,23 +18396,41 @@ Prices are subject to change without prior notice.</textarea>
                     modal.classList.add('show');
                     content.innerHTML = '<div class="loading">Loading...</div>';
                     
-                    const response = await axios.get(\`/api/sales/order/\${orderId}\`);
-                    const sale = response.data.data;
+                    // Fetch both sale details and products catalog
+                    const [saleResponse, productsResponse] = await Promise.all([
+                        axios.get(\`/api/sales/order/\${orderId}\`),
+                        axios.get('/api/products')
+                    ]);
+                    
+                    const sale = saleResponse.data.data;
+                    const productsCatalog = productsResponse.data.data || [];
+                    
+                    // Create a map of product_code -> product_name for quick lookup
+                    const productMap = {};
+                    productsCatalog.forEach(p => {
+                        if (p.product_code && p.product_name) {
+                            productMap[p.product_code] = p.product_name;
+                        }
+                    });
                     
                     // Check if any product has a code
                     const hasProductCodes = sale.items && sale.items.some(item => item.product_code);
                     const colspan = hasProductCodes ? 5 : 4;
                     
                     const productsTable = sale.items && sale.items.length > 0
-                        ? sale.items.map(item => \`
+                        ? sale.items.map(item => {
+                            // Lookup real product name from catalog
+                            const productName = productMap[item.product_name] || item.product_name;
+                            return \`
                             <tr>
-                                <td>\${item.product_name}</td>
+                                <td>\${productName}</td>
                                 \${hasProductCodes ? '<td>' + (item.product_code || '<span style="color: #9ca3af;">N/A</span>') + '</td>' : ''}
                                 <td>\${item.quantity}</td>
                                 <td>₹\${item.unit_price.toLocaleString()}</td>
                                 <td>₹\${(item.quantity * item.unit_price).toLocaleString()}</td>
                             </tr>
-                        \`).join('')
+                        \`;
+                        }).join('')
                         : '<tr><td colspan="' + colspan + '" style="text-align: center; color: #9ca3af; padding: 20px;">No products added to this sale</td></tr>';
                     
                     const paymentsTable = sale.payments && sale.payments.length > 0
