@@ -5862,6 +5862,12 @@ app.get('/', (c) => {
                 box-shadow: inset 0 0 0 1px #e5e7eb;
             }
             
+            /* Actions column specific styling */
+            td:last-child {
+                overflow: visible;
+                white-space: normal;
+            }
+            
             /* Action Menu Styles */
             .action-menu {
                 position: relative;
