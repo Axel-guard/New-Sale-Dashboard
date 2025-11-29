@@ -4789,6 +4789,38 @@ app.get('/api/inventory/:serialNo', async (c) => {
   }
 });
 
+// Delete inventory item by serial number
+app.delete('/api/inventory/:serialNo', async (c) => {
+  const { env } = c;
+  
+  try {
+    const serialNo = c.req.param('serialNo');
+    
+    // Check if device exists
+    const device = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no = ?
+    `).bind(serialNo).first();
+    
+    if (!device) {
+      return c.json({ success: false, error: 'Device not found' }, 404);
+    }
+    
+    // Delete the device
+    await env.DB.prepare(`
+      DELETE FROM inventory WHERE device_serial_no = ?
+    `).bind(serialNo).run();
+    
+    return c.json({ 
+      success: true, 
+      message: 'Device deleted successfully',
+      device_serial_no: serialNo
+    });
+  } catch (error) {
+    console.error('Delete inventory error:', error);
+    return c.json({ success: false, error: 'Failed to delete device' }, 500);
+  }
+});
+
 // ===================================================================
 // END OF INVENTORY MANAGEMENT API ENDPOINTS
 // ===================================================================
@@ -7305,7 +7337,7 @@ app.get('/', (c) => {
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 100px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Dispatch Date</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 80px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Cust Code</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 80px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Order ID</th>
-                                    <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 80px; padding: 12px 8px; text-align: center; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Actions</th>
+                                    <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 120px; padding: 12px 8px; text-align: center; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
@@ -15770,10 +15802,15 @@ Prices are subject to change without prior notice.</textarea>
                                 <td style="background: white; width: 100px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap;">\${formatDate(item.dispatch_date)}</td>
                                 <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.cust_code || '-'}</td>
                                 <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.order_id || '-'}</td>
-                                <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; text-align: center;">
-                                    <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="viewDevice('\${item.device_serial_no}')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
+                                <td style="background: white; width: 120px; padding: 10px 8px; vertical-align: middle; text-align: center;">
+                                    <div style="display: flex; gap: 5px; justify-content: center;">
+                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="viewDevice('\${item.device_serial_no}')">
+                                            <i class="fas fa-eye"></i> View
+                                        </button>
+                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="deleteInventoryItem('\${item.device_serial_no}')">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         \`;
@@ -15788,6 +15825,27 @@ Prices are subject to change without prior notice.</textarea>
             window.loadInventory = loadInventory;
             window.searchInventory = function() {
                 loadInventory();
+            };
+            
+            // Delete inventory item
+            window.deleteInventoryItem = async function(serialNo) {
+                if (!confirm(\`Are you sure you want to delete device \${serialNo}?\nThis action cannot be undone.\`)) {
+                    return;
+                }
+                
+                try {
+                    const response = await axios.delete(\`/api/inventory/\${serialNo}\`);
+                    
+                    if (response.data.success) {
+                        alert('✅ Device deleted successfully!');
+                        loadInventory(); // Reload the table
+                    } else {
+                        alert('❌ Error: ' + (response.data.error || 'Failed to delete device'));
+                    }
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    alert('❌ Error: Failed to delete device');
+                }
             };
             
             // View device details - Complete device journey
