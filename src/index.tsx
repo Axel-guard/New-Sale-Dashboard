@@ -4961,6 +4961,35 @@ app.get('/api/devices/:serialNo/validate', async (c) => {
   }
 });
 
+// Fix inventory status inconsistencies (items with customer_name should be Dispatched)
+app.post('/api/inventory/fix-status', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Update all items that have customer_name OR dispatch_date but status is not Dispatched
+    const result = await env.DB.prepare(`
+      UPDATE inventory 
+      SET status = 'Dispatched', 
+          updated_at = CURRENT_TIMESTAMP
+      WHERE status != 'Dispatched' 
+        AND (
+          (customer_name IS NOT NULL AND customer_name != '' AND customer_name != '-') 
+          OR 
+          (dispatch_date IS NOT NULL AND dispatch_date != '' AND dispatch_date != '-')
+        )
+    `).run();
+    
+    return c.json({ 
+      success: true, 
+      message: 'Inventory statuses fixed successfully',
+      updated: result.meta.changes || 0
+    });
+  } catch (error) {
+    console.error('Fix status error:', error);
+    return c.json({ success: false, error: 'Failed to fix inventory statuses' }, 500);
+  }
+});
+
 // Create dispatch with multiple products
 app.post('/api/dispatch/create', async (c) => {
   const { env } = c;
