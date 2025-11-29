@@ -5048,43 +5048,61 @@ app.post('/api/inventory/fix-status-reverse', async (c) => {
   }
 });
 
-// Update customer names from Excel mapping
+// Update customer names from Excel mapping - OPTIMIZED with CASE statement
 app.post('/api/inventory/update-customer-names', async (c) => {
   const { env } = c;
   
   try {
-    const { customer_mapping } = await c.req.json();
+    const { customer_mapping, batch_start = 0, batch_size = 200 } = await c.req.json();
     
     if (!customer_mapping || typeof customer_mapping !== 'object') {
       return c.json({ success: false, error: 'Invalid customer mapping data' }, 400);
     }
     
-    let updated = 0;
     const entries = Object.entries(customer_mapping);
+    const batch_entries = entries.slice(batch_start, batch_start + batch_size);
     
-    // Update in batches
-    for (const [serial_no, customer_name] of entries) {
-      if (serial_no && customer_name) {
-        const result = await env.DB.prepare(`
-          UPDATE inventory 
-          SET customer_name = ?,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE device_serial_no = ?
-        `).bind(customer_name, serial_no).run();
-        
-        updated += result.meta.changes || 0;
-      }
+    if (batch_entries.length === 0) {
+      return c.json({ success: true, message: 'No more records to update', updated: 0, has_more: false });
     }
+    
+    // Build CASE statement for batch update
+    const whenClauses = batch_entries.map(([serial_no, _]) => 
+      `WHEN '${serial_no.replace(/'/g, "''")}'`
+    ).join(' ');
+    
+    const thenClauses = batch_entries.map(([serial_no, customer_name]) => 
+      `WHEN device_serial_no = '${serial_no.replace(/'/g, "''")}' THEN '${customer_name.replace(/'/g, "''")}'`
+    ).join(' ');
+    
+    const serialNumbers = batch_entries.map(([serial_no, _]) => 
+      `'${serial_no.replace(/'/g, "''")}'`
+    ).join(', ');
+    
+    const sql = `
+      UPDATE inventory
+      SET customer_name = CASE ${thenClauses} END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE device_serial_no IN (${serialNumbers})
+    `;
+    
+    const result = await env.DB.prepare(sql).run();
+    
+    const has_more = (batch_start + batch_size) < entries.length;
+    const next_batch_start = batch_start + batch_size;
     
     return c.json({ 
       success: true, 
-      message: 'Customer names updated successfully from Excel',
-      total_mappings: entries.length,
-      updated: updated
+      message: 'Batch updated successfully',
+      batch_size: batch_entries.length,
+      updated: result.meta.changes || 0,
+      has_more: has_more,
+      next_batch_start: has_more ? next_batch_start : null,
+      progress: `${Math.min(next_batch_start, entries.length)}/${entries.length}`
     });
   } catch (error) {
     console.error('Update customer names error:', error);
-    return c.json({ success: false, error: 'Failed to update customer names' }, 500);
+    return c.json({ success: false, error: 'Failed to update customer names: ' + error.message }, 500);
   }
 });
 
