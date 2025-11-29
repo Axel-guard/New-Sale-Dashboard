@@ -15688,13 +15688,8 @@ Prices are subject to change without prior notice.</textarea>
                             'Returned': 'background: #e5e7eb; color: #374151;'
                         };
                         
-                        // Determine correct status based on dispatch_date
+                        // Use status directly from database (no override)
                         let displayStatus = item.status;
-                        if (item.dispatch_date && item.dispatch_date !== '-' && item.dispatch_date !== 'null' && item.dispatch_date !== null) {
-                            displayStatus = 'Dispatched';
-                        } else if (displayStatus === 'Quality Check') {
-                            displayStatus = 'QC Pending';
-                        }
                         
                         // QC Result badge styling (teal for Pass, red for Fail)
                         let qcBadge = '-';
