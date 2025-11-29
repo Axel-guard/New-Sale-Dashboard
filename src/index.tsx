@@ -7335,13 +7335,12 @@ app.get('/', (c) => {
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 90px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">In Date</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 140px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Customer</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 100px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Dispatch Date</th>
-                                    <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 80px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Cust Code</th>
-                                    <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 80px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Order ID</th>
+                                    <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 100px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Order ID</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 120px; padding: 12px 8px; text-align: center; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
-                                <tr><td colspan="11" style="text-align: center; padding: 20px; color: #6b7280;">Loading...</td></tr>
+                                <tr><td colspan="10" style="text-align: center; padding: 20px; color: #6b7280;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -15747,7 +15746,7 @@ Prices are subject to change without prior notice.</textarea>
                     const tbody = document.getElementById('inventoryTableBody');
                     
                     if (!response.data.success || response.data.data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #9ca3af;">No devices found</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #9ca3af;">No devices found</td></tr>';
                         return;
                     }
                     
@@ -15800,8 +15799,7 @@ Prices are subject to change without prior notice.</textarea>
                                 <td style="background: white; width: 90px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap;">\${formatDate(item.in_date)}</td>
                                 <td style="background: white; width: 140px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">\${item.customer_name || '-'}</td>
                                 <td style="background: white; width: 100px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap;">\${formatDate(item.dispatch_date)}</td>
-                                <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.cust_code || '-'}</td>
-                                <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.order_id || '-'}</td>
+                                <td style="background: white; width: 100px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.cust_code || '-'}</td>
                                 <td style="background: white; width: 120px; padding: 10px 8px; vertical-align: middle; text-align: center;">
                                     <div style="display: flex; gap: 5px; justify-content: center;">
                                         <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="viewDevice('\${item.device_serial_no}')">
@@ -15817,7 +15815,7 @@ Prices are subject to change without prior notice.</textarea>
                     }).join('');
                 } catch (error) {
                     document.getElementById('inventoryTableBody').innerHTML = 
-                        '<tr><td colspan="11" style="text-align: center; color: #ef4444;">Error loading inventory</td></tr>';
+                        '<tr><td colspan="10" style="text-align: center; color: #ef4444;">Error loading inventory</td></tr>';
                 }
             }
             
