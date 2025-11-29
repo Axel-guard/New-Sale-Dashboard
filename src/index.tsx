@@ -10066,6 +10066,11 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('newQCModal').classList.add('show');
             }
             
+            // Expose modal functions to window object for onclick handlers
+            window.openAddInventoryModal = openAddInventoryModal;
+            window.openDispatchModal = openDispatchModal;
+            window.openQCModal = openQCModal;
+            
             // Product Catalog with Categories
             const productCatalog = {
                 'MDVR': [
@@ -15729,10 +15734,11 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
-            // Search inventory
-            function searchInventory() {
+            // Expose functions to window object for onclick handlers
+            window.loadInventory = loadInventory;
+            window.searchInventory = function() {
                 loadInventory();
-            }
+            };
             
             // View device details - Complete device journey
             window.viewDevice = async function(serialNo) {
@@ -20143,6 +20149,9 @@ Prices are subject to change without prior notice.</textarea>
                     alert('Failed to export: ' + error.message);
                 }
             }
+            
+            // Expose export function to window for onclick handlers
+            window.exportInventoryToExcel = exportInventoryToExcel;
             
             // Export Dispatch to Excel
             async function exportDispatchToExcel() {
