@@ -4990,6 +4990,32 @@ app.post('/api/inventory/fix-status', async (c) => {
   }
 });
 
+// Fix reverse issue: Dispatched items with no customer should be In Stock
+app.post('/api/inventory/fix-status-reverse', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Update all items that are marked as Dispatched but have NO customer_name AND NO dispatch_date
+    const result = await env.DB.prepare(`
+      UPDATE inventory 
+      SET status = 'In Stock', 
+          updated_at = CURRENT_TIMESTAMP
+      WHERE status = 'Dispatched' 
+        AND (customer_name IS NULL OR customer_name = '' OR customer_name = '-')
+        AND (dispatch_date IS NULL OR dispatch_date = '' OR dispatch_date = '-')
+    `).run();
+    
+    return c.json({ 
+      success: true, 
+      message: 'Reverse status inconsistencies fixed successfully',
+      updated: result.meta.changes || 0
+    });
+  } catch (error) {
+    console.error('Fix reverse status error:', error);
+    return c.json({ success: false, error: 'Failed to fix reverse status inconsistencies' }, 500);
+  }
+});
+
 // Create dispatch with multiple products
 app.post('/api/dispatch/create', async (c) => {
   const { env } = c;
