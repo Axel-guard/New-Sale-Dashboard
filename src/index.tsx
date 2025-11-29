@@ -7236,7 +7236,7 @@ app.get('/', (c) => {
                         </div>
                     </div>
                     
-                    <div style="position: relative; overflow-x: auto; max-height: 600px; overflow-y: auto; border: 1px solid #e5e7eb;">
+                    <div style="position: relative; overflow-x: auto; max-height: calc(100vh - 280px); overflow-y: auto; border: 1px solid #e5e7eb;">
                         <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px;">
                             <thead>
                                 <tr>
