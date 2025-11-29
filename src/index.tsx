@@ -5048,6 +5048,46 @@ app.post('/api/inventory/fix-status-reverse', async (c) => {
   }
 });
 
+// Update customer names from Excel mapping
+app.post('/api/inventory/update-customer-names', async (c) => {
+  const { env } = c;
+  
+  try {
+    const { customer_mapping } = await c.req.json();
+    
+    if (!customer_mapping || typeof customer_mapping !== 'object') {
+      return c.json({ success: false, error: 'Invalid customer mapping data' }, 400);
+    }
+    
+    let updated = 0;
+    const entries = Object.entries(customer_mapping);
+    
+    // Update in batches
+    for (const [serial_no, customer_name] of entries) {
+      if (serial_no && customer_name) {
+        const result = await env.DB.prepare(`
+          UPDATE inventory 
+          SET customer_name = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE device_serial_no = ?
+        `).bind(customer_name, serial_no).run();
+        
+        updated += result.meta.changes || 0;
+      }
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: 'Customer names updated successfully from Excel',
+      total_mappings: entries.length,
+      updated: updated
+    });
+  } catch (error) {
+    console.error('Update customer names error:', error);
+    return c.json({ success: false, error: 'Failed to update customer names' }, 500);
+  }
+});
+
 // Create dispatch with multiple products
 app.post('/api/dispatch/create', async (c) => {
   const { env } = c;
@@ -7336,12 +7376,11 @@ app.get('/', (c) => {
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 140px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Customer</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 100px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Dispatch Date</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 80px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Cust Code</th>
-                                    <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 80px; padding: 12px 8px; text-align: left; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Order ID</th>
                                     <th style="position: sticky; top: 0; z-index: 50; background: #f9fafb; width: 120px; padding: 12px 8px; text-align: center; font-weight: 700; color: #1f2937; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
-                                <tr><td colspan="11" style="text-align: center; padding: 20px; color: #6b7280;">Loading...</td></tr>
+                                <tr><td colspan="10" style="text-align: center; padding: 20px; color: #6b7280;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -15801,7 +15840,6 @@ Prices are subject to change without prior notice.</textarea>
                                 <td style="background: white; width: 140px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">\${item.customer_name || '-'}</td>
                                 <td style="background: white; width: 100px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap;">\${formatDate(item.dispatch_date)}</td>
                                 <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.cust_code || '-'}</td>
-                                <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.order_id || '-'}</td>
                                 <td style="background: white; width: 120px; padding: 10px 8px; vertical-align: middle; text-align: center;">
                                     <div style="display: flex; gap: 5px; justify-content: center;">
                                         <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="viewDevice('\${item.device_serial_no}')">
