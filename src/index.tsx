@@ -2928,15 +2928,10 @@ app.post('/api/quotations/send-email', async (c) => {
 
 // ===== PRODUCT CATEGORIES API ENDPOINTS =====
 
-// Get all categories
+// Get all categories - DISABLED: product_categories table doesn't exist
 app.get('/api/categories', async (c) => {
-  const { env } = c;
-  try {
-    const categories = await env.DB.prepare(`SELECT * FROM product_categories ORDER BY category_name ASC`).all();
-    return c.json({ success: true, data: categories.results });
-  } catch (error) {
-    return c.json({ success: false, error: 'Failed to fetch categories' }, 500);
-  }
+  // Return empty array since product_categories table doesn't exist in production
+  return c.json({ success: true, data: [] });
 });
 
 // Get products by category
@@ -2959,10 +2954,8 @@ app.get('/api/products', async (c) => {
   const { env } = c;
   try {
     const products = await env.DB.prepare(`
-      SELECT p.*, pc.category_name 
-      FROM products p 
-      LEFT JOIN product_categories pc ON p.category_id = pc.id 
-      ORDER BY p.product_name ASC
+      SELECT * FROM products 
+      ORDER BY product_name ASC
     `).all();
     return c.json({ success: true, data: products.results });
   } catch (error) {
@@ -4902,17 +4895,14 @@ app.get('/api/orders/:orderId', async (c) => {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
     
-    // Get order items (products) from sale_items table with category
+    // Get order items (products) from sale_items table
     const items = await env.DB.prepare(`
       SELECT 
         si.product_name,
         si.quantity,
         si.unit_price,
-        si.total_price,
-        pc.category_name as product_category
+        si.total_price
       FROM sale_items si
-      LEFT JOIN products p ON si.product_name = p.product_name
-      LEFT JOIN product_categories pc ON p.category_id = pc.id
       WHERE si.order_id = ?
     `).bind(orderId).all();
     
@@ -4925,7 +4915,12 @@ app.get('/api/orders/:orderId', async (c) => {
     });
   } catch (error) {
     console.error('Error fetching order details:', error);
-    return c.json({ success: false, error: 'Failed to fetch order details' }, 500);
+    console.error('Error details:', error.message, error.stack);
+    return c.json({ 
+      success: false, 
+      error: 'Failed to fetch order details',
+      details: error.message 
+    }, 500);
   }
 });
 
