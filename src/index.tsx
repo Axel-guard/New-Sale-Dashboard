@@ -18201,6 +18201,8 @@ Prices are subject to change without prior notice.</textarea>
                         closeCreateDispatchModal();
                         loadRecentDispatches();
                         loadInventory();
+                        // Refresh inventory reports to show updated dispatch status
+                        loadInventoryReports();
                     } else {
                         alert('Failed to create dispatch: ' + response.data.error);
                         submitBtn.disabled = false;
@@ -20264,6 +20266,8 @@ Prices are subject to change without prior notice.</textarea>
                         alert(\`✅ Successfully Added!\\n\\n\${response.data.data.added} devices added to inventory\\n\${response.data.data.duplicates} duplicates skipped\`);
                         closeAddInventoryModal();
                         loadInventory();
+                        // Refresh inventory reports to show new items
+                        loadInventoryReports();
                     } else {
                         throw new Error(response.data.error || 'Failed to add inventory');
                     }
