@@ -19359,19 +19359,26 @@ Prices are subject to change without prior notice.</textarea>
                     
                     const qcRecords = response.data.data;
                     
-                    // Calculate summary counts
+                    // Calculate summary counts - FIXED to use qc_record_status
                     let passCount = 0;
                     let failCount = 0;
                     let pendingCount = 0;
                     
                     qcRecords.forEach(record => {
-                        const status = (record.pass_fail || '').toLowerCase();
-                        if (status.includes('pass')) {
-                            passCount++;
-                        } else if (status.includes('fail')) {
-                            failCount++;
-                        } else {
+                        // Use qc_record_status to distinguish pending vs completed
+                        if (record.qc_record_status === 'pending') {
                             pendingCount++;
+                        } else {
+                            // For completed records, check pass_fail status
+                            const status = (record.pass_fail || '').toLowerCase();
+                            if (status.includes('pass')) {
+                                passCount++;
+                            } else if (status.includes('fail')) {
+                                failCount++;
+                            } else {
+                                // Completed but no clear pass/fail - shouldn't happen, count as pending
+                                pendingCount++;
+                            }
                         }
                     });
                     
@@ -19411,14 +19418,18 @@ Prices are subject to change without prior notice.</textarea>
                     return \`\${day}-\${month}-\${year}\`;
                 };
                 
-                // Apply current filter if set
+                // Apply current filter if set - FIXED to use qc_record_status
                 let filteredRecords = records;
                 if (currentQCFilter) {
                     filteredRecords = records.filter(record => {
+                        if (currentQCFilter === 'Pending') {
+                            return record.qc_record_status === 'pending';
+                        }
+                        
+                        // For Pass/Fail, check both status and pass_fail
                         const status = (record.pass_fail || '').toLowerCase();
                         if (currentQCFilter === 'Pass') return status.includes('pass');
                         if (currentQCFilter === 'Fail') return status.includes('fail');
-                        if (currentQCFilter === 'Pending') return !status.includes('pass') && !status.includes('fail');
                         return true;
                     });
                 }
@@ -20316,6 +20327,13 @@ Prices are subject to change without prior notice.</textarea>
             
             // Expose export function to window for onclick handlers
             window.exportInventoryToExcel = exportInventoryToExcel;
+            
+            // Expose QC functions to window object
+            window.loadQCData = loadQCData;
+            window.searchQCReports = searchQCReports;
+            window.filterQCReport = filterQCReport;
+            window.clearQCFilter = clearQCFilter;
+            window.displayQCReports = displayQCReports;
             
             // Export Dispatch to Excel
             async function exportDispatchToExcel() {
