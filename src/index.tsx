@@ -1190,11 +1190,11 @@ app.post('/api/sales/balance-payment', async (c) => {
       WHERE order_id = ?
     `).bind(new_amount_received, new_balance, order_id).run();
     
-    // Insert payment history
+    // Insert payment history (without sale_id for database compatibility)
     await env.DB.prepare(`
-      INSERT INTO payment_history (sale_id, order_id, payment_date, amount, account_received, payment_reference)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(sale.id, order_id, payment_date, amount, account_received || 'Not Specified', payment_reference || '').run();
+      INSERT INTO payment_history (order_id, payment_date, amount, account_received, payment_reference)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(order_id, payment_date, amount, account_received || 'Not Specified', payment_reference || '').run();
     
     return c.json({ 
       success: true, 
