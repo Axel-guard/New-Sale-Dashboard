@@ -10210,111 +10210,46 @@ Prices are subject to change without prior notice.</textarea>
             window.openDispatchModal = openDispatchModal;
             window.openQCModal = openQCModal;
             
-            // Product Catalog with Categories
-            const productCatalog = {
-                'MDVR': [
-                    { name: '4ch 1080p SD Card MDVR (MR9504EC)', code: 'AXG01', weight: 1 },
-                    { name: '4ch 1080p HDD MDVR (MR9704C)', code: 'AXG02', weight: 2 },
-                    { name: '4ch 1080p SD, 4G, GPS MDVR (MR9504E)', code: 'AXG03', weight: 1 },
-                    { name: '4ch 1080p SD, 4G, GPS MDVR (MR9504E-A3)', code: 'AXG73', weight: 1 },
-                    { name: '4ch 1080p HDD, 4G, GPS MDVR (MR9704E)', code: 'AXG04', weight: 2 },
-                    { name: 'TVS 4ch 1080p SD, 4G, GPS MDVR', code: 'TVS43', weight: 1 },
-                    { name: '5ch MDVR SD 4g + GPS + LAN + RS232 + RS485', code: 'AXG46', weight: 1 },
-                    { name: '5ch MDVR HDD 4g + GPS + LAN + RS232 + RS485', code: 'AXG47', weight: 2.2 },
-                    { name: '4ch 1080p SD, 4G, wifi, GPS MDVR (MA9504ED)', code: 'AXG58', weight: 1 },
-                    { name: 'AI MDVR with (DSM + ADAS) (SD+ 4g + GPS)', code: 'AXG38', weight: 2 },
-                    { name: 'AI MDVR with (DSM + ADAS) (SD+HDD+ 4g + GPS)', code: 'AXG72', weight: 3 }
-                ],
-                'Monitor & Monitor Kit': [
-                    { name: '7 " AV Monitor', code: 'AXGAA', weight: 1 },
-                    { name: '7" VGA Monitor', code: 'AXGAB', weight: 1 },
-                    { name: '7" HDMI Monitor', code: 'AXGB1', weight: 1 },
-                    { name: '7 inch Heavy Duty VGA Monitor', code: 'AXGAC', weight: 1 },
-                    { name: '4k Recording monitor kit 2ch', code: 'AXGAH', weight: 2 },
-                    { name: '4 inch AV monitor', code: 'AXGAD', weight: 0.6 },
-                    { name: '720 2ch Recording Monitor Kit', code: 'AXGAF', weight: 3 },
-                    { name: '4k Recording monitor kit 4ch', code: 'AXGAG', weight: 2 }
-                ],
-                'Dashcam': [
-                    { name: '4 Inch 2 Ch Dashcam', code: 'AXGCA', weight: 0.4 },
-                    { name: '10 inch 2 Ch Full Touch Dashcam', code: 'AXGCB', weight: 0.75 },
-                    { name: '10 inch 2 Ch 4g, GPS, Android Dashcam', code: 'AXGCD', weight: 0.75 },
-                    { name: '4k Dashcam 12 inch', code: 'AXGCE', weight: 0.75 },
-                    { name: '2k 12 inch Dashcam', code: 'AXGCF', weight: 0.75 },
-                    { name: '2ch 4g Dashcam MT95L', code: 'AXGCG', weight: 1 },
-                    { name: '3ch AI Dashcam ADAS + DSM (MT95C)', code: 'AXGCJ', weight: 1 },
-                    { name: 'wifi Dash Cam', code: 'AXGCK', weight: 0.3 },
-                    { name: '4 inch 3 camera Dash Cam', code: 'AXGCL', weight: 0.4 },
-                    { name: '4 inch Android Dashcam', code: 'AXGCM', weight: 0.5 },
-                    { name: '3ch 4g Dashcam with Rear Camera (MT95L-A3)', code: 'AXGCH', weight: 1 },
-                    { name: '3ch AI Dashcam ADAS + DSM (MT95C)', code: 'AXGCJ', weight: 1 }
-                ],
-                'Cameras': [
-                    { name: '2 MP IR indoor Dome Camera', code: 'AXGBA', weight: 0.4 },
-                    { name: '2 MP IR Outdoor Bullet Camera', code: 'AXGBB', weight: 0.4 },
-                    { name: '2 MP Heavy Duty Bullet Camera', code: 'AXGBC', weight: 0.5 },
-                    { name: '2 MP Heavy Duty Dome Camera', code: 'AXGBD', weight: 0.5 },
-                    { name: 'PTZ Camera', code: 'AXGBE', weight: 1 },
-                    { name: '4k Monitor Camera', code: 'AXGBF', weight: 0.3 },
-                    { name: '2 MP IP Camera', code: 'AXGBQ', weight: 0.3 },
-                    { name: 'Replacement Bullet Camera 2mp', code: 'AXGBG', weight: 0.3 },
-                    { name: 'Replacement Dome Camera 2 mp', code: 'AXGBH', weight: 0.3 },
-                    { name: 'Replacement Dome Audio Camera', code: 'AXGBI', weight: 0.3 },
-                    { name: 'Reverse Camera', code: 'AXGBJ', weight: 0.3 },
-                    { name: '2mp IR Audio Camera', code: 'AXGBK', weight: 0.3 },
-                    { name: 'DFMS Camera', code: 'AXGBL', weight: 0.3 },
-                    { name: 'ADAS Camera', code: 'AXGBM', weight: 0.3 },
-                    { name: 'BSD Camera', code: 'AXGBN', weight: 0.3 },
-                    { name: '2mp IP Dome Audio Camera', code: 'AXGBP', weight: 0.3 }
-                ],
-                'Storage': [
-                    { name: 'Surveillance Grade 64GB SD Card', code: 'AXGEA', weight: 0.05 },
-                    { name: 'Surveillance Grade 128GB SD Card', code: 'AXGEB', weight: 0.05 },
-                    { name: 'Surveillance Grade 256GB SD Card', code: 'AXGEC', weight: 0.05 },
-                    { name: 'Surveillance Grade 512GB SD Card', code: 'AXGED', weight: 0.05 },
-                    { name: 'HDD 1 TB', code: 'AXGEE', weight: 0.2 }
-                ],
-                'RFID Tags': [
-                    { name: '2.4G RFID Animal Ear Tag', code: 'AXGFA', weight: 0.01 },
-                    { name: '2.4G Active Tag (Card Type) HX607', code: 'AXGFB', weight: 0.02 }
-                ],
-                'RFID Reader': [
-                    { name: '2.4 GHZ RFID Active Reader (Bus)', code: 'AXGGA', weight: 2 },
-                    { name: '2.4 GHZ RFID Active Reader (Campus)', code: 'AXGGB', weight: 2.5 },
-                    { name: '2.4G IOT Smart RFID Reader (ZR7901P)', code: 'AXGGC', weight: 2 }
-                ],
-                'MDVR Accessories': [
-                    { name: 'MDVR Security Box', code: 'AXGHS', weight: 0.8 },
-                    { name: '2 way Communication Device', code: 'AXGHB', weight: 0.2 },
-                    { name: 'MDVR Maintenance Tool', code: 'AXGHC', weight: 0.1 },
-                    { name: 'MDVR Remote', code: 'AXGHD', weight: 0.1 },
-                    { name: 'MDVR Panic Button', code: 'AXGHE', weight: 0.1 },
-                    { name: 'MDVR Server', code: 'AXGHF', weight: 2 },
-                    { name: 'RS 232 Adaptor', code: 'AXGHG', weight: 0.1 },
-                    { name: '1mt Cable', code: 'AXGHN', weight: 0.2 },
-                    { name: '3mt Cable', code: 'AXGHO', weight: 0.3 },
-                    { name: '5mt Cable', code: 'AXGHH', weight: 0.3 },
-                    { name: '10mt Cable', code: 'AXGHJ', weight: 0.6 },
-                    { name: '15mt Cable', code: 'AXGHI', weight: 0.8 },
-                    { name: 'Alcohol Tester', code: 'AXGHL', weight: 1 },
-                    { name: 'VGA Cable', code: 'AXGHK', weight: 0.2 },
-                    { name: 'Ultra Sonic Fuel Sensor', code: 'AXGHM', weight: 0.5 },
-                    { name: 'Rod Type Fuel Sensor', code: 'AXGHQ', weight: 0.5 }
-                ],
-                'Other product and Accessories': [
-                    { name: 'Leaser Printer', code: 'AXGIB', weight: 5 },
-                    { name: 'D link Wire Bundle', code: 'AXGIC', weight: 1 },
-                    { name: 'Wireless Receiver Transmitter', code: 'AXGID', weight: 0.5 },
-                    { name: 'Parking Sensor', code: 'AXGIE', weight: 1 },
-                    { name: 'MDVR Installation', code: 'AXGIF', weight: 0 },
-                    { name: 'GPS Installation', code: 'AXGIG', weight: 0 },
-                    { name: 'Annual Maintenance Charges', code: 'AXGIH', weight: 0 }
-                ]
-            };
+            // Product Catalog with Categories - will be loaded dynamically from database
+            let productCatalog = {};
+            
+            // Load Product Catalog from Database
+            async function loadProductCatalog() {
+                try {
+                    console.log('[PRODUCT SYNC] Loading products from database...');
+                    const response = await axios.get('/api/products');
+                    const products = response.data.data || [];
+                    
+                    // Organize products by category
+                    productCatalog = {};
+                    products.forEach(product => {
+                        const category = product.category || 'Other product and Accessories';
+                        if (!productCatalog[category]) {
+                            productCatalog[category] = [];
+                        }
+                        productCatalog[category].push({
+                            name: product.product_name,
+                            code: product.product_code,
+                            weight: parseFloat(product.weight) || 0
+                        });
+                    });
+                    
+                    console.log('[PRODUCT SYNC] Product catalog loaded:', Object.keys(productCatalog).length, 'categories');
+                    console.log('[PRODUCT SYNC] Total products:', products.length);
+                    return productCatalog;
+                } catch (error) {
+                    console.error('[PRODUCT SYNC] Error loading product catalog:', error);
+                    alert('Failed to load product catalog. Please refresh the page.');
+                    return {};
+                }
+            }
+            
+            // Expose to window for access from other functions
+            window.loadProductCatalog = loadProductCatalog;
 
             // Set today's date as default and initialize app
             // Use window.onload instead of DOMContentLoaded to ensure all scripts are loaded
-            window.addEventListener('load', () => {
+            window.addEventListener('load', async () => {
                 console.log('🚀 [APP INIT] Window loaded, initializing application...');
                 console.log('📦 [APP INIT] Chart.js available:', typeof Chart !== 'undefined');
                 console.log('📦 [APP INIT] Axios available:', typeof axios !== 'undefined');
@@ -10326,6 +10261,9 @@ Prices are subject to change without prior notice.</textarea>
                 document.querySelectorAll('input[type="date"]').forEach(input => {
                     if (!input.value) input.value = today;
                 });
+                
+                // Load product catalog from database
+                await loadProductCatalog();
                 
                 // Load dashboard data
                 console.log('📊 [APP INIT] Loading dashboard...');
@@ -11969,6 +11907,7 @@ Prices are subject to change without prior notice.</textarea>
                         alert('Product added successfully!');
                         document.getElementById('addProductModal').classList.remove('show');
                         loadProducts(); // Reload products list
+                        loadProductCatalog(); // Sync with sale form dropdowns
                     }
                 } catch (error) {
                     alert('Error adding product: ' + (error.response?.data?.error || error.message));
@@ -12015,6 +11954,7 @@ Prices are subject to change without prior notice.</textarea>
                         alert('Product updated successfully!');
                         document.getElementById('editProductModal').classList.remove('show');
                         loadProducts(); // Reload products list
+                        loadProductCatalog(); // Sync with sale form dropdowns
                     }
                 } catch (error) {
                     alert('Error updating product: ' + (error.response?.data?.error || error.message));
