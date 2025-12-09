@@ -3822,6 +3822,102 @@ app.delete('/api/inventory/quality-check/:id', async (c) => {
   }
 });
 
+// Update QC record by serial number
+app.put('/api/inventory/quality-check/:serialNo', async (c) => {
+  const { env } = c;
+  const serialNo = c.req.param('serialNo');
+  
+  try {
+    const body = await c.req.json();
+    const {
+      check_date,
+      checked_by,
+      camera_quality,
+      sd_connect,
+      all_ch_status,
+      network,
+      gps,
+      sim_slot,
+      online,
+      monitor,
+      pass_fail,
+      ip_address,
+      notes
+    } = body;
+    
+    // Validate required fields
+    if (!check_date || !checked_by || !pass_fail) {
+      return c.json({ success: false, error: 'QC Date, Checked By, and Final QC Status are required' }, 400);
+    }
+    
+    // Check if QC record exists for this serial number
+    const existingQC = await env.DB.prepare(`
+      SELECT * FROM quality_check WHERE device_serial_no = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).bind(serialNo).first();
+    
+    if (!existingQC) {
+      return c.json({ success: false, error: 'No QC record found for this device' }, 404);
+    }
+    
+    // Update the QC record
+    await env.DB.prepare(`
+      UPDATE quality_check 
+      SET check_date = ?,
+          checked_by = ?,
+          camera_quality = ?,
+          sd_connect = ?,
+          all_ch_status = ?,
+          network = ?,
+          gps = ?,
+          sim_slot = ?,
+          online = ?,
+          monitor = ?,
+          pass_fail = ?,
+          ip_address = ?,
+          notes = ?
+      WHERE id = ?
+    `).bind(
+      check_date,
+      checked_by,
+      camera_quality || 'QC Not Applicable',
+      sd_connect || 'QC Not Applicable',
+      all_ch_status || 'QC Not Applicable',
+      network || 'QC Not Applicable',
+      gps || 'QC Not Applicable',
+      sim_slot || 'QC Not Applicable',
+      online || 'QC Not Applicable',
+      monitor || 'QC Not Applicable',
+      pass_fail,
+      ip_address || '',
+      notes || '',
+      existingQC.id
+    ).run();
+    
+    // Update inventory status based on QC result
+    const newStatus = pass_fail === 'QC Fail' ? 'Defective' : 
+                      pass_fail === 'QC Pass' ? 'In Stock' : 'Quality Check';
+    
+    await env.DB.prepare(`
+      UPDATE inventory 
+      SET status = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE device_serial_no = ?
+    `).bind(newStatus, serialNo).run();
+    
+    return c.json({ 
+      success: true, 
+      message: 'QC record updated successfully',
+      qc_id: existingQC.id,
+      new_status: newStatus
+    });
+  } catch (error) {
+    console.error('Error updating QC record:', error);
+    return c.json({ success: false, error: 'Failed to update QC record: ' + error.message }, 500);
+  }
+});
+
 // Quick update QC status for pending items
 app.post('/api/inventory/quick-qc-update', async (c) => {
   const { env } = c;
@@ -19232,29 +19328,27 @@ Prices are subject to change without prior notice.</textarea>
                 // Collect all form data
                 const category = document.getElementById('update_category').value;
                 const productName = document.getElementById('update_product_name').value;
+                const serialNumber = document.getElementById('update_serial_number').value.trim();
+                const finalQCStatus = document.getElementById('update_final_qc_status').value;
                 
                 const qcData = {
-                    device_serial_no: document.getElementById('update_serial_number').value.trim(),
                     check_date: document.getElementById('update_qc_date').value,
                     checked_by: currentUser.employeeName || currentUser.fullName,
-                    category: category,
-                    product_name: productName,
-                    device_type: category, // Use category as device type
                     camera_quality: document.getElementById('update_camera_quality').value || 'QC Not Applicable',
-                    sd_connectivity: document.getElementById('update_sd_connectivity').value || 'QC Not Applicable',
+                    sd_connect: document.getElementById('update_sd_connectivity').value || 'QC Not Applicable',
                     all_ch_status: document.getElementById('update_all_ch_status').value || 'QC Not Applicable',
-                    network_connectivity: document.getElementById('update_network_connectivity').value || 'QC Not Applicable',
-                    gps_qc: document.getElementById('update_gps_qc').value || 'QC Not Applicable',
-                    sim_card_slot: document.getElementById('update_sim_card_slot').value || 'QC Not Applicable',
-                    online_qc: document.getElementById('update_online_qc').value || 'QC Not Applicable',
-                    monitor_qc_status: document.getElementById('update_monitor_qc_status').value || 'QC Not Applicable',
-                    final_qc_status: document.getElementById('update_final_qc_status').value,
+                    network: document.getElementById('update_network_connectivity').value || 'QC Not Applicable',
+                    gps: document.getElementById('update_gps_qc').value || 'QC Not Applicable',
+                    sim_slot: document.getElementById('update_sim_card_slot').value || 'QC Not Applicable',
+                    online: document.getElementById('update_online_qc').value || 'QC Not Applicable',
+                    monitor: document.getElementById('update_monitor_qc_status').value || 'QC Not Applicable',
+                    pass_fail: finalQCStatus,
                     ip_address: document.getElementById('update_ip_address').value.trim() || '',
-                    update_status: document.getElementById('update_status').value.trim() || ''
+                    notes: document.getElementById('update_status').value.trim() || ''
                 };
                 
                 // Validate required fields
-                if (!qcData.device_serial_no || !qcData.check_date || !category || !productName || !qcData.final_qc_status) {
+                if (!serialNumber || !qcData.check_date || !category || !productName || !finalQCStatus) {
                     alert('❌ Please fill all required fields:\\n- QC Date\\n- Serial Number\\n- Category\\n- Product Name\\n- Final QC Status');
                     return;
                 }
@@ -19262,22 +19356,65 @@ Prices are subject to change without prior notice.</textarea>
                 const submitBtn = event.target.querySelector('button[type="submit"]');
                 const originalText = submitBtn.innerHTML;
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
                 
                 try {
-                    const response = await axios.post('/api/inventory/quality-check-manual', qcData);
+                    // Use PUT endpoint to update existing QC record
+                    const response = await axios.put(`/api/inventory/quality-check/${serialNumber}`, qcData);
                     
                     if (response.data.success) {
-                        alert(\`✅ QC Report Saved Successfully!\\n\\nSerial Number: \${qcData.device_serial_no}\\nCategory: \${category}\\nProduct: \${productName}\\nFinal Status: \${qcData.final_qc_status}\`);
+                        alert(`✅ QC Report Updated Successfully!\\n\\nSerial Number: ${serialNumber}\\nCategory: ${category}\\nProduct: ${productName}\\nFinal Status: ${finalQCStatus}\\nInventory Status: ${response.data.new_status}`);
                         closeUpdateQCModal();
                         loadQCData();
                     } else {
-                        throw new Error(response.data.error || 'Submission failed');
+                        throw new Error(response.data.error || 'Update failed');
                     }
                     
                 } catch (error) {
-                    console.error('Error submitting QC:', error);
-                    alert('❌ Error saving QC report:\\n\\n' + (error.response?.data?.error || error.message));
+                    console.error('Error updating QC:', error);
+                    
+                    // If no existing QC record found, offer to create new one
+                    if (error.response?.status === 404) {
+                        if (confirm('⚠️ No existing QC record found for this device.\\n\\nWould you like to CREATE a new QC record instead?')) {
+                            try {
+                                // Create new QC record using the manual entry endpoint
+                                const createData = {
+                                    device_serial_no: serialNumber,
+                                    check_date: qcData.check_date,
+                                    checked_by: qcData.checked_by,
+                                    category: category,
+                                    product_name: productName,
+                                    device_type: category,
+                                    camera_quality: qcData.camera_quality,
+                                    sd_connectivity: qcData.sd_connect,
+                                    all_ch_status: qcData.all_ch_status,
+                                    network_connectivity: qcData.network,
+                                    gps_qc: qcData.gps,
+                                    sim_card_slot: qcData.sim_slot,
+                                    online_qc: qcData.online,
+                                    monitor_qc_status: qcData.monitor,
+                                    final_qc_status: qcData.pass_fail,
+                                    ip_address: qcData.ip_address,
+                                    update_status: qcData.notes
+                                };
+                                
+                                const createResponse = await axios.post('/api/inventory/quality-check-manual', createData);
+                                
+                                if (createResponse.data.success) {
+                                    alert(`✅ New QC Record Created Successfully!\\n\\nSerial Number: ${serialNumber}\\nFinal Status: ${finalQCStatus}`);
+                                    closeUpdateQCModal();
+                                    loadQCData();
+                                } else {
+                                    throw new Error(createResponse.data.error || 'Creation failed');
+                                }
+                            } catch (createError) {
+                                console.error('Error creating QC:', createError);
+                                alert('❌ Error creating new QC record:\\n\\n' + (createError.response?.data?.error || createError.message));
+                            }
+                        }
+                    } else {
+                        alert('❌ Error updating QC report:\\n\\n' + (error.response?.data?.error || error.message));
+                    }
                 } finally {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
