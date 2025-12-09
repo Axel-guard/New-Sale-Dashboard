@@ -19360,10 +19360,10 @@ Prices are subject to change without prior notice.</textarea>
                 
                 try {
                     // Use PUT endpoint to update existing QC record
-                    const response = await axios.put(`/api/inventory/quality-check/${serialNumber}`, qcData);
+                    const response = await axios.put('/api/inventory/quality-check/' + serialNumber, qcData);
                     
                     if (response.data.success) {
-                        alert(`✅ QC Report Updated Successfully!\\n\\nSerial Number: ${serialNumber}\\nCategory: ${category}\\nProduct: ${productName}\\nFinal Status: ${finalQCStatus}\\nInventory Status: ${response.data.new_status}`);
+                        alert('✅ QC Report Updated Successfully!\\n\\nSerial Number: ' + serialNumber + '\\nCategory: ' + category + '\\nProduct: ' + productName + '\\nFinal Status: ' + finalQCStatus + '\\nInventory Status: ' + response.data.new_status);
                         closeUpdateQCModal();
                         loadQCData();
                     } else {
@@ -19401,7 +19401,7 @@ Prices are subject to change without prior notice.</textarea>
                                 const createResponse = await axios.post('/api/inventory/quality-check-manual', createData);
                                 
                                 if (createResponse.data.success) {
-                                    alert(`✅ New QC Record Created Successfully!\\n\\nSerial Number: ${serialNumber}\\nFinal Status: ${finalQCStatus}`);
+                                    alert('✅ New QC Record Created Successfully!\\n\\nSerial Number: ' + serialNumber + '\\nFinal Status: ' + finalQCStatus);
                                     closeUpdateQCModal();
                                     loadQCData();
                                 } else {
