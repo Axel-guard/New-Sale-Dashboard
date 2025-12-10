@@ -931,10 +931,18 @@ app.get('/api/sales/current-month', async (c) => {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     
+    // Fetch sales with customer_code from leads table (lookup by customer_contact)
     const sales = await env.DB.prepare(`
-      SELECT * FROM sales
-      WHERE DATE(sale_date) >= DATE(?)
-      ORDER BY updated_at DESC, sale_date DESC
+      SELECT 
+        s.*,
+        COALESCE(s.customer_code, l.customer_code) as customer_code
+      FROM sales s
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
+      WHERE DATE(s.sale_date) >= DATE(?)
+      ORDER BY s.updated_at DESC, s.sale_date DESC
     `).bind(firstDay.toISOString()).all();
     
     // Get items and payments for each sale
@@ -990,9 +998,17 @@ app.get('/api/sales', async (c) => {
   const { env } = c;
   
   try {
+    // Fetch sales with customer_code from leads table (lookup by customer_contact)
     const sales = await env.DB.prepare(`
-      SELECT * FROM sales
-      ORDER BY sale_date DESC
+      SELECT 
+        s.*,
+        COALESCE(s.customer_code, l.customer_code) as customer_code
+      FROM sales s
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
+      ORDER BY s.sale_date DESC
       LIMIT 1000
     `).all();
     
@@ -1008,8 +1024,17 @@ app.get('/api/sales/order/:orderId', async (c) => {
   const orderId = c.req.param('orderId');
   
   try {
+    // Fetch sale with customer_code from leads table (lookup by customer_contact)
     const sale = await env.DB.prepare(`
-      SELECT * FROM sales WHERE order_id = ?
+      SELECT 
+        s.*,
+        COALESCE(s.customer_code, l.customer_code) as customer_code
+      FROM sales s
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
+      WHERE s.order_id = ?
     `).bind(orderId).first();
     
     if (!sale) {
@@ -1048,10 +1073,18 @@ app.get('/api/sales/balance-payments', async (c) => {
   const { env } = c;
   
   try {
+    // Fetch sales with customer_code from leads table (lookup by customer_contact)
     const sales = await env.DB.prepare(`
-      SELECT * FROM sales
-      WHERE balance_amount > 0
-      ORDER BY sale_date DESC
+      SELECT 
+        s.*,
+        COALESCE(s.customer_code, l.customer_code) as customer_code
+      FROM sales s
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
+      WHERE s.balance_amount > 0
+      ORDER BY s.sale_date DESC
     `).all();
     
     return c.json({ success: true, data: sales.results });
@@ -1229,9 +1262,15 @@ app.get('/api/sales/balance-payment-history', async (c) => {
         p.account_received,
         p.payment_reference,
         s.customer_name,
-        s.company_name
+        s.company_name,
+        s.customer_contact,
+        COALESCE(s.customer_code, l.customer_code) as customer_code
       FROM payment_history p
       JOIN sales s ON p.order_id = s.order_id
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
       WHERE DATE(p.payment_date) >= DATE(?)
       ORDER BY p.payment_date DESC
     `).bind(monthStartStr).all();
