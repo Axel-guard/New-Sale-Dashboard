@@ -4371,12 +4371,19 @@ app.get('/api/inventory/stats', async (c) => {
   const { env } = c;
   
   try {
+    // Calculate real-time status based on customer_name
+    // In Stock: status = 'In Stock' AND customer_name is NULL or empty
+    // Dispatched: customer_name is NOT NULL (has customer assigned)
     const stats = await env.DB.prepare(`
       SELECT 
-        status,
+        CASE 
+          WHEN customer_name IS NOT NULL AND customer_name != '' THEN 'Dispatched'
+          WHEN status = 'In Stock' AND (customer_name IS NULL OR customer_name = '') THEN 'In Stock'
+          ELSE status
+        END as calculated_status,
         COUNT(*) as count
       FROM inventory
-      GROUP BY status
+      GROUP BY calculated_status
     `).all();
     
     const total = await env.DB.prepare(`SELECT COUNT(*) as total FROM inventory`).first();
@@ -4385,7 +4392,10 @@ app.get('/api/inventory/stats', async (c) => {
       success: true, 
       data: {
         total: total?.total || 0,
-        byStatus: stats.results || []
+        byStatus: (stats.results || []).map(s => ({
+          status: s.calculated_status,
+          count: s.count
+        }))
       }
     });
   } catch (error) {
@@ -4451,14 +4461,20 @@ app.get('/api/inventory/model-wise', async (c) => {
   const { env } = c;
   
   try {
-    // Get all inventory data
+    // Get all inventory data with real-time status calculation
+    // In Stock: status = 'In Stock' AND customer_name is NULL or empty
+    // Dispatched: customer_name is NOT NULL (has customer)
     const allDevices = await env.DB.prepare(`
       SELECT 
         model_name,
-        status,
+        CASE 
+          WHEN customer_name IS NOT NULL AND customer_name != '' THEN 'Dispatched'
+          WHEN status = 'In Stock' AND (customer_name IS NULL OR customer_name = '') THEN 'In Stock'
+          ELSE status
+        END as calculated_status,
         COUNT(*) as count
       FROM inventory
-      GROUP BY model_name, status
+      GROUP BY model_name, calculated_status
     `).all();
     
     const devices = allDevices.results || [];
@@ -4592,10 +4608,11 @@ app.get('/api/inventory/model-wise', async (c) => {
       
       // Add to category totals
       const count = device.count;
+      const status = device.calculated_status; // Use calculated status
       categoryData[category].total += count;
       
-      if (device.status === 'In Stock') categoryData[category].in_stock += count;
-      else if (device.status === 'Dispatched') categoryData[category].dispatched += count;
+      if (status === 'In Stock') categoryData[category].in_stock += count;
+      else if (status === 'Dispatched') categoryData[category].dispatched += count;
       
       // Use lowercase key for grouping to handle case variations
       // But preserve the original model_name for display (use first occurrence)
@@ -4615,8 +4632,8 @@ app.get('/api/inventory/model-wise', async (c) => {
       }
       
       categoryData[category].models[modelKey].total += count;
-      if (device.status === 'In Stock') categoryData[category].models[modelKey].in_stock += count;
-      else if (device.status === 'Dispatched') categoryData[category].models[modelKey].dispatched += count;
+      if (status === 'In Stock') categoryData[category].models[modelKey].in_stock += count;
+      else if (status === 'Dispatched') categoryData[category].models[modelKey].dispatched += count;
     });
     
     // Now add QC counts to each model
