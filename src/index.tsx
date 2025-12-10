@@ -6998,6 +6998,7 @@ app.get('/', (c) => {
                             <thead style="position: sticky; top: 0; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                                 <tr>
                                     <th><i class="fas fa-receipt" style="margin-right: 6px; color: #667eea;"></i>Order ID</th>
+                                    <th><i class="fas fa-id-card" style="margin-right: 6px; color: #059669;"></i>Cust Code</th>
                                     <th><i class="fas fa-calendar" style="margin-right: 6px; color: #667eea;"></i>Date</th>
                                     <th><i class="fas fa-user" style="margin-right: 6px; color: #667eea;"></i>Customer Name</th>
                                     <th><i class="fas fa-building" style="margin-right: 6px; color: #667eea;"></i>Company Name</th>
@@ -7014,7 +7015,7 @@ app.get('/', (c) => {
                                 </tr>
                             </thead>
                             <tbody id="salesTableBody">
-                                <tr><td colspan="14" style="text-align: center; padding: 40px; color: #6b7280;">
+                                <tr><td colspan="15" style="text-align: center; padding: 40px; color: #6b7280;">
                                     <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px; color: #667eea;"></i>
                                     <div>Loading sales...</div>
                                 </td></tr>
@@ -7176,6 +7177,7 @@ app.get('/', (c) => {
                             <thead>
                                 <tr>
                                     <th>Order ID</th>
+                                    <th>Cust Code</th>
                                     <th>Date</th>
                                     <th>Customer</th>
                                     <th>Employee</th>
@@ -7185,7 +7187,7 @@ app.get('/', (c) => {
                                 </tr>
                             </thead>
                             <tbody id="currentMonthTableBody">
-                                <tr><td colspan="7" class="loading">Loading...</td></tr>
+                                <tr><td colspan="8" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -7216,6 +7218,7 @@ app.get('/', (c) => {
                             <thead>
                                 <tr>
                                     <th>Order ID</th>
+                                    <th>Cust Code</th>
                                     <th>Date</th>
                                     <th>Customer</th>
                                     <th>Employee</th>
@@ -7226,7 +7229,7 @@ app.get('/', (c) => {
                                 </tr>
                             </thead>
                             <tbody id="allSalesTableBody">
-                                <tr><td colspan="8" class="loading">Loading...</td></tr>
+                                <tr><td colspan="9" class="loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -7340,6 +7343,7 @@ app.get('/', (c) => {
                                 <thead>
                                     <tr>
                                         <th>Order ID</th>
+                                        <th>Cust Code</th>
                                         <th>Date</th>
                                         <th>Customer Name</th>
                                         <th>Company Name</th>
@@ -7352,7 +7356,7 @@ app.get('/', (c) => {
                                     </tr>
                                 </thead>
                                 <tbody id="balancePaymentTableBody">
-                                    <tr><td colspan="10" class="loading">Loading...</td></tr>
+                                    <tr><td colspan="11" class="loading">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -7365,6 +7369,7 @@ app.get('/', (c) => {
                                 <thead>
                                     <tr>
                                         <th>Order ID</th>
+                                        <th>Cust Code</th>
                                         <th>Customer Name</th>
                                         <th>Company Name</th>
                                         <th>Payment Date</th>
@@ -7374,7 +7379,7 @@ app.get('/', (c) => {
                                     </tr>
                                 </thead>
                                 <tbody id="balancePaymentHistoryTableBody">
-                                    <tr><td colspan="7" class="loading">Loading...</td></tr>
+                                    <tr><td colspan="8" class="loading">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -10753,8 +10758,9 @@ Prices are subject to change without prior notice.</textarea>
                         
                         return '<tr>' +
                             '<td><strong>' + sale.order_id + '</strong></td>' +
+                            '<td><strong style="color: #059669;">' + (sale.customer_code || '-') + '</strong></td>' +
                             '<td>' + new Date(sale.sale_date).toLocaleDateString() + '</td>' +
-                            '<td>' + (sale.customer_name || sale.customer_code) + '</td>' +
+                            '<td>' + (sale.customer_name || '-') + '</td>' +
                             '<td>' + (sale.company_name || '-') + '</td>' +
                             '<td>' + sale.employee_name + '</td>' +
                             '<td><small>' + products + '</small></td>' +
@@ -11057,19 +11063,23 @@ Prices are subject to change without prior notice.</textarea>
                                     <div style="font-size: 16px; font-weight: 600;">\${sale.order_id}</div>
                                 </div>
                                 <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Cust Code</label>
+                                    <div style="font-size: 16px; font-weight: 600; color: #059669;">\${sale.customer_code || '-'}</div>
+                                </div>
+                                <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Date</label>
                                     <div>\${new Date(sale.sale_date).toLocaleDateString()}</div>
                                 </div>
                                 <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Customer Name</label>
-                                    <div>\${sale.customer_name || sale.customer_code}</div>
+                                    <div>\${sale.customer_name || '-'}</div>
                                 </div>
+                            </div>
+                            <div class="form-row">
                                 <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Company Name</label>
                                     <div>\${sale.company_name || '-'}</div>
                                 </div>
-                            </div>
-                            <div class="form-row">
                                 <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Employee</label>
                                     <div>\${sale.employee_name}</div>
@@ -11577,9 +11587,10 @@ Prices are subject to change without prior notice.</textarea>
                         return \`
                         <tr onclick="viewSaleDetails('\${sale.order_id}')" style="cursor: pointer;">
                             <td><strong>\${sale.order_id}</strong></td>
+                            <td><strong style="color: #059669;">\${sale.customer_code || '-'}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
                             <td>
-                                <div style="font-weight: 600;">\${sale.customer_name || sale.customer_code}</div>
+                                <div style="font-weight: 600;">\${sale.customer_name || '-'}</div>
                                 <div style="font-size: 12px; color: #6b7280;">\${sale.company_name || 'N/A'}</div>
                             </td>
                             <td>\${sale.employee_name}</td>
@@ -11598,7 +11609,7 @@ Prices are subject to change without prior notice.</textarea>
                 } catch (error) {
                     console.error('Error loading current month sales:', error);
                     const tbody = document.getElementById('currentMonthTableBody');
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #dc2626;">Error loading sales</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #dc2626;">Error loading sales</td></tr>';
                 }
             }
 
@@ -11619,10 +11630,10 @@ Prices are subject to change without prior notice.</textarea>
                         return \`
                         <tr style="cursor: pointer;" onclick="viewSaleDetails('\${sale.order_id}')" title="Click to view sale details">
                             <td><strong>\${sale.order_id}</strong></td>
+                            <td><strong style="color: #059669;">\${sale.customer_code || '-'}</strong></td>
                             <td>\${new Date(sale.sale_date).toLocaleDateString()}</td>
-                            <td>\${sale.customer_name || sale.customer_code}</td>
+                            <td>\${sale.customer_name || '-'}</td>
                             <td>\${sale.employee_name}</td>
-                            <td><small>\${products}</small></td>
                             <td><span class="badge \${sale.sale_type === 'With' ? 'badge-success' : 'badge-warning'}">\${sale.sale_type} GST</span></td>
                             <td>₹\${sale.total_amount.toLocaleString()}</td>
                             <td>₹\${sale.balance_amount.toLocaleString()}</td>
@@ -11699,8 +11710,9 @@ Prices are subject to change without prior notice.</textarea>
                         return \`
                         <tr style="cursor: pointer;" onclick="viewSaleDetails('\${sale.order_id}')" title="Click to view sale details">
                             <td><strong>\${sale.order_id}</strong></td>
+                            <td><strong style="color: #059669;">\${sale.customer_code || '-'}</strong></td>
                             <td>\${saleDate}</td>
-                            <td>\${sale.customer_name || sale.customer_code}</td>
+                            <td>\${sale.customer_name || '-'}</td>
                             <td>\${sale.company_name || 'N/A'}</td>
                             <td>\${sale.employee_name}</td>
                             <td>\${sale.customer_contact || 'N/A'}</td>
@@ -11805,6 +11817,7 @@ Prices are subject to change without prior notice.</textarea>
                         return \`
                         <tr>
                             <td><strong>\${payment.order_id}</strong></td>
+                            <td><strong style="color: #059669;">\${payment.customer_code || '-'}</strong></td>
                             <td>\${payment.customer_name || 'N/A'}</td>
                             <td>\${payment.company_name || 'N/A'}</td>
                             <td>\${paymentDate}</td>
@@ -18673,19 +18686,23 @@ Prices are subject to change without prior notice.</textarea>
                                     <div style="font-size: 16px; font-weight: 600;">\${sale.order_id}</div>
                                 </div>
                                 <div class="form-group">
+                                    <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Cust Code</label>
+                                    <div style="font-size: 16px; font-weight: 600; color: #059669;">\${sale.customer_code || '-'}</div>
+                                </div>
+                                <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Date</label>
                                     <div>\${new Date(sale.sale_date).toLocaleDateString()}</div>
                                 </div>
                                 <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Customer Name</label>
-                                    <div>\${sale.customer_name || sale.customer_code}</div>
+                                    <div>\${sale.customer_name || '-'}</div>
                                 </div>
+                            </div>
+                            <div class="form-row">
                                 <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Company Name</label>
                                     <div>\${sale.company_name || '-'}</div>
                                 </div>
-                            </div>
-                            <div class="form-row">
                                 <div class="form-group">
                                     <label style="font-weight: 600; color: #6b7280; margin-bottom: 5px;">Employee</label>
                                     <div>\${sale.employee_name}</div>
