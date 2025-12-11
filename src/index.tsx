@@ -4021,6 +4021,203 @@ app.post('/api/inventory/quick-qc-update', async (c) => {
   }
 });
 
+// Batch Auto-Update All Pending QC Records Based on Device Type
+app.post('/api/inventory/auto-qc-batch-update', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Get all devices with QC Pending status (using 'Quality Check' status)
+    const pendingDevices = await env.DB.prepare(`
+      SELECT 
+        id,
+        device_serial_no,
+        model_name,
+        category,
+        status
+      FROM inventory
+      WHERE status = 'Quality Check'
+      ORDER BY device_serial_no
+    `).all();
+    
+    if (!pendingDevices.results || pendingDevices.results.length === 0) {
+      return c.json({ 
+        success: true, 
+        message: 'No pending QC records found',
+        updated: 0
+      });
+    }
+    
+    let updated = 0;
+    let failed = 0;
+    const results = [];
+    
+    for (const device of pendingDevices.results) {
+      try {
+        const modelName = (device.model_name || '').toLowerCase();
+        const category = (device.category || '').toLowerCase();
+        
+        // Determine device type and QC parameters
+        let qcParams = {};
+        
+        // Check if it's a Camera
+        if (category.includes('camera') && !modelName.includes('mdvr') && !modelName.includes('dvr')) {
+          qcParams = {
+            camera_quality: 'QC Pass',
+            sd_connect: 'N/A',
+            all_ch_status: 'N/A',
+            network: 'N/A',
+            gps: 'N/A',
+            sim_slot: 'N/A',
+            online: 'N/A',
+            monitor: 'N/A',
+            pass_fail: 'QC Pass'
+          };
+        }
+        // Check if it's MDVR with 4G or 4G Dashcam
+        else if (
+          modelName.includes('4g') || 
+          modelName.includes('4 g') ||
+          (category.includes('dashcam') && modelName.includes('4g'))
+        ) {
+          qcParams = {
+            camera_quality: 'QC Pass',
+            sd_connect: 'QC Pass',
+            all_ch_status: 'QC Pass',
+            network: 'QC Pass',
+            gps: 'QC Pass',
+            sim_slot: 'QC Pass',
+            online: 'QC Pass',
+            monitor: 'QC Pass',
+            pass_fail: 'QC Pass'
+          };
+        }
+        // Check if it's MDVR without 4G (or regular Dashcam without 4G)
+        else if (
+          modelName.includes('mdvr') || 
+          modelName.includes('dvr') ||
+          category.includes('mdvr') ||
+          category.includes('dashcam')
+        ) {
+          qcParams = {
+            camera_quality: 'QC Pass',
+            sd_connect: 'QC Pass',
+            all_ch_status: 'QC Pass',
+            network: 'N/A',  // No 4G, so network is N/A
+            gps: 'QC Pass',
+            sim_slot: 'N/A',  // No 4G, so SIM slot is N/A
+            online: 'N/A',   // No 4G, so online is N/A
+            monitor: 'QC Pass',
+            pass_fail: 'QC Pass'
+          };
+        }
+        // Default for other devices
+        else {
+          qcParams = {
+            camera_quality: 'QC Pass',
+            sd_connect: 'QC Pass',
+            all_ch_status: 'QC Pass',
+            network: 'QC Pass',
+            gps: 'QC Pass',
+            sim_slot: 'QC Pass',
+            online: 'QC Pass',
+            monitor: 'QC Pass',
+            pass_fail: 'QC Pass'
+          };
+        }
+        
+        // Create QC record
+        await env.DB.prepare(`
+          INSERT INTO quality_check (
+            inventory_id,
+            device_serial_no,
+            check_date,
+            checked_by,
+            camera_quality,
+            sd_connect,
+            all_ch_status,
+            network,
+            gps,
+            sim_slot,
+            online,
+            monitor,
+            pass_fail,
+            notes
+          ) VALUES (?, ?, CURRENT_DATE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          device.id,
+          device.device_serial_no,
+          'Admin (Auto QC)',
+          qcParams.camera_quality,
+          qcParams.sd_connect,
+          qcParams.all_ch_status,
+          qcParams.network,
+          qcParams.gps,
+          qcParams.sim_slot,
+          qcParams.online,
+          qcParams.monitor,
+          qcParams.pass_fail,
+          'Auto-updated based on device type'
+        ).run();
+        
+        // Update inventory status to "In Stock" (since all Pass)
+        await env.DB.prepare(`
+          UPDATE inventory
+          SET status = 'In Stock',
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(device.id).run();
+        
+        // Add to status history
+        await env.DB.prepare(`
+          INSERT INTO inventory_status_history (
+            inventory_id,
+            device_serial_no,
+            old_status,
+            new_status,
+            changed_by,
+            change_reason
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(
+          device.id,
+          device.device_serial_no,
+          'Quality Check',
+          'In Stock',
+          'Admin (Auto QC)',
+          'Batch auto-QC update based on device type'
+        ).run();
+        
+        updated++;
+        results.push({
+          device_serial_no: device.device_serial_no,
+          model_name: device.model_name,
+          status: 'Updated',
+          qc_params: qcParams
+        });
+      } catch (error) {
+        failed++;
+        results.push({
+          device_serial_no: device.device_serial_no,
+          model_name: device.model_name,
+          status: 'Failed',
+          error: error.message
+        });
+      }
+    }
+    
+    return c.json({
+      success: true,
+      message: `Batch QC update completed. Updated: ${updated}, Failed: ${failed}`,
+      updated: updated,
+      failed: failed,
+      total: pendingDevices.results.length,
+      details: results
+    });
+  } catch (error) {
+    console.error('Error in batch QC update:', error);
+    return c.json({ success: false, error: 'Failed to batch update QC: ' + error.message }, 500);
+  }
+});
+
 // Upload QC Excel - match devices and create QC records with all parameters
 app.post('/api/inventory/upload-qc', async (c) => {
   const { env } = c;
@@ -7735,8 +7932,12 @@ app.get('/', (c) => {
                             <span>Actions</span>
                             <i class="fas fa-chevron-down" style="font-size: 12px;"></i>
                         </button>
-                        <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); min-width: 220px; z-index: 1000; overflow: hidden;">
-                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; border-radius: 12px 12px 0 0;">
+                        <div id="qcActionsDropdownMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); min-width: 250px; z-index: 1000; overflow: hidden;">
+                            <button onclick="autoUpdateAllPendingQC(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; border-radius: 12px 12px 0 0;">
+                                <i class="fas fa-magic" style="color: #8b5cf6; font-size: 16px; width: 22px; text-align: center;"></i>
+                                <span>Auto Update All Pending</span>
+                            </button>
+                            <button onclick="exportQCToExcel(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6;">
                                 <i class="fas fa-file-excel" style="color: #059669; font-size: 16px; width: 22px; text-align: center;"></i>
                                 <span>Export Excel</span>
                             </button>
@@ -19495,6 +19696,43 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Load QC summary counts and reports
+            // Auto Update All Pending QC Records
+            async function autoUpdateAllPendingQC() {
+                if (!confirm('This will automatically update ALL pending QC records based on device type (MDVR with/without 4G, Cameras, Dashcam). Are you sure you want to proceed?')) {
+                    return;
+                }
+                
+                try {
+                    // Show loading message
+                    const loadingToast = document.createElement('div');
+                    loadingToast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #3b82f6; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-weight: 600;';
+                    loadingToast.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing batch QC update...';
+                    document.body.appendChild(loadingToast);
+                    
+                    const response = await axios.post('/api/inventory/auto-qc-batch-update');
+                    
+                    // Remove loading message
+                    document.body.removeChild(loadingToast);
+                    
+                    if (response.data.success) {
+                        // Show success message with details
+                        const resultMsg = \`✅ Batch QC Update Complete!\n\nUpdated: \${response.data.updated} devices\nFailed: \${response.data.failed} devices\nTotal Processed: \${response.data.total} devices\`;
+                        alert(resultMsg);
+                        
+                        // Reload QC data
+                        await loadQCData();
+                        
+                        // Show detailed results in console
+                        console.log('Batch QC Update Results:', response.data.details);
+                    } else {
+                        alert('❌ Failed to update QC records: ' + response.data.error);
+                    }
+                } catch (error) {
+                    console.error('Error in batch QC update:', error);
+                    alert('❌ Error updating QC records: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
             async function loadQCData() {
                 try {
                     // Load all QC records
