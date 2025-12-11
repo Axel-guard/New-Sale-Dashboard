@@ -4033,7 +4033,6 @@ app.post('/api/inventory/auto-qc-batch-update', async (c) => {
         i.id,
         i.device_serial_no,
         i.model_name,
-        i.category,
         i.status
       FROM inventory i
       WHERE NOT EXISTS (
@@ -4060,13 +4059,12 @@ app.post('/api/inventory/auto-qc-batch-update', async (c) => {
     for (const device of pendingDevices.results) {
       try {
         const modelName = (device.model_name || '').toLowerCase();
-        const category = (device.category || '').toLowerCase();
         
-        // Determine device type and QC parameters
+        // Determine device type and QC parameters based on model_name only
         let qcParams = {};
         
-        // Check if it's a Camera
-        if (category.includes('camera') && !modelName.includes('mdvr') && !modelName.includes('dvr')) {
+        // Check if it's a Camera (model name contains 'camera' but not 'mdvr'/'dvr')
+        if (modelName.includes('camera') && !modelName.includes('mdvr') && !modelName.includes('dvr')) {
           qcParams = {
             camera_quality: 'QC Pass',
             sd_connect: 'N/A',
@@ -4079,11 +4077,10 @@ app.post('/api/inventory/auto-qc-batch-update', async (c) => {
             pass_fail: 'QC Pass'
           };
         }
-        // Check if it's MDVR with 4G or 4G Dashcam
+        // Check if it's MDVR with 4G or 4G Dashcam (model name contains '4g')
         else if (
           modelName.includes('4g') || 
-          modelName.includes('4 g') ||
-          (category.includes('dashcam') && modelName.includes('4g'))
+          modelName.includes('4 g')
         ) {
           qcParams = {
             camera_quality: 'QC Pass',
@@ -4097,12 +4094,11 @@ app.post('/api/inventory/auto-qc-batch-update', async (c) => {
             pass_fail: 'QC Pass'
           };
         }
-        // Check if it's MDVR without 4G (or regular Dashcam without 4G)
+        // Check if it's MDVR without 4G or Dashcam without 4G
         else if (
           modelName.includes('mdvr') || 
           modelName.includes('dvr') ||
-          category.includes('mdvr') ||
-          category.includes('dashcam')
+          modelName.includes('dashcam')
         ) {
           qcParams = {
             camera_quality: 'QC Pass',
