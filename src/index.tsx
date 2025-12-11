@@ -18551,17 +18551,45 @@ Prices are subject to change without prior notice.</textarea>
                     );
                     
                     if (!matchingProduct) {
-                        statusDiv.style.background = '#fef3c7';
-                        statusDiv.style.color = '#92400e';
+                        statusDiv.style.background = '#fee2e2';
+                        statusDiv.style.color = '#991b1b';
                         statusDiv.innerHTML = \`
                             <div style="font-weight: 700; margin-bottom: 5px;">
-                                <i class="fas fa-exclamation-triangle"></i> Warning: Product Not in Order
+                                <i class="fas fa-times-circle"></i> Error: Product Not in Order
                             </div>
                             <div style="font-size: 13px;">
                                 This device (\${deviceData.device.model_name}) is not in the current order.
-                                Device added but may need verification.
+                                <br><br>
+                                <strong>Order contains:</strong><br>
+                                \${selectedOrder.items.map(item => '• ' + item.product_name).join('<br>')}
+                                <br><br>
+                                Device <strong>NOT ADDED</strong>. Please scan only devices from this order.
                             </div>
                         \`;
+                        setTimeout(() => clearScanInput(), 5000);
+                        return; // Block the device from being added
+                    }
+                    
+                    // Check if we already have enough of this product
+                    const alreadyScannedCount = scannedDevices.filter(d => 
+                        d.model_name === deviceData.device.model_name
+                    ).length;
+                    
+                    if (alreadyScannedCount >= matchingProduct.quantity) {
+                        statusDiv.style.background = '#fee2e2';
+                        statusDiv.style.color = '#991b1b';
+                        statusDiv.innerHTML = \`
+                            <div style="font-weight: 700; margin-bottom: 5px;">
+                                <i class="fas fa-times-circle"></i> Error: Quantity Exceeded
+                            </div>
+                            <div style="font-size: 13px;">
+                                You've already scanned \${alreadyScannedCount} of \${matchingProduct.quantity} \${deviceData.device.model_name}.
+                                <br><br>
+                                Device <strong>NOT ADDED</strong>. Remove a device first to add this one.
+                            </div>
+                        \`;
+                        setTimeout(() => clearScanInput(), 5000);
+                        return; // Block the device from being added
                     }
                     
                     // Add to scanned devices
