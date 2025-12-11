@@ -3793,10 +3793,11 @@ app.get('/api/inventory/quality-checks', async (c) => {
         qc.*,
         i.model_name,
         i.device_serial_no as full_serial_no,
+        i.id as inventory_id,
         'completed' as qc_record_status
       FROM quality_check qc
       LEFT JOIN inventory i ON i.device_serial_no LIKE '%' || qc.device_serial_no || '%'
-      ORDER BY qc.serial_number ASC
+      ORDER BY qc.id DESC
     `).all();
     
     // Get inventory items not yet in quality_check table (QC Pending)
@@ -3818,13 +3819,12 @@ app.get('/api/inventory/quality-checks', async (c) => {
         )
         AND i.status IN ('In Stock', 'Quality Check')
       ORDER BY i.id DESC
-      LIMIT 100
     `).all();
     
-    // Combine QC records and pending items
+    // Put PENDING items FIRST (newest at top), then completed QC records
     const allRecords = [
-      ...(qcRecords.results || []),
-      ...(pendingItems.results || [])
+      ...(pendingItems.results || []),
+      ...(qcRecords.results || [])
     ];
     
     return c.json({ success: true, data: allRecords });
