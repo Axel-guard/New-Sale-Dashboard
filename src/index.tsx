@@ -4026,17 +4026,23 @@ app.post('/api/inventory/auto-qc-batch-update', async (c) => {
   const { env } = c;
   
   try {
-    // Get all devices with QC Pending status (using 'Quality Check' status)
+    // Get all devices that are pending QC (no quality_check record yet)
+    // These include both 'Quality Check' status AND 'In Stock' without QC record
     const pendingDevices = await env.DB.prepare(`
       SELECT 
-        id,
-        device_serial_no,
-        model_name,
-        category,
-        status
-      FROM inventory
-      WHERE status = 'Quality Check'
-      ORDER BY device_serial_no
+        i.id,
+        i.device_serial_no,
+        i.model_name,
+        i.category,
+        i.status
+      FROM inventory i
+      WHERE NOT EXISTS (
+        SELECT 1 FROM quality_check qc 
+        WHERE qc.device_serial_no = i.device_serial_no 
+           OR i.device_serial_no LIKE '%' || qc.device_serial_no || '%'
+      )
+      AND i.status IN ('In Stock', 'Quality Check')
+      ORDER BY i.device_serial_no
     `).all();
     
     if (!pendingDevices.results || pendingDevices.results.length === 0) {
