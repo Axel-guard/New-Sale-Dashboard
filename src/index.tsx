@@ -3873,17 +3873,18 @@ app.post('/api/inventory/bulk-qc-pass', async (c) => {
   
   try {
     // Get all inventory items without QC records (QC Pending)
+    // Include ALL statuses (In Stock, Quality Check, Dispatched, Sold)
     const pendingDevices = await env.DB.prepare(`
       SELECT 
         i.id,
         i.device_serial_no,
-        i.model_name
+        i.model_name,
+        i.status as current_status
       FROM inventory i
       WHERE NOT EXISTS (
         SELECT 1 FROM quality_check qc 
         WHERE qc.device_serial_no = i.device_serial_no
       )
-      AND i.status IN ('In Stock', 'Quality Check')
     `).all();
     
     const totalPending = pendingDevices.results?.length || 0;
@@ -3966,11 +3967,16 @@ app.post('/api/inventory/bulk-qc-pass', async (c) => {
             )
           );
           
-          // Update inventory status to 'In Stock'
+          // Update inventory status to 'In Stock' only if currently 'Quality Check'
+          // Don't change status if already Dispatched/Sold
           statements.push(
             env.DB.prepare(`
               UPDATE inventory 
-              SET status = 'In Stock', updated_at = CURRENT_TIMESTAMP
+              SET status = CASE 
+                  WHEN status = 'Quality Check' THEN 'In Stock'
+                  ELSE status
+                END,
+                updated_at = CURRENT_TIMESTAMP
               WHERE device_serial_no = ?
             `).bind(device.device_serial_no)
           );
