@@ -18412,8 +18412,15 @@ Prices are subject to change without prior notice.</textarea>
             // Display Order Products
             function displayOrderProducts() {
                 const products = selectedOrder.items;
+                const orderProductsListEl = document.getElementById('orderProductsList');
                 
-                document.getElementById('orderProductsList').innerHTML = products.map(item => {
+                // Safety check: ensure element exists
+                if (!orderProductsListEl) {
+                    console.error('orderProductsList element not found');
+                    return;
+                }
+                
+                orderProductsListEl.innerHTML = products.map(item => {
                     // Check if product is MDVR Installation (should be marked as completed automatically)
                     const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
                     
@@ -18455,15 +18462,31 @@ Prices are subject to change without prior notice.</textarea>
             
             // Clear Scan Input
             function clearScanInput() {
-                document.getElementById('scanDeviceInput').value = '';
-                document.getElementById('scanDeviceInput').focus();
-                document.getElementById('scanStatus').style.display = 'none';
+                const scanInput = document.getElementById('scanDeviceInput');
+                const scanStatus = document.getElementById('scanStatus');
+                
+                if (scanInput) {
+                    scanInput.value = '';
+                    scanInput.focus();
+                }
+                if (scanStatus) {
+                    scanStatus.style.display = 'none';
+                }
             }
             
             // Scan Device
             async function scanDevice() {
-                const serialNo = document.getElementById('scanDeviceInput').value.trim();
+                const scanInputEl = document.getElementById('scanDeviceInput');
                 const statusDiv = document.getElementById('scanStatus');
+                
+                // Safety check: ensure elements exist
+                if (!scanInputEl || !statusDiv) {
+                    console.error('Required DOM elements not found for scanDevice');
+                    alert('Error: Page elements not loaded properly. Please refresh the page.');
+                    return;
+                }
+                
+                const serialNo = scanInputEl.value.trim();
                 
                 if (!serialNo) {
                     statusDiv.style.display = 'block';
@@ -18569,7 +18592,15 @@ Prices are subject to change without prior notice.</textarea>
             // Display Scanned Devices
             function displayScannedDevices() {
                 const listDiv = document.getElementById('scannedDevicesList');
-                document.getElementById('scannedCount').textContent = scannedDevices.length;
+                const scannedCountEl = document.getElementById('scannedCount');
+                
+                // Safety check: ensure elements exist
+                if (!listDiv || !scannedCountEl) {
+                    console.error('Required DOM elements not found for displayScannedDevices');
+                    return;
+                }
+                
+                scannedCountEl.textContent = scannedDevices.length;
                 
                 if (scannedDevices.length === 0) {
                     listDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #9ca3af;">No devices scanned yet. Start scanning barcodes...</div>';
@@ -18617,8 +18648,16 @@ Prices are subject to change without prior notice.</textarea>
             // Update Submit Button
             function updateSubmitButton() {
                 const submitBtn = document.getElementById('submitDispatchBtn');
+                const submitCountEl = document.getElementById('submitCount');
+                
+                // Safety check: ensure elements exist
+                if (!submitBtn || !submitCountEl) {
+                    console.error('Submit button elements not found');
+                    return;
+                }
+                
                 const count = scannedDevices.length;
-                document.getElementById('submitCount').textContent = count;
+                submitCountEl.textContent = count;
                 
                 if (count > 0) {
                     submitBtn.disabled = false;
@@ -18633,8 +18672,15 @@ Prices are subject to change without prior notice.</textarea>
             
             // Go Back to Order Selection
             function goBackToOrderSelection() {
-                document.getElementById('dispatchStep1').style.display = 'block';
-                document.getElementById('dispatchStep2').style.display = 'none';
+                const step1 = document.getElementById('dispatchStep1');
+                const step2 = document.getElementById('dispatchStep2');
+                
+                // Safety check: ensure elements exist
+                if (step1 && step2) {
+                    step1.style.display = 'block';
+                    step2.style.display = 'none';
+                }
+                
                 scannedDevices = [];
                 selectedOrder = null;
             }
