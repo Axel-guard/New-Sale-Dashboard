@@ -3787,47 +3787,53 @@ app.get('/api/inventory/quality-checks', async (c) => {
   const { env } = c;
   
   try {
-    // Get existing QC records from quality_check table
-    const qcRecords = await env.DB.prepare(`
+    // Get ALL inventory items with their QC status (real-time sync)
+    // This ensures QC Reports match exactly with current inventory
+    const allInventoryWithQC = await env.DB.prepare(`
       SELECT 
-        qc.*,
-        i.model_name,
-        i.device_serial_no as full_serial_no,
         i.id as inventory_id,
-        'completed' as qc_record_status
-      FROM quality_check qc
-      LEFT JOIN inventory i ON i.device_serial_no LIKE '%' || qc.device_serial_no || '%'
-      ORDER BY qc.id DESC
-    `).all();
-    
-    // Get inventory items not yet in quality_check table (QC Pending)
-    // These are newly added devices that need QC testing
-    const pendingItems = await env.DB.prepare(`
-      SELECT 
-        i.id,
         i.device_serial_no,
         i.model_name,
-        i.in_date as check_date,
-        i.status,
-        'QC Pending' as pass_fail,
-        'pending' as qc_record_status
+        i.status as inventory_status,
+        i.in_date,
+        i.created_at,
+        qc.id as qc_id,
+        qc.check_date,
+        qc.checked_by,
+        qc.test_results,
+        qc.pass_fail,
+        qc.sd_connect,
+        qc.all_ch_status,
+        qc.network,
+        qc.gps,
+        qc.sim_slot,
+        qc.online,
+        qc.camera_quality,
+        qc.monitor,
+        qc.ip_address,
+        qc.notes,
+        qc.created_at as qc_created_at,
+        CASE 
+          WHEN qc.id IS NULL THEN 'pending'
+          ELSE 'completed'
+        END as qc_record_status,
+        CASE 
+          WHEN qc.id IS NULL THEN 'QC Pending'
+          ELSE qc.pass_fail
+        END as final_pass_fail
       FROM inventory i
-      WHERE NOT EXISTS (
-          SELECT 1 FROM quality_check qc 
-          WHERE qc.device_serial_no = i.device_serial_no 
-             OR i.device_serial_no LIKE '%' || qc.device_serial_no || '%'
-        )
-        AND i.status IN ('In Stock', 'Quality Check')
-      ORDER BY i.id DESC
+      LEFT JOIN quality_check qc ON qc.device_serial_no = i.device_serial_no
+      WHERE i.status IN ('In Stock', 'Quality Check', 'Dispatched', 'Sold')
+      ORDER BY 
+        CASE WHEN qc.id IS NULL THEN 0 ELSE 1 END,
+        i.id DESC
     `).all();
     
-    // Put PENDING items FIRST (newest at top), then completed QC records
-    const allRecords = [
-      ...(pendingItems.results || []),
-      ...(qcRecords.results || [])
-    ];
-    
-    return c.json({ success: true, data: allRecords });
+    return c.json({ 
+      success: true, 
+      data: allInventoryWithQC.results || [],
+      total: allInventoryWithQC.results?.length || 0
+    });
   } catch (error) {
     console.error('Error fetching QC records:', error);
     return c.json({ success: false, error: 'Failed to fetch QC records' }, 500);
