@@ -3920,14 +3920,16 @@ app.post('/api/inventory/bulk-qc-pass', async (c) => {
             gps: 'N/A',
             sim_slot: 'N/A',
             online: 'N/A',
-            monitor: 'N/A'
+            monitor: 'N/A',
+            ip_address: null
           };
           
           const modelLower = (device.model_name || '').toLowerCase();
           
           if (modelLower.includes('camera')) {
             qcParams.camera_quality = 'QC Pass';
-          } else if (modelLower.includes('4g') || modelLower.includes('mdvr') || modelLower.includes('dvr')) {
+          } else if (modelLower.includes('4g') || modelLower.includes('mdvr') || modelLower.includes('dvr') || modelLower.includes('dashcam')) {
+            // 4G MDVR, DVR, and Dashcam devices get full QC Pass with IP address
             qcParams = {
               camera_quality: 'QC Pass',
               sd_connect: 'QC Pass',
@@ -3936,7 +3938,8 @@ app.post('/api/inventory/bulk-qc-pass', async (c) => {
               gps: 'QC Pass',
               sim_slot: 'QC Pass',
               online: 'QC Pass',
-              monitor: 'QC Pass'
+              monitor: 'QC Pass',
+              ip_address: '103.55.89.243'
             };
           } else {
             // Default for accessories
@@ -3949,8 +3952,8 @@ app.post('/api/inventory/bulk-qc-pass', async (c) => {
               INSERT INTO quality_check (
                 device_serial_no, check_date, checked_by,
                 camera_quality, sd_connect, all_ch_status, network,
-                gps, sim_slot, online, monitor, pass_fail, notes
-              ) VALUES (?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                gps, sim_slot, online, monitor, pass_fail, ip_address, notes
+              ) VALUES (?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
               device.device_serial_no,
               'Admin (Bulk QC Pass)',
@@ -3963,6 +3966,7 @@ app.post('/api/inventory/bulk-qc-pass', async (c) => {
               qcParams.online,
               qcParams.monitor,
               'QC Pass',
+              qcParams.ip_address,
               'Bulk QC Pass - Auto-approved all pending devices'
             )
           );
