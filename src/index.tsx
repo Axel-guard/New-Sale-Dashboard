@@ -3867,6 +3867,139 @@ app.delete('/api/inventory/quality-check/:id', async (c) => {
   }
 });
 
+// Bulk QC Pass - Mark all pending devices as QC Pass
+app.post('/api/inventory/bulk-qc-pass', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Get all inventory items without QC records (QC Pending)
+    const pendingDevices = await env.DB.prepare(`
+      SELECT 
+        i.id,
+        i.device_serial_no,
+        i.model_name
+      FROM inventory i
+      WHERE NOT EXISTS (
+        SELECT 1 FROM quality_check qc 
+        WHERE qc.device_serial_no = i.device_serial_no
+      )
+      AND i.status IN ('In Stock', 'Quality Check')
+    `).all();
+    
+    const totalPending = pendingDevices.results?.length || 0;
+    
+    if (totalPending === 0) {
+      return c.json({ 
+        success: true, 
+        message: 'No pending devices found',
+        updated: 0
+      });
+    }
+    
+    // Process in chunks of 50 to avoid timeout
+    const chunkSize = 50;
+    const devices = pendingDevices.results || [];
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    
+    for (let i = 0; i < devices.length; i += chunkSize) {
+      const chunk = devices.slice(i, i + chunkSize);
+      
+      try {
+        // Prepare batch statements for this chunk
+        const statements = [];
+        
+        for (const device of chunk) {
+          // Determine QC parameters based on device type
+          let qcParams = {
+            camera_quality: 'N/A',
+            sd_connect: 'N/A',
+            all_ch_status: 'N/A',
+            network: 'N/A',
+            gps: 'N/A',
+            sim_slot: 'N/A',
+            online: 'N/A',
+            monitor: 'N/A'
+          };
+          
+          const modelLower = (device.model_name || '').toLowerCase();
+          
+          if (modelLower.includes('camera')) {
+            qcParams.camera_quality = 'QC Pass';
+          } else if (modelLower.includes('4g') || modelLower.includes('mdvr') || modelLower.includes('dvr')) {
+            qcParams = {
+              camera_quality: 'QC Pass',
+              sd_connect: 'QC Pass',
+              all_ch_status: 'QC Pass',
+              network: 'QC Pass',
+              gps: 'QC Pass',
+              sim_slot: 'QC Pass',
+              online: 'QC Pass',
+              monitor: 'QC Pass'
+            };
+          } else {
+            // Default for accessories
+            qcParams.camera_quality = 'QC Pass';
+          }
+          
+          // Insert into quality_check
+          statements.push(
+            env.DB.prepare(`
+              INSERT INTO quality_check (
+                device_serial_no, check_date, checked_by,
+                camera_quality, sd_connect, all_ch_status, network,
+                gps, sim_slot, online, monitor, pass_fail, notes
+              ) VALUES (?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              device.device_serial_no,
+              'Admin (Bulk QC Pass)',
+              qcParams.camera_quality,
+              qcParams.sd_connect,
+              qcParams.all_ch_status,
+              qcParams.network,
+              qcParams.gps,
+              qcParams.sim_slot,
+              qcParams.online,
+              qcParams.monitor,
+              'QC Pass',
+              'Bulk QC Pass - Auto-approved all pending devices'
+            )
+          );
+          
+          // Update inventory status to 'In Stock'
+          statements.push(
+            env.DB.prepare(`
+              UPDATE inventory 
+              SET status = 'In Stock', updated_at = CURRENT_TIMESTAMP
+              WHERE device_serial_no = ?
+            `).bind(device.device_serial_no)
+          );
+        }
+        
+        // Execute batch
+        await env.DB.batch(statements);
+        totalUpdated += chunk.length;
+        
+      } catch (chunkError) {
+        console.error(`Error processing chunk ${i / chunkSize + 1}:`, chunkError);
+        totalFailed += chunk.length;
+      }
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: `Bulk QC Pass completed. Total pending: ${totalPending}`,
+      updated: totalUpdated,
+      failed: totalFailed,
+      total: totalPending
+    });
+    
+  } catch (error) {
+    console.error('Error in bulk QC pass:', error);
+    return c.json({ success: false, error: 'Failed to perform bulk QC pass: ' + error.message }, 500);
+  }
+});
+
 // Update QC record by serial number
 app.put('/api/inventory/quality-check/:serialNo', async (c) => {
   const { env } = c;
@@ -7949,9 +8082,13 @@ app.get('/', (c) => {
                                 <i class="fas fa-file-excel" style="color: #059669; font-size: 16px; width: 22px; text-align: center;"></i>
                                 <span>Export Excel</span>
                             </button>
-                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 12px; border-radius: 0 0 12px 12px;">
+                            <button onclick="openUpdateQCModal(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6;">
                                 <i class="fas fa-edit" style="color: #f59e0b; font-size: 16px; width: 22px; text-align: center;"></i>
                                 <span>Update QC</span>
+                            </button>
+                            <button onclick="bulkQCPassAllPending(); toggleQCActionsDropdown();" class="dropdown-menu-item" style="width: 100%; padding: 14px 20px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #059669; display: flex; align-items: center; gap: 12px; border-radius: 0 0 12px 12px;">
+                                <i class="fas fa-check-double" style="color: #059669; font-size: 16px; width: 22px; text-align: center;"></i>
+                                <span>QC Pass All Pending</span>
                             </button>
                         </div>
                     </div>
@@ -19785,6 +19922,48 @@ Prices are subject to change without prior notice.</textarea>
                     
                 } catch (error) {
                     console.error('Error loading QC data:', error);
+                }
+            }
+            
+            // Bulk QC Pass - Mark all pending devices as QC Pass
+            async function bulkQCPassAllPending() {
+                const pendingCount = document.getElementById('qcPendingCount').textContent;
+                
+                if (!confirm(\`⚠️ BULK QC PASS\n\nThis will mark ALL \${pendingCount} pending devices as "QC Pass".\n\nAre you sure you want to proceed?\n\nThis action will:\n✓ Create QC records for all pending devices\n✓ Set status to "QC Pass" based on device type\n✓ Update inventory status to "In Stock"\n\nProceed?\`)) {
+                    return;
+                }
+                
+                try {
+                    // Show loading toast
+                    const loadingToast = document.createElement('div');
+                    loadingToast.id = 'bulkQCToast';
+                    loadingToast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #059669; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-weight: 600;';
+                    loadingToast.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing bulk QC pass...';
+                    document.body.appendChild(loadingToast);
+                    
+                    // Call bulk QC pass API
+                    const response = await axios.post('/api/inventory/bulk-qc-pass');
+                    
+                    // Remove loading toast
+                    document.body.removeChild(loadingToast);
+                    
+                    if (response.data.success) {
+                        // Show success message
+                        alert(\`✅ Bulk QC Pass Complete!\n\n\${response.data.message}\n\nUpdated: \${response.data.updated} devices\nFailed: \${response.data.failed} devices\nTotal Processed: \${response.data.total} devices\n\nAll pending devices are now marked as "QC Pass"!\`);
+                        
+                        // Reload QC data
+                        await loadQCData();
+                    } else {
+                        alert('❌ Failed to perform bulk QC pass: ' + response.data.error);
+                    }
+                } catch (error) {
+                    console.error('Error in bulk QC pass:', error);
+                    
+                    // Remove loading toast if it exists
+                    const toast = document.getElementById('bulkQCToast');
+                    if (toast) document.body.removeChild(toast);
+                    
+                    alert('❌ Error performing bulk QC pass: ' + (error.response?.data?.error || error.message));
                 }
             }
             
