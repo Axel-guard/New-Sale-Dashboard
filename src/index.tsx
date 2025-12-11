@@ -5430,9 +5430,9 @@ app.get('/api/devices/:serialNo/validate', async (c) => {
   const serialNo = c.req.param('serialNo');
   
   try {
-    // Get device from inventory
+    // Get device from inventory (including customer_name and dispatch_date)
     const device = await env.DB.prepare(`
-      SELECT id, device_serial_no, model_name, status 
+      SELECT id, device_serial_no, model_name, status, customer_name, dispatch_date
       FROM inventory 
       WHERE device_serial_no = ?
     `).bind(serialNo).first();
@@ -5445,11 +5445,24 @@ app.get('/api/devices/:serialNo/validate', async (c) => {
       }, 404);
     }
     
-    // Check if already dispatched
-    if (device.status === 'Dispatched') {
+    // Check if already dispatched (by status OR by having customer/dispatch_date)
+    const hasCustomer = device.customer_name && device.customer_name !== '' && device.customer_name !== '-';
+    const hasDispatchDate = device.dispatch_date && device.dispatch_date !== '' && device.dispatch_date !== '-';
+    const isDispatched = device.status === 'Dispatched' || hasCustomer || hasDispatchDate;
+    
+    if (isDispatched) {
+      // Auto-fix status if needed
+      if (device.status !== 'Dispatched' && (hasCustomer || hasDispatchDate)) {
+        await env.DB.prepare(`
+          UPDATE inventory 
+          SET status = 'Dispatched', updated_at = CURRENT_TIMESTAMP
+          WHERE device_serial_no = ?
+        `).bind(serialNo).run();
+      }
+      
       return c.json({ 
         success: false, 
-        error: 'Device already dispatched',
+        error: `Device already dispatched${hasCustomer ? ' to ' + device.customer_name : ''}`,
         errorType: 'ALREADY_DISPATCHED',
         device
       }, 400);
