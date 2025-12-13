@@ -5395,14 +5395,17 @@ app.get('/api/orders/:orderId', async (c) => {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
     
-    // Get order items (products) from sale_items table
+    // Get order items (products) from sale_items table with product lookup
     const items = await env.DB.prepare(`
       SELECT 
-        si.product_name,
         si.quantity,
         si.unit_price,
-        si.total_price
+        si.total_price,
+        COALESCE(p.product_name, si.product_name) as product_name,
+        COALESCE(p.product_code, si.product_code) as product_code,
+        COALESCE(p.category, 'Uncategorized') as product_category
       FROM sale_items si
+      LEFT JOIN products p ON si.product_code = p.product_code
       WHERE si.order_id = ?
     `).bind(orderId).all();
     
