@@ -11320,9 +11320,10 @@ Prices are subject to change without prior notice.</textarea>
                 if (category && productCatalog[category]) {
                     productCatalog[category].forEach(product => {
                         const option = document.createElement('option');
-                        option.value = product.code;
+                        option.value = product.name;  // ← FIXED: Store product NAME as value
                         option.textContent = product.name;
                         option.dataset.weight = product.weight;
+                        option.dataset.productCode = product.code;  // Store code in data attribute
                         productSelect.appendChild(option);
                     });
                 }
@@ -11662,9 +11663,10 @@ Prices are subject to change without prior notice.</textarea>
                 if (category && productCatalog[category]) {
                     productCatalog[category].forEach(product => {
                         const option = document.createElement('option');
-                        option.value = product.code;
+                        option.value = product.name;  // ← FIXED: Store product NAME as value
                         option.textContent = product.name;
                         option.dataset.weight = product.weight;
+                        option.dataset.productCode = product.code;  // Store code in data attribute
                         productSelect.appendChild(option);
                     });
                 }
@@ -11793,7 +11795,9 @@ Prices are subject to change without prior notice.</textarea>
                         const productSelect = row.querySelector('select[name*="product_name"]');
                         if (!productSelect || !productSelect.value) return;
                         
-                        const productName = productSelect.options[productSelect.selectedIndex].text;
+                        const selectedOption = productSelect.options[productSelect.selectedIndex];
+                        const productName = selectedOption.value;  // Now value IS the product name
+                        const productCode = selectedOption.dataset.productCode || null;  // Get code from data attribute
                         const qtyInput = row.querySelector('input[name*="quantity"]');
                         const priceInput = row.querySelector('input[name*="unit_price"]');
                         
@@ -11803,6 +11807,7 @@ Prices are subject to change without prior notice.</textarea>
                         if (productSelect.value && qty > 0 && price > 0) {
                             items.push({
                                 product_name: productName,
+                                product_code: productCode,  // ← FIXED: Send product code separately
                                 quantity: qty,
                                 unit_price: price
                             });
@@ -12833,7 +12838,8 @@ Prices are subject to change without prior notice.</textarea>
                             const productSelect = row.querySelector('.product-name');
                             productCatalog[productCategory].forEach(product => {
                                 const option = document.createElement('option');
-                                option.value = product.code;
+                                option.value = product.name;  // ← FIXED: Store product NAME as value
+                                option.dataset.productCode = product.code;  // Store code in data attribute
                                 option.textContent = product.name;
                                 if (product.name === item.product_name) {
                                     option.selected = true;
@@ -12901,8 +12907,16 @@ Prices are subject to change without prior notice.</textarea>
                 const items = [];
                 let index = 0;
                 while (formData.has(\`items[\${index}][product_name]\`)) {
+                    const productName = formData.get(\`items[\${index}][product_name]\`);
+                    
+                    // Get product code from the selected option's data attribute
+                    const productSelect = document.querySelector(\`select[name="items[\${index}][product_name]"]\`);
+                    const selectedOption = productSelect?.options[productSelect.selectedIndex];
+                    const productCode = selectedOption?.dataset.productCode || null;
+                    
                     items.push({
-                        product_name: formData.get(\`items[\${index}][product_name]\`),
+                        product_name: productName,
+                        product_code: productCode,  // ← FIXED: Send product code separately
                         quantity: parseFloat(formData.get(\`items[\${index}][quantity]\`)),
                         unit_price: parseFloat(formData.get(\`items[\${index}][unit_price]\`))
                     });
