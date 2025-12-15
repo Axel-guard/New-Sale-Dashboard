@@ -18454,27 +18454,89 @@ Prices are subject to change without prior notice.</textarea>
                     
                     return \`
                         <div style="padding: 15px; margin-bottom: 10px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
                                 <div style="flex: 1;">
                                     <div style="font-weight: 600; font-size: 14px; color: #1f2937;">\${item.product_name}</div>
                                     <div style="font-size: 12px; color: #6b7280; margin-top: 3px;">
                                         Category: \${item.product_category || 'N/A'}
                                     </div>
                                 </div>
-                                <div style="text-align: right;">
+                                <div style="text-align: right; display: flex; align-items: center; gap: 10px;">
                                     <div style="display: flex; flex-direction: column; gap: 5px;">
                                         <div style="font-size: 24px; font-weight: 700; color: \${isComplete ? '#10b981' : '#f59e0b'};">
                                             \${displayScannedCount} / \${item.quantity}
                                         </div>
                                         <div style="font-size: 14px; font-weight: 600; color: \${isComplete ? '#10b981' : '#dc2626'}; background: \${isComplete ? '#d1fae5' : '#fee2e2'}; padding: 4px 8px; border-radius: 6px;">
-                                            \${isMDVRInstallation ? '✅ Completed Already' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
+                                            \${isMDVRInstallation ? '✅ Auto-Added' : (isComplete ? '✅ Complete' : remainingToScan + ' Remaining')}
                                         </div>
                                     </div>
+                                    \${!isComplete && !isMDVRInstallation ? \`
+                                        <button onclick="addItemsWithoutSerial('\${item.product_name.replace(/'/g, "\\\\'")}', \${item.quantity})" 
+                                            class="btn-primary" 
+                                            style="padding: 8px 16px; font-size: 13px; background: #3b82f6; white-space: nowrap;">
+                                            <i class="fas fa-plus-circle"></i> Add All
+                                        </button>
+                                    \` : ''}
                                 </div>
                             </div>
                         </div>
                     \`;
                 }).join('');
+            }
+            
+            // Add items without serial number (for accessories, installations, etc.)
+            window.addItemsWithoutSerial = function(productName, quantity) {
+                try {
+                    console.log(\`Adding \${quantity} items of \${productName} without serial numbers\`);
+                    
+                    // Check how many already added
+                    const alreadyScanned = scannedDevices.filter(d => 
+                        d.model_name === productName || d.product_name === productName
+                    ).length;
+                    
+                    // Add dummy devices for each remaining quantity
+                    const remaining = quantity - alreadyScanned;
+                    
+                    if (remaining <= 0) {
+                        alert('✅ All items for this product have already been added!');
+                        return;
+                    }
+                    
+                    for (let i = 0; i < remaining; i++) {
+                        scannedDevices.push({
+                            device_serial_no: \`NO-SERIAL-\${productName}-\${Date.now()}-\${i}\`,
+                            model_name: productName,
+                            product_name: productName,
+                            status: 'In Stock',
+                            qc_status: 'Pass',
+                            qc_passed: true,
+                            auto_completed: true
+                        });
+                    }
+                    
+                    console.log(\`✅ Added \${remaining} items for \${productName}\`);
+                    
+                    // Show success message
+                    const statusDiv = document.getElementById('scanStatus');
+                    if (statusDiv) {
+                        statusDiv.style.display = 'block';
+                        statusDiv.style.background = '#d1fae5';
+                        statusDiv.style.color = '#065f46';
+                        statusDiv.innerHTML = \`<i class="fas fa-check-circle"></i> Successfully added \${remaining} x \${productName}\`;
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 3000);
+                    }
+                    
+                    // Refresh displays
+                    displayOrderProducts();
+                    displayScannedDevices();
+                    updateSubmitButton();
+                    
+                } catch (error) {
+                    console.error('Error adding items without serial:', error);
+                    alert('Error adding items: ' + error.message);
+                }
             }
             
             // Clear Scan Input
