@@ -10336,7 +10336,7 @@ Prices are subject to change without prior notice.</textarea>
                 </div>
 
                 <!-- Step 2: Order Details & Scan Products -->
-                <form id="dispatchStep2Form" onsubmit="event.preventDefault(); return false;">
+                <form id="dispatchStep2Form" onsubmit="event.preventDefault(); return false;" onkeydown="if(event.key === 'Enter' && event.target.id !== 'scanDeviceInput') { event.preventDefault(); return false; }">
                 <div id="dispatchStep2" class="dispatch-step" style="display: none;">
                     <!-- Order Summary -->
                     <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px;">
@@ -10435,7 +10435,7 @@ Prices are subject to change without prior notice.</textarea>
                         <button type="button" onclick="goBackToOrderSelection()" class="btn-secondary" style="flex: 1;">
                             <i class="fas fa-arrow-left"></i> Back to Order Selection
                         </button>
-                        <button type="button" onclick="lastSubmitTime = Date.now(); submitCreateDispatch(event);" id="submitDispatchBtn" class="btn-primary" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 16px; font-size: 16px; font-weight: 700;" disabled>
+                        <button type="button" id="submitDispatchBtn" class="btn-primary" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 16px; font-size: 16px; font-weight: 700;" disabled tabindex="-1">
                             <i class="fas fa-paper-plane"></i> Create Dispatch (<span id="submitCount">0</span> devices)
                         </button>
                     </div>
@@ -18417,6 +18417,9 @@ Prices are subject to change without prior notice.</textarea>
                     displayScannedDevices();
                     updateSubmitButton();
                     
+                    // Attach submit button handler to prevent auto-submission
+                    attachSubmitButtonHandler();
+                    
                     // Set dispatch date to today
                     document.getElementById('newDispatchDate').valueAsDate = new Date();
                     
@@ -18834,6 +18837,33 @@ Prices are subject to change without prior notice.</textarea>
                     submitBtn.disabled = true;
                     submitBtn.style.opacity = '0.5';
                     submitBtn.style.cursor = 'not-allowed';
+                }
+            }
+            
+            // Attach submit button click handler (prevents auto-submission)
+            function attachSubmitButtonHandler() {
+                const submitBtn = document.getElementById('submitDispatchBtn');
+                if (submitBtn) {
+                    // Remove any existing listeners
+                    const newBtn = submitBtn.cloneNode(true);
+                    submitBtn.parentNode.replaceChild(newBtn, submitBtn);
+                    
+                    // Add new controlled click handler
+                    newBtn.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        
+                        // Only proceed if button is not disabled
+                        if (!newBtn.disabled) {
+                            console.log('🎯 User explicitly clicked Create Dispatch button');
+                            lastSubmitTime = Date.now();
+                            submitCreateDispatch(event);
+                        } else {
+                            console.warn('⚠️ Button is disabled, ignoring click');
+                        }
+                    });
+                    
+                    console.log('✅ Submit button click handler attached');
                 }
             }
             
