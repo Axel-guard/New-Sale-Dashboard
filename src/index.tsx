@@ -18453,9 +18453,9 @@ Prices are subject to change without prior notice.</textarea>
                 if (norm1 === norm2) return true;
                 if (norm1.includes(norm2) || norm2.includes(norm1)) return true;
                 
-                // Extract key features and match (expanded to include more product types)
-                const features1 = norm1.match(/\d+\s*(ch|inch|mp|mt|g|tb|gb|mb)|mdvr|dashcam|camera|monitor|cable|vga|heavyduty/gi) || [];
-                const features2 = norm2.match(/\d+\s*(ch|inch|mp|mt|g|tb|gb|mb)|mdvr|dashcam|camera|monitor|cable|vga|heavyduty/gi) || [];
+                // Extract key features and match (expanded to include camera types and more product types)
+                const features1 = norm1.match(/\d+\s*(ch|inch|mp|mt|g|tb|gb|mb)|mdvr|dashcam|camera|monitor|cable|vga|heavyduty|bullet|dome|ptz|ir|outdoor|indoor/gi) || [];
+                const features2 = norm2.match(/\d+\s*(ch|inch|mp|mt|g|tb|gb|mb)|mdvr|dashcam|camera|monitor|cable|vga|heavyduty|bullet|dome|ptz|ir|outdoor|indoor/gi) || [];
                 
                 if (features1.length > 0 && features2.length > 0) {
                     const matchCount = features1.filter(f => 
