@@ -18426,6 +18426,42 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
+            // Normalize product name for flexible matching
+            const normalizeProductName = (name) => {
+                if (!name) return '';
+                return name
+                    .toLowerCase()
+                    .replace(/\s+/g, ' ')  // Normalize spaces
+                    .replace(/[+\-_()[\]]/g, '')  // Remove special characters
+                    .replace(/\bhdd\b/gi, '')  // Remove "HDD" word
+                    .replace(/\bgps\b/gi, 'gps')  // Normalize GPS
+                    .replace(/\b4g\b/gi, '4g')  // Normalize 4G
+                    .replace(/\s+/g, ' ')  // Clean up extra spaces
+                    .trim();
+            };
+            
+            // Check if two product names match (flexible matching)
+            const productsMatch = (name1, name2) => {
+                const norm1 = normalizeProductName(name1);
+                const norm2 = normalizeProductName(name2);
+                
+                if (norm1 === norm2) return true;
+                if (norm1.includes(norm2) || norm2.includes(norm1)) return true;
+                
+                // Extract key features and match
+                const features1 = norm1.match(/\d+ch|\d+g|mdvr|dashcam|camera/gi) || [];
+                const features2 = norm2.match(/\d+ch|\d+g|mdvr|dashcam|camera/gi) || [];
+                
+                if (features1.length > 0 && features2.length > 0) {
+                    const matchCount = features1.filter(f => 
+                        features2.some(f2 => f2.toLowerCase() === f.toLowerCase())
+                    ).length;
+                    return matchCount >= Math.min(features1.length, features2.length) * 0.8;
+                }
+                
+                return false;
+            };
+            
             // Display Order Products
             function displayOrderProducts() {
                 const products = selectedOrder.items;
@@ -18441,10 +18477,9 @@ Prices are subject to change without prior notice.</textarea>
                     // Check if product is MDVR Installation (should be marked as completed automatically)
                     const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
                     
-                    // Match scanned devices by product name (model_name)
+                    // Match scanned devices by product name using flexible matching
                     const scannedForThisProduct = scannedDevices.filter(d => 
-                        d.model_name === item.product_name || 
-                        d.product_name === item.product_name
+                        productsMatch(d.model_name || d.product_name, item.product_name)
                     ).length;
                     
                     // For MDVR Installation, show full quantity as completed
@@ -18489,9 +18524,9 @@ Prices are subject to change without prior notice.</textarea>
                 try {
                     console.log(\`Adding \${quantity} items of \${productName} without serial numbers\`);
                     
-                    // Check how many already added
+                    // Check how many already added using flexible matching
                     const alreadyScanned = scannedDevices.filter(d => 
-                        d.model_name === productName || d.product_name === productName
+                        productsMatch(d.model_name || d.product_name, productName)
                     ).length;
                     
                     // Add dummy devices for each remaining quantity
@@ -18624,9 +18659,9 @@ Prices are subject to change without prior notice.</textarea>
                         statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> Device validated successfully! QC Status: Pass';
                     }
                     
-                    // Check if this device matches any product in the order
+                    // Check if this device matches any product in the order using flexible matching
                     const matchingProduct = selectedOrder.items.find(item => 
-                        item.product_name === deviceData.device.model_name
+                        productsMatch(deviceData.device.model_name, item.product_name)
                     );
                     
                     if (!matchingProduct) {
@@ -18649,9 +18684,9 @@ Prices are subject to change without prior notice.</textarea>
                         return; // Block the device from being added
                     }
                     
-                    // Check if we already have enough of this product
+                    // Check if we already have enough of this product using flexible matching
                     const alreadyScannedCount = scannedDevices.filter(d => 
-                        d.model_name === deviceData.device.model_name
+                        productsMatch(d.model_name || d.product_name, deviceData.device.model_name)
                     ).length;
                     
                     if (alreadyScannedCount >= matchingProduct.quantity) {
