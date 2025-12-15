@@ -18433,11 +18433,14 @@ Prices are subject to change without prior notice.</textarea>
                 if (!name) return '';
                 return name
                     .toLowerCase()
+                    .replace(/(\d)(inch|ch|mp|mt|g|tb|gb|mb)/gi, '$1 $2')  // Add space between number and unit (7inch → 7 inch)
                     .replace(/\s+/g, ' ')  // Normalize spaces
                     .replace(/[+\-_()[\]]/g, '')  // Remove special characters
                     .replace(/\bhdd\b/gi, '')  // Remove "HDD" word
                     .replace(/\bgps\b/gi, 'gps')  // Normalize GPS
                     .replace(/\b4g\b/gi, '4g')  // Normalize 4G
+                    .replace(/\bvga\b/gi, 'vga')  // Normalize VGA
+                    .replace(/\bheavy\s+duty\b/gi, 'heavyduty')  // Normalize "heavy duty"
                     .replace(/\s+/g, ' ')  // Clean up extra spaces
                     .trim();
             };
@@ -18450,9 +18453,9 @@ Prices are subject to change without prior notice.</textarea>
                 if (norm1 === norm2) return true;
                 if (norm1.includes(norm2) || norm2.includes(norm1)) return true;
                 
-                // Extract key features and match
-                const features1 = norm1.match(/\d+ch|\d+g|mdvr|dashcam|camera/gi) || [];
-                const features2 = norm2.match(/\d+ch|\d+g|mdvr|dashcam|camera/gi) || [];
+                // Extract key features and match (expanded to include more product types)
+                const features1 = norm1.match(/\d+\s*(ch|inch|mp|mt|g|tb|gb|mb)|mdvr|dashcam|camera|monitor|cable|vga|heavyduty/gi) || [];
+                const features2 = norm2.match(/\d+\s*(ch|inch|mp|mt|g|tb|gb|mb)|mdvr|dashcam|camera|monitor|cable|vga|heavyduty/gi) || [];
                 
                 if (features1.length > 0 && features2.length > 0) {
                     const matchCount = features1.filter(f => 
