@@ -10362,15 +10362,15 @@ Prices are subject to change without prior notice.</textarea>
                             <label>Scan Device Serial Number</label>
                             <input type="text" id="scanDeviceInput" 
                                 placeholder="Scan barcode or type serial number..." 
-                                onkeypress="if(event.key==='Enter') scanDevice()"
+                                onkeypress="if(event.key==='Enter') { event.preventDefault(); scanDevice(); return false; }"
                                 autofocus
                                 style="width: 100%; padding: 16px; border: 3px solid #10b981; border-radius: 8px; font-size: 18px; font-weight: 600;">
                         </div>
                         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                            <button onclick="scanDevice()" class="btn-primary" style="flex: 1; background: #10b981; padding: 12px;">
+                            <button type="button" onclick="scanDevice()" class="btn-primary" style="flex: 1; background: #10b981; padding: 12px;">
                                 <i class="fas fa-check"></i> Add Device
                             </button>
-                            <button onclick="clearScanInput()" class="btn-secondary" style="flex: 1;">
+                            <button type="button" onclick="clearScanInput()" class="btn-secondary" style="flex: 1;">
                                 <i class="fas fa-times"></i> Clear
                             </button>
                         </div>
@@ -10431,10 +10431,10 @@ Prices are subject to change without prior notice.</textarea>
 
                     <!-- Action Buttons -->
                     <div style="display: flex; gap: 15px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
-                        <button onclick="goBackToOrderSelection()" class="btn-secondary" style="flex: 1;">
+                        <button type="button" onclick="goBackToOrderSelection()" class="btn-secondary" style="flex: 1;">
                             <i class="fas fa-arrow-left"></i> Back to Order Selection
                         </button>
-                        <button onclick="submitCreateDispatch()" id="submitDispatchBtn" class="btn-primary" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 16px; font-size: 16px; font-weight: 700;" disabled>
+                        <button type="button" onclick="submitCreateDispatch()" id="submitDispatchBtn" class="btn-primary" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 16px; font-size: 16px; font-weight: 700;" disabled>
                             <i class="fas fa-paper-plane"></i> Create Dispatch (<span id="submitCount">0</span> devices)
                         </button>
                     </div>
