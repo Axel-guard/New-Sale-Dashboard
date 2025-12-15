@@ -10435,7 +10435,7 @@ Prices are subject to change without prior notice.</textarea>
                         <button type="button" onclick="goBackToOrderSelection()" class="btn-secondary" style="flex: 1;">
                             <i class="fas fa-arrow-left"></i> Back to Order Selection
                         </button>
-                        <button type="button" onclick="submitCreateDispatch()" id="submitDispatchBtn" class="btn-primary" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 16px; font-size: 16px; font-weight: 700;" disabled>
+                        <button type="button" onclick="lastSubmitTime = Date.now(); submitCreateDispatch(event);" id="submitDispatchBtn" class="btn-primary" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 16px; font-size: 16px; font-weight: 700;" disabled>
                             <i class="fas fa-paper-plane"></i> Create Dispatch (<span id="submitCount">0</span> devices)
                         </button>
                     </div>
@@ -18854,28 +18854,47 @@ Prices are subject to change without prior notice.</textarea>
             
             // Submit Create Dispatch
             let isSubmittingDispatch = false; // Prevent double-submission
-            async function submitCreateDispatch() {
+            let lastSubmitTime = 0; // Track last submission attempt
+            async function submitCreateDispatch(event) {
+                // Prevent form submission if called from form event
+                if (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                
+                // Require manual user interaction (must be within 2 seconds of user action)
+                const now = Date.now();
+                const timeSinceLastInteraction = now - lastSubmitTime;
+                
                 // Log call stack to identify caller
-                console.log('🚀 submitCreateDispatch called!', {
+                console.log('submitCreateDispatch called!', {
                     isSubmittingDispatch,
                     scannedDevicesCount: scannedDevices.length,
+                    timeSinceLastInteraction: timeSinceLastInteraction + 'ms',
                     timestamp: new Date().toISOString()
                 });
-                console.trace('📍 Call stack:');
+                console.trace('Call stack:');
                 
                 // Check if button is disabled (should not submit if disabled)
                 const submitBtn = document.getElementById('submitDispatchBtn');
                 if (submitBtn && submitBtn.disabled) {
-                    console.error('❌ UNAUTHORIZED CALL: Button is disabled! This should not happen.');
-                    alert('⚠️ Error: Cannot submit dispatch - button is disabled. Please refresh the page.');
-                    return;
+                    console.error('BLOCKED: Button is disabled!');
+                    alert('⚠️ Error: Cannot submit dispatch - button is disabled. Please try again.');
+                    return false;
+                }
+                
+                // Prevent auto-submission (require recent user interaction)
+                if (timeSinceLastInteraction > 5000) {
+                    console.warn('BLOCKED: No recent user interaction detected (over 5 seconds)');
+                    alert('⚠️ Please click the "Create Dispatch" button to submit.');
+                    return false;
                 }
                 
                 // Prevent double-click/double-submission
                 if (isSubmittingDispatch) {
-                    console.warn('⚠️ Already submitting dispatch, ignoring duplicate call');
+                    console.warn('BLOCKED: Already submitting dispatch');
                     alert('Dispatch is already being created, please wait...');
-                    return;
+                    return false;
                 }
                 
                 if (scannedDevices.length === 0) {
