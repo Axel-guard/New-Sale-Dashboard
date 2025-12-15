@@ -10336,6 +10336,7 @@ Prices are subject to change without prior notice.</textarea>
                 </div>
 
                 <!-- Step 2: Order Details & Scan Products -->
+                <form id="dispatchStep2Form" onsubmit="event.preventDefault(); return false;">
                 <div id="dispatchStep2" class="dispatch-step" style="display: none;">
                     <!-- Order Summary -->
                     <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px;">
@@ -10439,6 +10440,7 @@ Prices are subject to change without prior notice.</textarea>
                         </button>
                     </div>
                 </div>
+                </form>
             </div>
         </div>
 
@@ -18828,8 +18830,23 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Submit Create Dispatch
+            let isSubmittingDispatch = false; // Prevent double-submission
             async function submitCreateDispatch() {
+                console.log('🚀 submitCreateDispatch called!', {
+                    isSubmittingDispatch,
+                    scannedDevicesCount: scannedDevices.length,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Prevent double-click/double-submission
+                if (isSubmittingDispatch) {
+                    console.warn('⚠️ Already submitting dispatch, ignoring duplicate call');
+                    alert('Dispatch is already being created, please wait...');
+                    return;
+                }
+                
                 if (scannedDevices.length === 0) {
+                    console.warn('⚠️ No devices scanned');
                     alert('Please scan at least one device');
                     return;
                 }
@@ -18840,6 +18857,7 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
+                isSubmittingDispatch = true; // Lock submission
                 const submitBtn = document.getElementById('submitDispatchBtn');
                 const originalText = submitBtn.innerHTML;
                 submitBtn.disabled = true;
@@ -18860,6 +18878,7 @@ Prices are subject to change without prior notice.</textarea>
                     
                     if (response.data.success) {
                         alert(\`✅ Dispatch Created Successfully!\\n\\nDispatched: \${response.data.data.dispatched} devices\\nTotal Scanned: \${response.data.data.total} devices\`);
+                        isSubmittingDispatch = false; // Release lock
                         closeCreateDispatchModal();
                         loadRecentDispatches();
                         loadInventory();
@@ -18867,11 +18886,13 @@ Prices are subject to change without prior notice.</textarea>
                         loadInventoryReports();
                     } else {
                         alert('Failed to create dispatch: ' + response.data.error);
+                        isSubmittingDispatch = false; // Release lock
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = originalText;
                     }
                 } catch (error) {
                     alert('Error creating dispatch: ' + (error.response?.data?.error || error.message));
+                    isSubmittingDispatch = false; // Release lock
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
                 }
