@@ -18483,9 +18483,12 @@ Prices are subject to change without prior notice.</textarea>
                     const isMDVRInstallation = item.product_name && item.product_name.toLowerCase().includes('mdvr installation');
                     
                     // Match scanned devices by product name using flexible matching
-                    const scannedForThisProduct = scannedDevices.filter(d => 
-                        productsMatch(d.model_name || d.product_name, item.product_name)
-                    ).length;
+                    const scannedForThisProduct = scannedDevices.filter(d => {
+                        const deviceName = d.model_name || d.product_name;
+                        const matches = productsMatch(deviceName, item.product_name);
+                        console.log(`🔍 Matching: "${deviceName}" vs "${item.product_name}" → ${matches ? 'MATCH ✅' : 'NO MATCH ❌'}`);
+                        return matches;
+                    }).length;
                     
                     // For MDVR Installation, show full quantity as completed
                     const displayScannedCount = isMDVRInstallation ? item.quantity : scannedForThisProduct;
@@ -18527,12 +18530,17 @@ Prices are subject to change without prior notice.</textarea>
             // Add items without serial number (for accessories, installations, etc.)
             window.addItemsWithoutSerial = function(productName, quantity) {
                 try {
-                    console.log(\`Adding \${quantity} items of \${productName} without serial numbers\`);
+                    console.log(\`🎯 ADD ALL CLICKED: Adding \${quantity} items of "\${productName}" without serial numbers\`);
                     
                     // Check how many already added using flexible matching
-                    const alreadyScanned = scannedDevices.filter(d => 
-                        productsMatch(d.model_name || d.product_name, productName)
-                    ).length;
+                    const alreadyScanned = scannedDevices.filter(d => {
+                        const deviceName = d.model_name || d.product_name;
+                        const matches = productsMatch(deviceName, productName);
+                        console.log(\`   Checking already scanned: "\${deviceName}" vs "\${productName}" → ${matches ? 'MATCH' : 'NO MATCH'}\`);
+                        return matches;
+                    }).length;
+                    
+                    console.log(\`   Already scanned: \${alreadyScanned}, Requested: \${quantity}\`);
                     
                     // Add dummy devices for each remaining quantity
                     const remaining = quantity - alreadyScanned;
