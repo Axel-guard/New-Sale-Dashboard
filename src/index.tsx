@@ -18581,6 +18581,11 @@ Prices are subject to change without prior notice.</textarea>
                     displayScannedDevices();
                     updateSubmitButton();
                     
+                    // Remove focus from any active element to prevent accidental Enter key submission
+                    if (document.activeElement && document.activeElement !== document.body) {
+                        document.activeElement.blur();
+                    }
+                    
                 } catch (error) {
                     console.error('Error adding items without serial:', error);
                     alert('Error adding items: ' + error.message);
@@ -18815,9 +18820,16 @@ Prices are subject to change without prior notice.</textarea>
                 submitCountEl.textContent = count;
                 
                 if (count > 0) {
-                    submitBtn.disabled = false;
-                    submitBtn.style.opacity = '1';
-                    submitBtn.style.cursor = 'pointer';
+                    // Add a small delay before enabling to prevent auto-click
+                    setTimeout(() => {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.style.opacity = '1';
+                            submitBtn.style.cursor = 'pointer';
+                            // Remove focus to prevent Enter key from triggering
+                            submitBtn.blur();
+                        }
+                    }, 100);
                 } else {
                     submitBtn.disabled = true;
                     submitBtn.style.opacity = '0.5';
