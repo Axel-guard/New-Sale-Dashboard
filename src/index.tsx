@@ -18835,11 +18835,21 @@ Prices are subject to change without prior notice.</textarea>
             // Submit Create Dispatch
             let isSubmittingDispatch = false; // Prevent double-submission
             async function submitCreateDispatch() {
+                // Log call stack to identify caller
                 console.log('🚀 submitCreateDispatch called!', {
                     isSubmittingDispatch,
                     scannedDevicesCount: scannedDevices.length,
                     timestamp: new Date().toISOString()
                 });
+                console.trace('📍 Call stack:');
+                
+                // Check if button is disabled (should not submit if disabled)
+                const submitBtn = document.getElementById('submitDispatchBtn');
+                if (submitBtn && submitBtn.disabled) {
+                    console.error('❌ UNAUTHORIZED CALL: Button is disabled! This should not happen.');
+                    alert('⚠️ Error: Cannot submit dispatch - button is disabled. Please refresh the page.');
+                    return;
+                }
                 
                 // Prevent double-click/double-submission
                 if (isSubmittingDispatch) {
@@ -18860,8 +18870,14 @@ Prices are subject to change without prior notice.</textarea>
                     return;
                 }
                 
+                // Final confirmation before submission
+                console.log('✅ All validations passed, proceeding with dispatch creation...');
+                
                 isSubmittingDispatch = true; // Lock submission
-                const submitBtn = document.getElementById('submitDispatchBtn');
+                if (!submitBtn) {
+                    console.error('❌ Submit button not found!');
+                    return;
+                }
                 const originalText = submitBtn.innerHTML;
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Dispatch...';
