@@ -6510,6 +6510,82 @@ app.get('/', (c) => {
                 position: relative;
             }
             
+            /* Balance Payments Table - Compact with Text Wrapping */
+            #balance-payment-page table {
+                table-layout: fixed;
+                width: 100%;
+            }
+            
+            #balance-payment-page th,
+            #balance-payment-page td {
+                white-space: normal;
+                word-wrap: break-word;
+                word-break: break-word;
+                padding: 8px 6px;
+                font-size: 12px;
+                line-height: 1.4;
+                vertical-align: top;
+            }
+            
+            /* Pending Payments Tab Column Widths */
+            #pending-balance-content th:nth-child(1),
+            #pending-balance-content td:nth-child(1) { width: 6%; } /* Order ID */
+            
+            #pending-balance-content th:nth-child(2),
+            #pending-balance-content td:nth-child(2) { width: 6%; } /* Cust Code */
+            
+            #pending-balance-content th:nth-child(3),
+            #pending-balance-content td:nth-child(3) { width: 8%; } /* Date */
+            
+            #pending-balance-content th:nth-child(4),
+            #pending-balance-content td:nth-child(4) { width: 12%; } /* Customer Name */
+            
+            #pending-balance-content th:nth-child(5),
+            #pending-balance-content td:nth-child(5) { width: 14%; } /* Company Name */
+            
+            #pending-balance-content th:nth-child(6),
+            #pending-balance-content td:nth-child(6) { width: 10%; } /* Employee */
+            
+            #pending-balance-content th:nth-child(7),
+            #pending-balance-content td:nth-child(7) { width: 9%; } /* Contact */
+            
+            #pending-balance-content th:nth-child(8),
+            #pending-balance-content td:nth-child(8) { width: 8%; } /* Total Amount */
+            
+            #pending-balance-content th:nth-child(9),
+            #pending-balance-content td:nth-child(9) { width: 8%; } /* Received */
+            
+            #pending-balance-content th:nth-child(10),
+            #pending-balance-content td:nth-child(10) { width: 8%; } /* Balance */
+            
+            #pending-balance-content th:nth-child(11),
+            #pending-balance-content td:nth-child(11) { width: 11%; text-align: center; } /* Action */
+            
+            /* Payment History Tab Column Widths */
+            #history-balance-content th:nth-child(1),
+            #history-balance-content td:nth-child(1) { width: 10%; } /* Order ID */
+            
+            #history-balance-content th:nth-child(2),
+            #history-balance-content td:nth-child(2) { width: 10%; } /* Cust Code */
+            
+            #history-balance-content th:nth-child(3),
+            #history-balance-content td:nth-child(3) { width: 15%; } /* Customer Name */
+            
+            #history-balance-content th:nth-child(4),
+            #history-balance-content td:nth-child(4) { width: 20%; } /* Company Name */
+            
+            #history-balance-content th:nth-child(5),
+            #history-balance-content td:nth-child(5) { width: 12%; } /* Payment Date */
+            
+            #history-balance-content th:nth-child(6),
+            #history-balance-content td:nth-child(6) { width: 10%; } /* Amount */
+            
+            #history-balance-content th:nth-child(7),
+            #history-balance-content td:nth-child(7) { width: 13%; } /* Account */
+            
+            #history-balance-content th:nth-child(8),
+            #history-balance-content td:nth-child(8) { width: 10%; } /* Payment Reference */
+            
             tbody tr {
                 transition: all 0.2s ease;
             }
