@@ -6510,6 +6510,77 @@ app.get('/', (c) => {
                 position: relative;
             }
             
+            /* Home Page Sales Table - Compact with Text Wrapping and Grid */
+            #home-page #salesTable {
+                table-layout: fixed;
+                width: 100%;
+                border-collapse: collapse;
+            }
+            
+            #home-page #salesTable th,
+            #home-page #salesTable td {
+                white-space: normal;
+                word-wrap: break-word;
+                word-break: break-word;
+                padding: 8px 6px;
+                font-size: 11px;
+                line-height: 1.3;
+                vertical-align: top;
+                border: 1px solid #e5e7eb; /* Grid lines */
+            }
+            
+            #home-page #salesTable thead th {
+                background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+                border: 1px solid #d1d5db;
+                font-weight: 600;
+            }
+            
+            /* Home Page Sales Table Column Widths (15 columns = 100%) */
+            #home-page #salesTable th:nth-child(1),
+            #home-page #salesTable td:nth-child(1) { width: 5%; } /* Order ID */
+            
+            #home-page #salesTable th:nth-child(2),
+            #home-page #salesTable td:nth-child(2) { width: 5%; } /* Cust Code */
+            
+            #home-page #salesTable th:nth-child(3),
+            #home-page #salesTable td:nth-child(3) { width: 6%; } /* Date */
+            
+            #home-page #salesTable th:nth-child(4),
+            #home-page #salesTable td:nth-child(4) { width: 8%; } /* Customer Name */
+            
+            #home-page #salesTable th:nth-child(5),
+            #home-page #salesTable td:nth-child(5) { width: 9%; } /* Company Name */
+            
+            #home-page #salesTable th:nth-child(6),
+            #home-page #salesTable td:nth-child(6) { width: 7%; } /* Employee */
+            
+            #home-page #salesTable th:nth-child(7),
+            #home-page #salesTable td:nth-child(7) { width: 16%; } /* Products - Largest */
+            
+            #home-page #salesTable th:nth-child(8),
+            #home-page #salesTable td:nth-child(8) { width: 6%; text-align: center; } /* Sale Type */
+            
+            #home-page #salesTable th:nth-child(9),
+            #home-page #salesTable td:nth-child(9) { width: 6%; } /* Subtotal */
+            
+            #home-page #salesTable th:nth-child(10),
+            #home-page #salesTable td:nth-child(10) { width: 5%; } /* GST */
+            
+            #home-page #salesTable th:nth-child(11),
+            #home-page #salesTable td:nth-child(11) { width: 6%; font-weight: 600; } /* Total Payment */
+            
+            #home-page #salesTable th:nth-child(12),
+            #home-page #salesTable td:nth-child(12) { width: 6%; font-weight: 600; } /* Received */
+            
+            #home-page #salesTable th:nth-child(13),
+            #home-page #salesTable td:nth-child(13) { width: 6%; font-weight: 600; } /* Balance Payment */
+            
+            #home-page #salesTable th:nth-child(14),
+            #home-page #salesTable td:nth-child(14) { width: 5%; text-align: center; } /* Payments */
+            
+            #home-page #salesTable th:nth-child(15),
+            #home-page #salesTable td:nth-child(15) { width: 4%; text-align: center; } /* Actions */
+            
             /* Balance Payments Table - Compact with Text Wrapping */
             #balance-payment-page table {
                 table-layout: fixed;
