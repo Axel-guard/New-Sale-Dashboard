@@ -6522,9 +6522,9 @@ app.get('/', (c) => {
                 white-space: normal;
                 word-wrap: break-word;
                 word-break: break-word;
-                padding: 8px 6px;
-                font-size: 11px;
-                line-height: 1.3;
+                padding: 10px 8px;
+                font-size: 13px;
+                line-height: 1.4;
                 vertical-align: top;
                 border: 1px solid #e5e7eb; /* Grid lines */
             }
@@ -6581,10 +6581,11 @@ app.get('/', (c) => {
             #dashboard-page #salesTable th:nth-child(15),
             #dashboard-page #salesTable td:nth-child(15) { width: 4%; text-align: center; } /* Actions */
             
-            /* Balance Payments Table - Compact with Text Wrapping */
+            /* Balance Payments Table - Compact with Text Wrapping and Grid */
             #balance-payment-page table {
                 table-layout: fixed;
                 width: 100%;
+                border-collapse: collapse;
             }
             
             #balance-payment-page th,
@@ -6592,10 +6593,17 @@ app.get('/', (c) => {
                 white-space: normal;
                 word-wrap: break-word;
                 word-break: break-word;
-                padding: 8px 6px;
-                font-size: 12px;
+                padding: 10px 8px;
+                font-size: 13px;
                 line-height: 1.4;
                 vertical-align: top;
+                border: 1px solid #e5e7eb; /* Grid lines */
+            }
+            
+            #balance-payment-page thead th {
+                background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+                border: 1px solid #d1d5db;
+                font-weight: 600;
             }
             
             /* Pending Payments Tab Column Widths */
@@ -6656,6 +6664,52 @@ app.get('/', (c) => {
             
             #history-balance-content th:nth-child(8),
             #history-balance-content td:nth-child(8) { width: 10%; } /* Payment Reference */
+            
+            /* Sale Database Page - Add Grid and Text Wrapping */
+            #sale-database-page table {
+                border-collapse: collapse;
+            }
+            
+            #sale-database-page th,
+            #sale-database-page td {
+                white-space: normal;
+                word-wrap: break-word;
+                word-break: break-word;
+                padding: 10px 8px;
+                font-size: 13px;
+                line-height: 1.4;
+                vertical-align: top;
+                border: 1px solid #e5e7eb; /* Grid lines */
+            }
+            
+            #sale-database-page thead th {
+                background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+                border: 1px solid #d1d5db;
+                font-weight: 600;
+            }
+            
+            /* Leads Database Page - Add Grid and Text Wrapping */
+            #leads-page table {
+                border-collapse: collapse;
+            }
+            
+            #leads-page th,
+            #leads-page td {
+                white-space: normal;
+                word-wrap: break-word;
+                word-break: break-word;
+                padding: 10px 8px;
+                font-size: 13px;
+                line-height: 1.4;
+                vertical-align: top;
+                border: 1px solid #e5e7eb; /* Grid lines */
+            }
+            
+            #leads-page thead th {
+                background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+                border: 1px solid #d1d5db;
+                font-weight: 600;
+            }
             
             tbody tr {
                 transition: all 0.2s ease;
