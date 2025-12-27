@@ -8256,6 +8256,7 @@ app.get('/', (c) => {
                             <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                                 <thead style="position: sticky; top: 0; z-index: 10;">
                                     <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                                        <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">📋 Type</th>
                                         <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">📦 Order ID</th>
                                         <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">🚚 Courier Partner</th>
                                         <th style="padding: 16px 14px; text-align: left; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;">✈️ Mode</th>
@@ -8266,7 +8267,7 @@ app.get('/', (c) => {
                                     </tr>
                                 </thead>
                                 <tbody id="trackingReportBodyTab">
-                                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">Loading tracking records...</td></tr>
+                                    <tr><td colspan="8" style="text-align: center; padding: 40px; color: #9ca3af;">Loading tracking records...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -17161,7 +17162,7 @@ Prices are subject to change without prior notice.</textarea>
                 const tbody = document.getElementById('trackingReportBodyTab');
                 
                 if (records.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">No tracking records found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #9ca3af;">No tracking records found</td></tr>';
                     return;
                 }
                 
@@ -17170,28 +17171,31 @@ Prices are subject to change without prior notice.</textarea>
                     let totalWeight = 0;
                     
                     try {
-                        // Fetch sale items for this order
-                        const response = await axios.get('/api/sales/' + record.order_id + '/items');
-                        if (response.data.success && response.data.data) {
-                            const items = response.data.data;
-                            
-                            // Calculate total weight from product catalog
-                            totalWeight = items.reduce((sum, item) => {
-                                let itemWeight = 0;
+                        // Only fetch weight if Order ID exists
+                        if (record.order_id && record.order_id.trim() !== '') {
+                            // Fetch sale items for this order
+                            const response = await axios.get('/api/sales/' + record.order_id + '/items');
+                            if (response.data.success && response.data.data) {
+                                const items = response.data.data;
                                 
-                                // Search for product in catalog
-                                for (const category in productCatalog) {
-                                    const product = productCatalog[category].find(p => 
-                                        p.name === item.product_name
-                                    );
-                                    if (product) {
-                                        itemWeight = product.weight * item.quantity;
-                                        break;
+                                // Calculate total weight from product catalog
+                                totalWeight = items.reduce((sum, item) => {
+                                    let itemWeight = 0;
+                                    
+                                    // Search for product in catalog
+                                    for (const category in productCatalog) {
+                                        const product = productCatalog[category].find(p => 
+                                            p.name === item.product_name
+                                        );
+                                        if (product) {
+                                            itemWeight = product.weight * item.quantity;
+                                            break;
+                                        }
                                     }
-                                }
-                                
-                                return sum + itemWeight;
-                            }, 0);
+                                    
+                                    return sum + itemWeight;
+                                }, 0);
+                            }
                         }
                     } catch (error) {
                         console.error('Error fetching weight for order:', record.order_id, error);
@@ -17204,8 +17208,20 @@ Prices are subject to change without prior notice.</textarea>
                     const actualPrice = record.courier_cost || record.total_amount || 0;
                     const weight = record.totalWeight ? record.totalWeight.toFixed(2) : '0.00';
                     
+                    // Handle Type field
+                    const recordType = record.type || 'Sale';
+                    const typeBadge = recordType === 'Sale' 
+                        ? '<span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 12px;">' + recordType + '</span>'
+                        : '<span style="background: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 12px;">' + recordType + '</span>';
+                    
+                    // Handle blank Order ID
+                    const orderIdDisplay = record.order_id && record.order_id.trim() !== '' 
+                        ? record.order_id 
+                        : '<span style="color: #9ca3af; font-style: italic;">N/A</span>';
+                    
                     return '<tr style="border-bottom: 1px solid #e5e7eb;">' +
-                        '<td style="padding: 12px; font-weight: 600; color: #1f2937;">' + record.order_id + '</td>' +
+                        '<td style="padding: 12px;">' + typeBadge + '</td>' +
+                        '<td style="padding: 12px; font-weight: 600; color: #1f2937;">' + orderIdDisplay + '</td>' +
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_partner + '</td>' +
                         '<td style="padding: 12px; color: #4b5563;">' + record.courier_mode + '</td>' +
                         '<td style="padding: 12px; font-family: monospace; color: #7c3aed; font-weight: 600;">' + record.tracking_id + '</td>' +
@@ -17225,7 +17241,8 @@ Prices are subject to change without prior notice.</textarea>
                 
                 if (searchTerm) {
                     filtered = filtered.filter(record =>
-                        record.order_id.toLowerCase().includes(searchTerm) ||
+                        (record.type && record.type.toLowerCase().includes(searchTerm)) ||
+                        (record.order_id && record.order_id.toLowerCase().includes(searchTerm)) ||
                         record.courier_partner.toLowerCase().includes(searchTerm) ||
                         record.tracking_id.toLowerCase().includes(searchTerm)
                     );
@@ -19354,7 +19371,7 @@ Prices are subject to change without prior notice.</textarea>
                 const tbody = document.getElementById('trackingReportTableBody');
                 
                 if (records.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #9ca3af; font-size: 15px;"><i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>No tracking records found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: #9ca3af; font-size: 15px;"><i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>No tracking records found</td></tr>';
                     return;
                 }
                 
@@ -19399,19 +19416,35 @@ Prices are subject to change without prior notice.</textarea>
                     const weight = record.totalWeight ? record.totalWeight.toFixed(2) : '0.00';
                     const rowBg = index % 2 === 0 ? '#ffffff' : '#f9fafb';
                     
+                    // Handle Type field with badge styling
+                    const recordType = record.type || 'Sale'; // Default to Sale if not set
+                    const typeBadgeColor = recordType === 'Sale' 
+                        ? 'background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); color: #065f46;'
+                        : 'background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color: #92400e;';
+                    
+                    // Handle blank Order ID - show "N/A" if empty or null
+                    const orderIdDisplay = record.order_id && record.order_id.trim() !== '' 
+                        ? \`<a href="javascript:void(0)" 
+                               onclick="viewTrackingSaleDetails('\${record.order_id}')" 
+                               style="font-weight: 700; color: #667eea; text-decoration: none; cursor: pointer; font-size: 14px;"
+                               title="Click to view sale details"
+                               onmouseover="this.style.textDecoration='underline'"
+                               onmouseout="this.style.textDecoration='none'">
+                                #\${record.order_id}
+                            </a>\`
+                        : '<span style="color: #9ca3af; font-style: italic; font-size: 13px;">N/A</span>';
+                    
                     return \`
                         <tr style="background: \${rowBg}; transition: all 0.2s; border-bottom: 1px solid #f3f4f6;" 
                             onmouseover="this.style.background='#f3e8ff'; this.style.transform='scale(1.01)'" 
                             onmouseout="this.style.background='\${rowBg}'; this.style.transform='scale(1)'">
                             <td style="padding: 14px; border-right: 1px solid #f3f4f6;">
-                                <a href="javascript:void(0)" 
-                                   onclick="viewTrackingSaleDetails('\${record.order_id}')" 
-                                   style="font-weight: 700; color: #667eea; text-decoration: none; cursor: pointer; font-size: 14px;"
-                                   title="Click to view sale details"
-                                   onmouseover="this.style.textDecoration='underline'"
-                                   onmouseout="this.style.textDecoration='none'">
-                                    #\${record.order_id}
-                                </a>
+                                <span style="\${typeBadgeColor} padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 13px; display: inline-block;">
+                                    \${recordType}
+                                </span>
+                            </td>
+                            <td style="padding: 14px; border-right: 1px solid #f3f4f6;">
+                                \${orderIdDisplay}
                             </td>
                             <td style="padding: 14px; border-right: 1px solid #f3f4f6;">
                                 <span style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color: #92400e; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 13px; display: inline-block;">
@@ -19457,9 +19490,10 @@ Prices are subject to change without prior notice.</textarea>
                 const selectedMonth = document.getElementById('trackingMonthFilter').value;
                 
                 const filtered = allTrackingRecords.filter(record => {
-                    // Text search filter
+                    // Text search filter - include type field
                     const matchesSearch = !searchTerm || (
-                        record.order_id.toLowerCase().includes(searchTerm) ||
+                        (record.type && record.type.toLowerCase().includes(searchTerm)) ||
+                        (record.order_id && record.order_id.toLowerCase().includes(searchTerm)) ||
                         record.courier_partner.toLowerCase().includes(searchTerm) ||
                         record.courier_mode.toLowerCase().includes(searchTerm) ||
                         record.tracking_id.toLowerCase().includes(searchTerm)
