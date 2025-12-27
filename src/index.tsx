@@ -10748,13 +10748,22 @@ Prices are subject to change without prior notice.</textarea>
 
                     <form onsubmit="submitTrackingDetails(event)" style="margin-top: 20px;">
                         <div class="form-group">
-                            <label>Order ID *</label>
+                            <label>Type *</label>
+                            <select id="trackingType" required
+                                style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
+                                <option value="">-- Select Type --</option>
+                                <option value="Sale">Sale</option>
+                                <option value="Replacement">Replacement</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Order ID</label>
                             <input type="text" id="trackingOrderId" 
-                                placeholder="Enter Order ID from Sales" 
-                                required
+                                placeholder="Enter Order ID from Sales (optional)" 
                                 style="width: 100%; padding: 12px; border: 2px solid #8b5cf6; border-radius: 8px; font-size: 14px;">
                             <small style="color: #6b7280; display: block; margin-top: 5px;">
-                                <i class="fas fa-info-circle"></i> Must match an existing Order ID in sales
+                                <i class="fas fa-info-circle"></i> Optional - Link to existing Order ID in sales
                             </small>
                         </div>
 
@@ -19227,14 +19236,15 @@ Prices are subject to change without prior notice.</textarea>
                 
                 console.log('Submit tracking details called');
                 
+                const type = document.getElementById('trackingType').value.trim();
                 const orderId = document.getElementById('trackingOrderId').value.trim();
                 const courierPartner = document.getElementById('trackingCourierPartner').value.trim();
                 const courierMode = document.getElementById('trackingCourierMode').value;
                 const trackingId = document.getElementById('trackingTrackingId').value.trim();
                 
-                console.log('Form values:', { orderId, courierPartner, courierMode, trackingId });
+                console.log('Form values:', { type, orderId, courierPartner, courierMode, trackingId });
                 
-                if (!orderId || !courierPartner || !courierMode || !trackingId) {
+                if (!type || !courierPartner || !courierMode || !trackingId) {
                     showTrackingStatus('❌ Please fill all required fields', 'error');
                     return;
                 }
@@ -19246,7 +19256,8 @@ Prices are subject to change without prior notice.</textarea>
                     console.log('Sending POST request to /api/tracking-details');
                     
                     const response = await axios.post('/api/tracking-details', {
-                        order_id: orderId,
+                        type: type,
+                        order_id: orderId || null,
                         courier_partner: courierPartner,
                         courier_mode: courierMode,
                         tracking_id: trackingId
@@ -19258,6 +19269,7 @@ Prices are subject to change without prior notice.</textarea>
                         showTrackingStatus('✅ Tracking details added successfully!', 'success');
                         
                         // Clear form
+                        document.getElementById('trackingType').value = '';
                         document.getElementById('trackingOrderId').value = '';
                         document.getElementById('trackingCourierPartner').value = '';
                         document.getElementById('trackingCourierMode').value = '';
@@ -19266,8 +19278,8 @@ Prices are subject to change without prior notice.</textarea>
                         // Reload tracking records
                         await loadTrackingRecords();
                         
-                        // Focus back to Order ID field
-                        document.getElementById('trackingOrderId').focus();
+                        // Focus back to Type field
+                        document.getElementById('trackingType').focus();
                     } else {
                         showTrackingStatus('❌ ' + response.data.error, 'error');
                     }
