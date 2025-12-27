@@ -4505,41 +4505,51 @@ app.post('/api/tracking-details', async (c) => {
   
   try {
     const body = await c.req.json();
-    const { order_id, courier_partner, courier_mode, tracking_id } = body;
+    const { type, order_id, courier_partner, courier_mode, tracking_id } = body;
     
-    if (!order_id || !courier_partner || !courier_mode || !tracking_id) {
-      return c.json({ success: false, error: 'All fields are required' }, 400);
+    // Only type, courier_partner, courier_mode, and tracking_id are required
+    // order_id is optional
+    if (!type || !courier_partner || !courier_mode || !tracking_id) {
+      return c.json({ success: false, error: 'Type, Courier Partner, Courier Mode, and Tracking ID are required' }, 400);
     }
     
-    // Check if order_id exists in sales table (optional - for pricing)
-    const sale = await env.DB.prepare(`
-      SELECT order_id, courier_cost, total_amount FROM sales WHERE order_id = ?
-    `).bind(order_id).first();
+    let weight = 0;
+    let actualPrice = 0;
     
-    // Calculate weight from dispatch_records count for this order_id
-    const dispatchCount = await env.DB.prepare(`
-      SELECT COUNT(*) as count FROM dispatch_records WHERE order_id = ?
-    `).bind(order_id).first();
+    // If order_id is provided, fetch sale details and calculate weight
+    if (order_id && order_id.trim()) {
+      // Check if order_id exists in sales table (optional - for pricing)
+      const sale = await env.DB.prepare(`
+        SELECT order_id, courier_cost, total_amount FROM sales WHERE order_id = ?
+      `).bind(order_id).first();
+      
+      // Calculate weight from dispatch_records count for this order_id
+      const dispatchCount = await env.DB.prepare(`
+        SELECT COUNT(*) as count FROM dispatch_records WHERE order_id = ?
+      `).bind(order_id).first();
+      
+      weight = dispatchCount ? dispatchCount.count : 0;
+      actualPrice = sale ? (sale.courier_cost || sale.total_amount || 0) : 0;
+    }
     
-    const weight = dispatchCount ? dispatchCount.count : 0;
-    
-    // Insert tracking details with auto-calculated weight
+    // Insert tracking details with type and optional order_id
     await env.DB.prepare(`
       INSERT INTO tracking_details (
-        order_id, courier_partner, courier_mode, tracking_id, weight
-      ) VALUES (?, ?, ?, ?, ?)
-    `).bind(order_id, courier_partner, courier_mode, tracking_id, weight).run();
+        type, order_id, courier_partner, courier_mode, tracking_id, weight
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(type, order_id || null, courier_partner, courier_mode, tracking_id, weight).run();
     
     return c.json({ 
       success: true, 
       message: 'Tracking details added successfully',
       data: {
-        order_id,
+        type,
+        order_id: order_id || null,
         courier_partner,
         courier_mode,
         tracking_id,
         weight,
-        actual_price: sale ? (sale.courier_cost || sale.total_amount || 0) : 0
+        actual_price: actualPrice
       }
     });
   } catch (error) {
