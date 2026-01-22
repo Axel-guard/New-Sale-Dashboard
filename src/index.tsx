@@ -8421,20 +8421,36 @@ app.get('/', (c) => {
                         <h2 style="margin: 0; color: #1f2937; font-size: 22px; font-weight: 700;">
                             <i class="fas fa-list-alt" style="color: #667eea; margin-right: 10px;"></i> QC Reports
                         </h2>
-                        <button onclick="clearQCFilter()" 
-                            style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); 
-                                   color: white; 
-                                   border: none; 
-                                   padding: 10px 20px; 
-                                   border-radius: 10px; 
-                                   cursor: pointer; 
-                                   font-weight: 600;
-                                   transition: all 0.2s;
-                                   box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);"
-                            onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(107, 114, 128, 0.4)'"
-                            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(107, 114, 128, 0.3)'">
-                            <i class="fas fa-times"></i> Clear Filter
-                        </button>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="loadQCData()" 
+                                style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+                                       color: white; 
+                                       border: none; 
+                                       padding: 10px 20px; 
+                                       border-radius: 10px; 
+                                       cursor: pointer; 
+                                       font-weight: 600;
+                                       transition: all 0.2s;
+                                       box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);"
+                                onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(16, 185, 129, 0.4)'"
+                                onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(16, 185, 129, 0.3)'">
+                                <i class="fas fa-sync-alt"></i> Refresh Data
+                            </button>
+                            <button onclick="clearQCFilter()" 
+                                style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); 
+                                       color: white; 
+                                       border: none; 
+                                       padding: 10px 20px; 
+                                       border-radius: 10px; 
+                                       cursor: pointer; 
+                                       font-weight: 600;
+                                       transition: all 0.2s;
+                                       box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);"
+                                onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(107, 114, 128, 0.4)'"
+                                onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(107, 114, 128, 0.3)'">
+                                <i class="fas fa-times"></i> Clear Filter
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Search Bar -->
