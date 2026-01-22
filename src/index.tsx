@@ -20276,6 +20276,97 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
+            // Load Device Info for Update QC
+            async function loadDeviceForUpdateQC() {
+                const serialNo = document.getElementById('update_serial_number').value.trim();
+                
+                if (!serialNo) {
+                    return;
+                }
+                
+                try {
+                    // Get device from inventory
+                    const response = await axios.get('/api/inventory/search?serial=' + serialNo);
+                    
+                    if (!response.data.success || response.data.data.length === 0) {
+                        // Device not found - clear device info banner
+                        document.getElementById('updateQCDeviceInfo').innerHTML = 
+                            '<div style="font-weight: 700; color: #b91c1c; margin-bottom: 12px; font-size: 16px;">' +
+                                '<i class="fas fa-exclamation-circle"></i> Device Not Found' +
+                            '</div>' +
+                            '<div style="color: #374151;">Please enter a valid serial number or proceed with manual entry.</div>';
+                        return;
+                    }
+                    
+                    const device = response.data.data[0];
+                    const modelName = device.model_name || 'N/A';
+                    
+                    // Display device info banner
+                    const deviceInfoHTML = 
+                        '<div style="font-weight: 700; color: #065f46; margin-bottom: 12px; font-size: 16px;">' +
+                            '<i class="fas fa-check-circle"></i> Device Loaded Successfully' +
+                        '</div>' +
+                        '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">' +
+                            '<div>' +
+                                '<strong style="color: #047857; font-size: 13px;">Serial Number:</strong>' +
+                                '<div style="color: #1f2937; font-size: 18px; font-weight: 700; margin-top: 4px;">' + serialNo + '</div>' +
+                            '</div>' +
+                            '<div>' +
+                                '<strong style="color: #047857; font-size: 13px;">Model Name:</strong>' +
+                                '<div style="color: #1f2937; font-size: 16px; font-weight: 600; margin-top: 4px;">' + modelName + '</div>' +
+                            '</div>' +
+                        '</div>';
+                    
+                    document.getElementById('updateQCDeviceInfo').innerHTML = deviceInfoHTML;
+                    
+                    // Auto-fill Category and Product Name based on model_name
+                    await autoFillCategoryAndProduct(modelName);
+                    
+                } catch (error) {
+                    console.error('Error loading device:', error);
+                    const errorMsg = (error.response && error.response.data && error.response.data.error) ? error.response.data.error : error.message;
+                    document.getElementById('updateQCDeviceInfo').innerHTML = 
+                        '<div style="font-weight: 700; color: #b91c1c; margin-bottom: 12px; font-size: 16px;">' +
+                            '<i class="fas fa-exclamation-triangle"></i> Error Loading Device' +
+                        '</div>' +
+                        '<div style="color: #374151;">' + errorMsg + '</div>';
+                }
+            }
+            
+            // Auto-fill Category and Product Name based on model_name
+            async function autoFillCategoryAndProduct(modelName) {
+                if (!modelName || modelName === 'N/A') {
+                    return;
+                }
+                
+                try {
+                    // Get all products and find the matching one
+                    const response = await axios.get('/api/products');
+                    
+                    if (!response.data.success) {
+                        return;
+                    }
+                    
+                    const products = response.data.data;
+                    const matchingProduct = products.find(p => p.product_name === modelName);
+                    
+                    if (matchingProduct) {
+                        // Set category
+                        document.getElementById('update_category').value = matchingProduct.category;
+                        
+                        // Load products for this category
+                        loadUpdateQCProducts();
+                        
+                        // Wait for products to load, then set product name
+                        setTimeout(() => {
+                            document.getElementById('update_product_name').value = matchingProduct.product_name;
+                        }, 100);
+                    }
+                } catch (error) {
+                    console.error('Error auto-filling category and product:', error);
+                }
+            }
+            
             // Open Update QC Modal (Manual Entry)
             function openUpdateQCModal() {
                 document.getElementById('updateQCModal').classList.add('show');
@@ -20284,7 +20375,11 @@ Prices are subject to change without prior notice.</textarea>
                 document.getElementById('update_qc_date').value = today;
                 // Focus on serial number input
                 setTimeout(() => {
-                    document.getElementById('update_serial_number').focus();
+                    const serialInput = document.getElementById('update_serial_number');
+                    serialInput.focus();
+                    
+                    // Add event listener for serial number input
+                    serialInput.addEventListener('blur', loadDeviceForUpdateQC);
                 }, 100);
             }
             
@@ -20707,7 +20802,7 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Open Update QC Modal with pre-populated device info
-            function openUpdateQCModal(deviceSerialNo, modelName) {
+            async function openUpdateQCModal(deviceSerialNo, modelName) {
                 // Pre-fill the Update QC form fields
                 document.getElementById('update_serial_number').value = deviceSerialNo;
                 document.getElementById('update_qc_date').valueAsDate = new Date();
@@ -20730,6 +20825,9 @@ Prices are subject to change without prior notice.</textarea>
                 \`;
                 
                 document.getElementById('updateQCDeviceInfo').innerHTML = deviceInfoHTML;
+                
+                // Auto-fill Category and Product Name based on model_name
+                await autoFillCategoryAndProduct(modelName);
                 
                 // Show the modal
                 document.getElementById('updateQCModal').classList.add('show');
