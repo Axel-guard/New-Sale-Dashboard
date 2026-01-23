@@ -5297,6 +5297,54 @@ app.get('/api/inventory/:serialNo', async (c) => {
   }
 });
 
+// Update inventory item by serial number
+app.put('/api/inventory/:serialNo', async (c) => {
+  const { env } = c;
+  
+  try {
+    const serialNo = c.req.param('serialNo');
+    const body = await c.req.json();
+    
+    // Check if device exists
+    const device = await env.DB.prepare(`
+      SELECT * FROM inventory WHERE device_serial_no = ?
+    `).bind(serialNo).first();
+    
+    if (!device) {
+      return c.json({ success: false, error: 'Device not found' }, 404);
+    }
+    
+    // Update device (only editable fields)
+    await env.DB.prepare(`
+      UPDATE inventory 
+      SET status = ?,
+          qc_result = ?,
+          in_date = ?,
+          dispatch_date = ?,
+          customer_name = ?,
+          cust_code = ?
+      WHERE device_serial_no = ?
+    `).bind(
+      body.status || device.status,
+      body.qc_result,
+      body.in_date,
+      body.dispatch_date,
+      body.customer_name,
+      body.cust_code,
+      serialNo
+    ).run();
+    
+    return c.json({ 
+      success: true, 
+      message: 'Device updated successfully',
+      serial_no: serialNo
+    });
+  } catch (error) {
+    console.error('Update inventory error:', error);
+    return c.json({ success: false, error: 'Failed to update device' }, 500);
+  }
+});
+
 // Delete inventory item by serial number
 app.delete('/api/inventory/:serialNo', async (c) => {
   const { env } = c;
@@ -8868,6 +8916,89 @@ app.get('/', (c) => {
                             <i class="fas fa-save"></i> Submit All Devices
                         </button>
                     </div>
+                </div>
+            </div>
+            
+            <!-- Edit Inventory Modal -->
+            <div id="editInventoryModal" class="modal">
+                <div class="modal-content" style="max-width: 700px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                        <h2 style="margin: 0; color: #1f2937; font-size: 24px;">
+                            <i class="fas fa-edit"></i> Edit Inventory Item
+                        </h2>
+                        <button onclick="closeEditInventoryModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <form id="editInventoryForm" onsubmit="submitEditInventory(event)">
+                        <!-- Read-only fields -->
+                        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">Serial Number</label>
+                                <input type="text" id="edit_serial_number" readonly style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #e5e7eb; cursor: not-allowed; color: #6b7280;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">Model Name</label>
+                                <input type="text" id="edit_model_name" readonly style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #e5e7eb; cursor: not-allowed; color: #6b7280;">
+                            </div>
+                        </div>
+
+                        <!-- Editable fields -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">Status <span style="color: #ef4444;">*</span></label>
+                                <select id="edit_status" required style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                    <option value="">-- Select Status --</option>
+                                    <option value="In Stock">In Stock</option>
+                                    <option value="Dispatched">Dispatched</option>
+                                    <option value="Quality Check">Quality Check</option>
+                                    <option value="Defective">Defective</option>
+                                    <option value="Returned">Returned</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">QC Result</label>
+                                <select id="edit_qc_result" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                    <option value="">-- Select --</option>
+                                    <option value="QC Pass">QC Pass</option>
+                                    <option value="QC Fail">QC Fail</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">In Date</label>
+                                <input type="date" id="edit_in_date" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">Dispatch Date</label>
+                                <input type="date" id="edit_dispatch_date" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">Customer Name</label>
+                                <input type="text" id="edit_customer_name" placeholder="Customer Name" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 5px;">Customer Code</label>
+                                <input type="text" id="edit_cust_code" placeholder="Customer Code" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div style="display: flex; gap: 10px; justify-content: flex-end; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                            <button type="button" onclick="closeEditInventoryModal()" class="btn-primary" style="background: #6b7280; padding: 12px 24px;">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 12px 24px;">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
             
@@ -16588,10 +16719,13 @@ Prices are subject to change without prior notice.</textarea>
                                 <td style="background: white; width: 140px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">\${item.customer_name || '-'}</td>
                                 <td style="background: white; width: 100px; padding: 10px 8px; vertical-align: middle; color: #374151; white-space: nowrap;">\${formatDate(item.dispatch_date)}</td>
                                 <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.cust_code || '-'}</td>
-                                <td style="background: white; width: 120px; padding: 10px 8px; vertical-align: middle; text-align: center;">
+                                <td style="background: white; width: 160px; padding: 10px 8px; vertical-align: middle; text-align: center;">
                                     <div style="display: flex; gap: 5px; justify-content: center;">
                                         <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="viewDevice('\${item.device_serial_no}')">
                                             <i class="fas fa-eye"></i> View
+                                        </button>
+                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);" onclick="editInventoryItem('\${item.device_serial_no}')">
+                                            <i class="fas fa-edit"></i> Edit
                                         </button>
                                         <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="deleteInventoryItem('\${item.device_serial_no}')">
                                             <i class="fas fa-trash"></i> Delete
@@ -16611,6 +16745,83 @@ Prices are subject to change without prior notice.</textarea>
             window.loadInventory = loadInventory;
             window.searchInventory = function() {
                 loadInventory();
+            };
+            
+            // Edit inventory item
+            window.editInventoryItem = async function(serialNo) {
+                try {
+                    // Fetch current device data
+                    const response = await axios.get(\`/api/inventory/search?serial=\${serialNo}\`);
+                    
+                    if (!response.data.success || !response.data.data || response.data.data.length === 0) {
+                        alert('❌ Error: Device not found');
+                        return;
+                    }
+                    
+                    const device = response.data.data[0];
+                    
+                    // Populate form fields
+                    document.getElementById('edit_serial_number').value = device.device_serial_no || '';
+                    document.getElementById('edit_model_name').value = device.model_name || '';
+                    document.getElementById('edit_status').value = device.status || '';
+                    document.getElementById('edit_qc_result').value = device.qc_result || '';
+                    document.getElementById('edit_in_date').value = device.in_date || '';
+                    document.getElementById('edit_dispatch_date').value = device.dispatch_date || '';
+                    document.getElementById('edit_customer_name').value = device.customer_name || '';
+                    document.getElementById('edit_cust_code').value = device.cust_code || '';
+                    
+                    // Open modal
+                    document.getElementById('editInventoryModal').classList.add('show');
+                } catch (error) {
+                    console.error('Edit error:', error);
+                    alert('❌ Error: Failed to load device data');
+                }
+            };
+            
+            // Close edit modal
+            window.closeEditInventoryModal = function() {
+                document.getElementById('editInventoryModal').classList.remove('show');
+                document.getElementById('editInventoryForm').reset();
+            };
+            
+            // Submit edit inventory
+            window.submitEditInventory = async function(event) {
+                event.preventDefault();
+                
+                const serialNo = document.getElementById('edit_serial_number').value;
+                const status = document.getElementById('edit_status').value;
+                const qc_result = document.getElementById('edit_qc_result').value || null;
+                const in_date = document.getElementById('edit_in_date').value || null;
+                const dispatch_date = document.getElementById('edit_dispatch_date').value || null;
+                const customer_name = document.getElementById('edit_customer_name').value || null;
+                const cust_code = document.getElementById('edit_cust_code').value || null;
+                
+                if (!status) {
+                    alert('❌ Error: Status is required');
+                    return;
+                }
+                
+                try {
+                    const response = await axios.put(\`/api/inventory/\${serialNo}\`, {
+                        status,
+                        qc_result,
+                        in_date,
+                        dispatch_date,
+                        customer_name,
+                        cust_code
+                    });
+                    
+                    if (response.data.success) {
+                        alert('✅ Device updated successfully!');
+                        closeEditInventoryModal();
+                        loadInventory(); // Reload the table
+                    } else {
+                        alert('❌ Error: ' + (response.data.error || 'Failed to update device'));
+                    }
+                } catch (error) {
+                    console.error('Update error:', error);
+                    alert('❌ Error: Failed to update device');
+                }
             };
             
             // Delete inventory item
