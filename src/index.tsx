@@ -8169,6 +8169,18 @@ app.get('/', (c) => {
                         >
                     </div>
 
+                    <!-- Category Filter Buttons -->
+                    <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;" id="categoryButtons">
+                        <button 
+                            onclick="filterByCategory('all')" 
+                            class="category-filter-btn active"
+                            data-category="all"
+                            style="padding: 8px 16px; border: 2px solid #10b981; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                        >
+                            <i class="fas fa-th"></i> All Products
+                        </button>
+                    </div>
+
                     <div id="pricingContainer">
                         <!-- Pricing items will be loaded here -->
                         <div class="loading" style="text-align: center; padding: 40px; color: #6b7280;">
@@ -13009,13 +13021,50 @@ Prices are subject to change without prior notice.</textarea>
             // ===== PRICING FUNCTIONS =====
             
             // Load pricing data
-            async function loadPricing(search = '') {
+            async function loadPricing(search = '', selectedCategory = 'all') {
                 try {
                     const container = document.getElementById('pricingContainer');
                     
                     // Fetch pricing from database
                     const response = await axios.get('/api/pricing');
                     let pricingData = response.data.data;
+                    
+                    // Store all pricing data globally for filtering
+                    window.allPricingData = pricingData;
+                    
+                    // Get unique categories
+                    const categories = [...new Set(pricingData.map(item => item.category))].sort();
+                    
+                    // Generate category filter buttons (only once)
+                    const categoryButtonsContainer = document.getElementById('categoryButtons');
+                    if (categoryButtonsContainer && !categoryButtonsContainer.dataset.initialized) {
+                        categoryButtonsContainer.innerHTML = \`
+                            <button 
+                                onclick="filterByCategory('all')" 
+                                class="category-filter-btn active"
+                                data-category="all"
+                                style="padding: 8px 16px; border: 2px solid #10b981; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                            >
+                                <i class="fas fa-th"></i> All Products
+                            </button>
+                            \${categories.map(cat => \`
+                                <button 
+                                    onclick="filterByCategory('\${cat}')" 
+                                    class="category-filter-btn"
+                                    data-category="\${cat}"
+                                    style="padding: 8px 16px; border: 2px solid #d1d5db; background: white; color: #374151; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                                >
+                                    <i class="fas fa-box"></i> \${cat}
+                                </button>
+                            \`).join('')}
+                        \`;
+                        categoryButtonsContainer.dataset.initialized = 'true';
+                    }
+                    
+                    // Filter by selected category
+                    if (selectedCategory && selectedCategory !== 'all') {
+                        pricingData = pricingData.filter(item => item.category === selectedCategory);
+                    }
                     
                     // Filter by search term if provided
                     if (search) {
@@ -13131,13 +13180,38 @@ Prices are subject to change without prior notice.</textarea>
                 }
             }
             
+            // Filter pricing by category
+            window.currentCategory = 'all';
+            function filterByCategory(category) {
+                window.currentCategory = category;
+                
+                // Update button styles
+                document.querySelectorAll('.category-filter-btn').forEach(btn => {
+                    if (btn.dataset.category === category) {
+                        btn.style.border = '2px solid #10b981';
+                        btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                        btn.style.color = 'white';
+                        btn.classList.add('active');
+                    } else {
+                        btn.style.border = '2px solid #d1d5db';
+                        btn.style.background = 'white';
+                        btn.style.color = '#374151';
+                        btn.classList.remove('active');
+                    }
+                });
+                
+                // Reload pricing with filter
+                const searchTerm = document.getElementById('pricingSearchInput').value.trim();
+                loadPricing(searchTerm, category);
+            }
+            
             // Search pricing function
             let searchPricingTimeout;
             function searchPricing() {
                 clearTimeout(searchPricingTimeout);
                 searchPricingTimeout = setTimeout(() => {
                     const searchTerm = document.getElementById('pricingSearchInput').value.trim();
-                    loadPricing(searchTerm);
+                    loadPricing(searchTerm, window.currentCategory || 'all');
                 }, 300); // Debounce 300ms
             }
             
@@ -13198,6 +13272,7 @@ Prices are subject to change without prior notice.</textarea>
             window.loadPricing = loadPricing;
             window.searchPricing = searchPricing;
             window.savePricing = savePricing;
+            window.filterByCategory = filterByCategory;
 
             async function searchOrder() {
                 const orderId = document.getElementById('searchOrderId').value.trim();
