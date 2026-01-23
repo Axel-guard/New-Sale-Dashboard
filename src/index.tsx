@@ -1693,6 +1693,72 @@ app.delete('/api/products/:productId', async (c) => {
   }
 });
 
+// ===== PRICING API ENDPOINTS =====
+
+// Get all pricing data
+app.get('/api/pricing', async (c) => {
+  const { env } = c;
+  
+  try {
+    const pricing = await env.DB.prepare(`
+      SELECT 
+        p.id as product_id,
+        p.product_code,
+        p.product_name,
+        p.category,
+        pr.qty_0_10,
+        pr.qty_10_50,
+        pr.qty_50_100,
+        pr.qty_100_plus,
+        pr.updated_at
+      FROM products p
+      LEFT JOIN product_pricing pr ON p.id = pr.product_id
+      ORDER BY p.category ASC, p.product_name ASC
+    `).all();
+    
+    return c.json({ success: true, data: pricing.results });
+  } catch (error) {
+    console.error('[GET /api/pricing] Error:', error);
+    return c.json({ success: false, error: 'Failed to fetch pricing: ' + error.message }, 500);
+  }
+});
+
+// Update pricing for a product
+app.put('/api/pricing/:productId', async (c) => {
+  const { env } = c;
+  const productId = c.req.param('productId');
+  
+  try {
+    const body = await c.req.json();
+    const { qty_0_10, qty_10_50, qty_50_100, qty_100_plus } = body;
+    
+    // Check if pricing exists
+    const existing = await env.DB.prepare(`
+      SELECT * FROM product_pricing WHERE product_id = ?
+    `).bind(productId).first();
+    
+    if (existing) {
+      // Update existing pricing
+      await env.DB.prepare(`
+        UPDATE product_pricing 
+        SET qty_0_10 = ?, qty_10_50 = ?, qty_50_100 = ?, qty_100_plus = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE product_id = ?
+      `).bind(qty_0_10 || 0, qty_10_50 || 0, qty_50_100 || 0, qty_100_plus || 0, productId).run();
+    } else {
+      // Insert new pricing
+      await env.DB.prepare(`
+        INSERT INTO product_pricing (product_id, qty_0_10, qty_10_50, qty_50_100, qty_100_plus)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(productId, qty_0_10 || 0, qty_10_50 || 0, qty_50_100 || 0, qty_100_plus || 0).run();
+    }
+    
+    return c.json({ success: true, message: 'Pricing updated successfully' });
+  } catch (error) {
+    console.error('[PUT /api/pricing] Error:', error);
+    return c.json({ success: false, error: 'Failed to update pricing: ' + error.message }, 500);
+  }
+});
+
 // ===== COURIER PARTNERS API ENDPOINTS =====
 
 // Get all courier partners
@@ -7562,6 +7628,12 @@ app.get('/', (c) => {
                 </div>
             </div>
             
+            <!-- Pricing -->
+            <div class="sidebar-item" onclick="showPage('pricing')">
+                <i class="fas fa-tags"></i>
+                <span>Pricing</span>
+            </div>
+            
             <!-- Database -->
             <div class="sidebar-parent" onclick="toggleSubmenu('database-menu')">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -8064,6 +8136,44 @@ app.get('/', (c) => {
                                     <tr><td colspan="8" class="loading">Loading...</td></tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- PRICING PAGE -->
+            <!-- ============================================ -->
+            <div class="page-content" id="pricing-page">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div>
+                            <h2 class="card-title" style="margin: 0;">
+                                <i class="fas fa-tags"></i> Product Pricing Management
+                            </h2>
+                            <p style="color: #6b7280; font-size: 14px; margin-top: 5px;">Set quantity-based pricing for all products</p>
+                        </div>
+                        <button onclick="savePricing()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <i class="fas fa-save"></i> Save All Pricing
+                        </button>
+                    </div>
+
+                    <!-- Search Box -->
+                    <div style="margin-bottom: 20px;">
+                        <input 
+                            type="text" 
+                            id="pricingSearchInput" 
+                            placeholder="Search by Product Name, Code, or Category..." 
+                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                            oninput="searchPricing()"
+                        >
+                    </div>
+
+                    <div id="pricingContainer">
+                        <!-- Pricing items will be loaded here -->
+                        <div class="loading" style="text-align: center; padding: 40px; color: #6b7280;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px;"></i>
+                            <div>Loading products...</div>
                         </div>
                     </div>
                 </div>
@@ -11302,6 +11412,9 @@ Prices are subject to change without prior notice.</textarea>
                     case 'products':
                         loadProducts();
                         break;
+                    case 'pricing':
+                        loadPricing();
+                        break;
                     case 'user-management':
                         loadUsers();
                         break;
@@ -12892,6 +13005,199 @@ Prices are subject to change without prior notice.</textarea>
                     alert('Error updating product: ' + (error.response?.data?.error || error.message));
                 }
             }
+
+            // ===== PRICING FUNCTIONS =====
+            
+            // Load pricing data
+            async function loadPricing(search = '') {
+                try {
+                    const container = document.getElementById('pricingContainer');
+                    
+                    // Fetch pricing from database
+                    const response = await axios.get('/api/pricing');
+                    let pricingData = response.data.data;
+                    
+                    // Filter by search term if provided
+                    if (search) {
+                        const searchLower = search.toLowerCase();
+                        pricingData = pricingData.filter(item => 
+                            item.product_name.toLowerCase().includes(searchLower) ||
+                            item.product_code.toLowerCase().includes(searchLower) ||
+                            item.category.toLowerCase().includes(searchLower)
+                        );
+                    }
+                    
+                    if (!pricingData || pricingData.length === 0) {
+                        container.innerHTML = \`
+                            <div style="text-align: center; padding: 40px; color: #6b7280;">
+                                <i class="fas fa-search" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                                <p style="font-size: 16px;">No products found</p>
+                            </div>
+                        \`;
+                        return;
+                    }
+                    
+                    // Group products by category
+                    const groupedProducts = {};
+                    pricingData.forEach(item => {
+                        if (!groupedProducts[item.category]) {
+                            groupedProducts[item.category] = [];
+                        }
+                        groupedProducts[item.category].push(item);
+                    });
+                    
+                    // Render pricing by category
+                    container.innerHTML = Object.entries(groupedProducts).map(([category, categoryProducts]) => \`
+                        <div style="margin-bottom: 30px;">
+                            <h3 style="font-size: 18px; font-weight: 700; color: #1f2937; margin-bottom: 15px; padding: 10px 15px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px;">
+                                <i class="fas fa-tags"></i> \${category} (\${categoryProducts.length})
+                            </h3>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 15%;">Product Code</th>
+                                            <th style="width: 25%;">Product Name</th>
+                                            <th style="width: 15%; text-align: center;">0-10 Qty<br><small style="font-weight: normal; opacity: 0.8;">(₹)</small></th>
+                                            <th style="width: 15%; text-align: center;">10-50 Qty<br><small style="font-weight: normal; opacity: 0.8;">(₹)</small></th>
+                                            <th style="width: 15%; text-align: center;">50-100 Qty<br><small style="font-weight: normal; opacity: 0.8;">(₹)</small></th>
+                                            <th style="width: 15%; text-align: center;">100+ Qty<br><small style="font-weight: normal; opacity: 0.8;">(₹)</small></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        \${categoryProducts.map(item => \`
+                                            <tr>
+                                                <td><strong>\${item.product_code}</strong></td>
+                                                <td>\${item.product_name}</td>
+                                                <td style="text-align: center;">
+                                                    <input 
+                                                        type="number" 
+                                                        class="pricing-input" 
+                                                        data-product-id="\${item.product_id}"
+                                                        data-qty-range="qty_0_10"
+                                                        value="\${item.qty_0_10 || 0}"
+                                                        min="0"
+                                                        step="0.01"
+                                                        style="width: 100px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; text-align: center;"
+                                                    >
+                                                </td>
+                                                <td style="text-align: center;">
+                                                    <input 
+                                                        type="number" 
+                                                        class="pricing-input" 
+                                                        data-product-id="\${item.product_id}"
+                                                        data-qty-range="qty_10_50"
+                                                        value="\${item.qty_10_50 || 0}"
+                                                        min="0"
+                                                        step="0.01"
+                                                        style="width: 100px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; text-align: center;"
+                                                    >
+                                                </td>
+                                                <td style="text-align: center;">
+                                                    <input 
+                                                        type="number" 
+                                                        class="pricing-input" 
+                                                        data-product-id="\${item.product_id}"
+                                                        data-qty-range="qty_50_100"
+                                                        value="\${item.qty_50_100 || 0}"
+                                                        min="0"
+                                                        step="0.01"
+                                                        style="width: 100px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; text-align: center;"
+                                                    >
+                                                </td>
+                                                <td style="text-align: center;">
+                                                    <input 
+                                                        type="number" 
+                                                        class="pricing-input" 
+                                                        data-product-id="\${item.product_id}"
+                                                        data-qty-range="qty_100_plus"
+                                                        value="\${item.qty_100_plus || 0}"
+                                                        min="0"
+                                                        step="0.01"
+                                                        style="width: 100px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; text-align: center;"
+                                                    >
+                                                </td>
+                                            </tr>
+                                        \`).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error loading pricing:', error);
+                    const container = document.getElementById('pricingContainer');
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Error loading pricing: ' + error.message + '</div>';
+                }
+            }
+            
+            // Search pricing function
+            let searchPricingTimeout;
+            function searchPricing() {
+                clearTimeout(searchPricingTimeout);
+                searchPricingTimeout = setTimeout(() => {
+                    const searchTerm = document.getElementById('pricingSearchInput').value.trim();
+                    loadPricing(searchTerm);
+                }, 300); // Debounce 300ms
+            }
+            
+            // Save all pricing
+            async function savePricing() {
+                try {
+                    const inputs = document.querySelectorAll('.pricing-input');
+                    const updates = {};
+                    
+                    // Group pricing data by product_id
+                    inputs.forEach(input => {
+                        const productId = input.dataset.productId;
+                        const qtyRange = input.dataset.qtyRange;
+                        const value = parseFloat(input.value) || 0;
+                        
+                        if (!updates[productId]) {
+                            updates[productId] = {
+                                qty_0_10: 0,
+                                qty_10_50: 0,
+                                qty_50_100: 0,
+                                qty_100_plus: 0
+                            };
+                        }
+                        
+                        updates[productId][qtyRange] = value;
+                    });
+                    
+                    // Show loading state
+                    const saveBtn = event.target;
+                    const originalText = saveBtn.innerHTML;
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                    
+                    // Update pricing for each product
+                    const updatePromises = Object.entries(updates).map(([productId, pricing]) => 
+                        axios.put(\`/api/pricing/\${productId}\`, pricing)
+                    );
+                    
+                    await Promise.all(updatePromises);
+                    
+                    // Reset button
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalText;
+                    
+                    alert(\`✅ Pricing updated successfully for \${Object.keys(updates).length} products!\`);
+                } catch (error) {
+                    console.error('Error saving pricing:', error);
+                    alert('❌ Error saving pricing: ' + (error.response?.data?.error || error.message));
+                    
+                    // Reset button
+                    const saveBtn = event.target;
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="fas fa-save"></i> Save All Pricing';
+                }
+            }
+            
+            // Expose pricing functions globally
+            window.loadPricing = loadPricing;
+            window.searchPricing = searchPricing;
+            window.savePricing = savePricing;
 
             async function searchOrder() {
                 const orderId = document.getElementById('searchOrderId').value.trim();
