@@ -21304,14 +21304,19 @@ Prices are subject to change without prior notice.</textarea>
             
             // Open Add Inventory Modal - Bulk Entry
             async function openAddInventoryModal() {
+                console.log('🚀 [openAddInventoryModal] Opening modal...');
                 document.getElementById('addInventoryModal').classList.add('show');
                 bulkInventoryRows = [];
                 rowCounter = 0;
                 
+                console.log('📦 [openAddInventoryModal] Loading product catalog...');
                 // Reload product catalog to ensure latest products are available
                 await loadInventoryProductCatalog();
+                console.log('✅ [openAddInventoryModal] Product catalog loaded, catalog keys:', Object.keys(inventoryProductCatalog));
+                console.log('✅ [openAddInventoryModal] Cameras count:', inventoryProductCatalog['Cameras']?.length || 0);
                 
                 // Add first row
+                console.log('➕ [openAddInventoryModal] Adding first row...');
                 addInventoryRow();
             }
             
@@ -21384,9 +21389,14 @@ Prices are subject to change without prior notice.</textarea>
                 const productSelect = document.getElementById(\`\${rowId}_product\`);
                 const category = categorySelect.value;
                 
+                console.log('🔍 [loadRowProducts] Category selected:', category);
+                console.log('🔍 [loadRowProducts] inventoryProductCatalog keys:', Object.keys(inventoryProductCatalog));
+                console.log('🔍 [loadRowProducts] Products for', category, ':', inventoryProductCatalog[category]?.length || 0);
+                
                 productSelect.innerHTML = '<option value="">-- Select Product --</option>';
                 
                 if (category && inventoryProductCatalog[category]) {
+                    console.log('✅ [loadRowProducts] Loading', inventoryProductCatalog[category].length, 'products');
                     inventoryProductCatalog[category].forEach(product => {
                         const option = document.createElement('option');
                         option.value = product;
@@ -21396,6 +21406,9 @@ Prices are subject to change without prior notice.</textarea>
                     
                     // Focus on product select after loading
                     productSelect.focus();
+                } else {
+                    console.error('❌ [loadRowProducts] No products found for category:', category);
+                    console.error('❌ [loadRowProducts] inventoryProductCatalog:', inventoryProductCatalog);
                 }
             }
             
