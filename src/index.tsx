@@ -1550,6 +1550,11 @@ app.get('/api/products', async (c) => {
     
     const products = await env.DB.prepare(query).bind(...params).all();
     
+    // Add cache-busting headers
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
+    
     return c.json({ success: true, data: products.results });
   } catch (error) {
     return c.json({ success: false, error: 'Failed to fetch products' }, 500);
@@ -21259,7 +21264,9 @@ Prices are subject to change without prior notice.</textarea>
             async function loadInventoryProductCatalog() {
                 try {
                     console.log('📦 Loading product catalog from database...');
-                    const response = await axios.get('/api/products');
+                    // Add timestamp to bust cache
+                    const timestamp = Date.now();
+                    const response = await axios.get('/api/products?_t=' + timestamp);
                     if (response.data.success) {
                         const products = response.data.data;
                         
