@@ -16736,13 +16736,13 @@ Prices are subject to change without prior notice.</textarea>
                                 <td style="background: white; width: 80px; padding: 10px 8px; vertical-align: middle; color: #374151;">\${item.cust_code || '-'}</td>
                                 <td style="background: white; width: 160px; padding: 10px 8px; vertical-align: middle; text-align: center;">
                                     <div style="display: flex; gap: 5px; justify-content: center;">
-                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="viewDevice('\${item.device_serial_no}')">
+                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="console.log('👁️ View clicked:', '\${item.device_serial_no}'); viewDevice('\${item.device_serial_no}')">
                                             <i class="fas fa-eye"></i> View
                                         </button>
-                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);" onclick="editInventoryItem('\${item.device_serial_no}')">
+                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);" onclick="console.log('✏️ Edit clicked:', '\${item.device_serial_no}'); editInventoryItem('\${item.device_serial_no}')">
                                             <i class="fas fa-edit"></i> Edit
                                         </button>
-                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="deleteInventoryItem('\${item.device_serial_no}')">
+                                        <button class="btn-primary" style="padding: 6px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="console.log('🗑️ Delete clicked:', '\${item.device_serial_no}'); deleteInventoryItem('\${item.device_serial_no}')">
                                             <i class="fas fa-trash"></i> Delete
                                         </button>
                                     </div>
@@ -16764,16 +16764,21 @@ Prices are subject to change without prior notice.</textarea>
             
             // Edit inventory item
             window.editInventoryItem = async function(serialNo) {
+                console.log('🔧 [Edit] Opening edit modal for serial:', serialNo);
                 try {
                     // Fetch current device data
+                    console.log('🔧 [Edit] Fetching device data from API...');
                     const response = await axios.get(\`/api/inventory/search?serial=\${serialNo}\`);
+                    console.log('🔧 [Edit] API response:', response.data);
                     
                     if (!response.data.success || !response.data.data || response.data.data.length === 0) {
-                        alert('❌ Error: Device not found');
+                        console.error('🔧 [Edit] Device not found in database');
+                        alert(\`❌ Error: Device \${serialNo} not found in inventory database.\n\nThis might happen if:\n- You're testing locally but the device is only in production\n- The device was recently added and database needs refresh\n\nTry refreshing the page or check production: https://office.axel-guard.com\`);
                         return;
                     }
                     
                     const device = response.data.data[0];
+                    console.log('🔧 [Edit] Device found:', device);
                     
                     // Populate form fields
                     document.getElementById('edit_serial_number').value = device.device_serial_no || '';
@@ -16785,11 +16790,13 @@ Prices are subject to change without prior notice.</textarea>
                     document.getElementById('edit_customer_name').value = device.customer_name || '';
                     document.getElementById('edit_cust_code').value = device.cust_code || '';
                     
+                    console.log('🔧 [Edit] Form populated, opening modal...');
                     // Open modal
                     document.getElementById('editInventoryModal').classList.add('show');
+                    console.log('✅ [Edit] Modal opened successfully');
                 } catch (error) {
-                    console.error('Edit error:', error);
-                    alert('❌ Error: Failed to load device data');
+                    console.error('🔧 [Edit] Error:', error);
+                    alert(\`❌ Error: Failed to load device data\n\nError: \${error.message}\n\nPlease try again or contact support.\`);
                 }
             };
             
@@ -16811,12 +16818,16 @@ Prices are subject to change without prior notice.</textarea>
                 const customer_name = document.getElementById('edit_customer_name').value || null;
                 const cust_code = document.getElementById('edit_cust_code').value || null;
                 
+                console.log('💾 [Edit Submit] Saving changes for:', serialNo);
+                console.log('💾 [Edit Submit] Data:', { status, qc_result, in_date, dispatch_date, customer_name, cust_code });
+                
                 if (!status) {
                     alert('❌ Error: Status is required');
                     return;
                 }
                 
                 try {
+                    console.log('💾 [Edit Submit] Sending PUT request...');
                     const response = await axios.put(\`/api/inventory/\${serialNo}\`, {
                         status,
                         qc_result,
@@ -16826,16 +16837,20 @@ Prices are subject to change without prior notice.</textarea>
                         cust_code
                     });
                     
+                    console.log('💾 [Edit Submit] Server response:', response.data);
+                    
                     if (response.data.success) {
-                        alert('✅ Device updated successfully!');
+                        alert(\`✅ Device updated successfully!\n\nSerial: \${serialNo}\nChanges: \${response.data.changes || 1} field(s) updated\n\nThe inventory table will now refresh.\`);
                         closeEditInventoryModal();
                         loadInventory(); // Reload the table
+                        console.log('✅ [Edit Submit] Update successful, table reloaded');
                     } else {
+                        console.error('💾 [Edit Submit] Update failed:', response.data.error);
                         alert('❌ Error: ' + (response.data.error || 'Failed to update device'));
                     }
                 } catch (error) {
-                    console.error('Update error:', error);
-                    alert('❌ Error: Failed to update device');
+                    console.error('💾 [Edit Submit] Error:', error);
+                    alert(\`❌ Error: Failed to update device\n\nError: \${error.message}\n\nPlease try again or contact support.\`);
                 }
             };
             
