@@ -21252,115 +21252,52 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             
             // Complete product catalog from sale form
-            const inventoryProductCatalog = {
-                'MDVR': [
-                    '4ch 1080p SD Card MDVR (MR9504EC)',
-                    '4ch 1080p HDD MDVR (MR9704C)',
-                    '4ch 1080p SD, 4G, GPS MDVR (MR9504E)',
-                    '4ch 1080p SD, 4G, GPS MDVR (MR9504E-A3)',
-                    '4ch 1080p HDD, 4G, GPS MDVR (MR9704E)',
-                    'TVS 4ch 1080p SD, 4G, GPS MDVR',
-                    '5ch MDVR SD 4g + GPS + LAN + RS232 + RS485',
-                    '5ch MDVR HDD 4g + GPS + LAN + RS232 + RS485',
-                    '4ch 1080p SD, 4G, wifi, GPS MDVR (MA9504ED)',
-                    'AI MDVR with (DSM + ADAS) (SD+ 4g + GPS)',
-                    'AI MDVR with (DSM + ADAS) (SD+HDD+ 4g + GPS)'
-                ],
-                'Monitor & Monitor Kit': [
-                    '7 " AV Monitor',
-                    '7" VGA Monitor',
-                    '7" HDMI Monitor',
-                    '7 inch Heavy Duty VGA Monitor',
-                    '4k Recording monitor kit 2ch',
-                    '4 inch AV monitor',
-                    '720 2ch Recording Monitor Kit',
-                    '4k Recording monitor kit 4ch'
-                ],
-                'Dashcam': [
-                    '4 Inch 2 Ch Dashcam',
-                    '10 inch 2 Ch Full Touch Dashcam',
-                    '10 inch 2 Ch 4g, GPS, Android Dashcam',
-                    '4k Dashcam 12 inch',
-                    '2k 12 inch Dashcam',
-                    '2ch 4g Dashcam MT95L',
-                    '3ch AI Dashcam ADAS + DSM (MT95C)',
-                    'wifi Dash Cam',
-                    '4 inch 3 camera Dash Cam',
-                    '4 inch Android Dashcam',
-                    '3ch 4g Dashcam with Rear Camera (MT95L-A3)',
-                    '3ch AI Dashcam ADAS + DSM (MT95C)'
-                ],
-                'Cameras': [
-                    '2 MP IR indoor Dome Camera',
-                    '2 MP IR Outdoor Bullet Camera',
-                    '2 MP Heavy Duty Bullet Camera',
-                    '2 MP Heavy Duty Dome Camera',
-                    'PTZ Camera',
-                    '4k Monitor Camera',
-                    '2 MP IP Camera',
-                    'Replacement Bullet Camera 2mp',
-                    'Replacement Dome Camera 2 mp',
-                    'Replacement Dome Audio Camera',
-                    'Reverse Camera',
-                    '2mp IR Audio Camera',
-                    'DFMS Camera',
-                    'ADAS Camera',
-                    'BSD Camera',
-                    '2mp IP Dome Audio Camera'
-                ],
-                'Storage': [
-                    'Surveillance Grade 64GB SD Card',
-                    'Surveillance Grade 128GB SD Card',
-                    'Surveillance Grade 256GB SD Card',
-                    'Surveillance Grade 512GB SD Card',
-                    'HDD 1 TB'
-                ],
-                'RFID Tags': [
-                    '2.4G RFID Animal Ear Tag',
-                    '2.4G Active Tag (Card Type) HX607'
-                ],
-                'RFID Reader': [
-                    '2.4 GHZ RFID Active Reader (Bus)',
-                    '2.4 GHZ RFID Active Reader (Campus)',
-                    '2.4G IOT Smart RFID Reader (ZR7901P)'
-                ],
-                'MDVR Accessories': [
-                    'MDVR Security Box',
-                    '2 way Communication Device',
-                    'MDVR Maintenance Tool',
-                    'MDVR Remote',
-                    'MDVR Panic Button',
-                    'MDVR Server',
-                    'RS 232 Adaptor',
-                    '1mt Cable',
-                    '3mt Cable',
-                    '5mt Cable',
-                    '10mt Cable',
-                    '15mt Cable',
-                    'Alcohol Tester',
-                    'VGA Cable',
-                    'Ultra Sonic Fuel Sensor',
-                    'Rod Type Fuel Sensor'
-                ],
-                'Other product and Accessories': [
-                    'Leaser Printer',
-                    'D link Wire Bundle',
-                    'Wireless Receiver Transmitter',
-                    'Parking Sensor',
-                    'MDVR Installation',
-                    'GPS Installation',
-                    'Annual Maintenance Charges'
-                ]
-            };
+            // Dynamic product catalog - will be loaded from database
+            let inventoryProductCatalog = {};
+            
+            // Load product catalog from database
+            async function loadInventoryProductCatalog() {
+                try {
+                    const response = await axios.get('/api/products');
+                    if (response.data.success) {
+                        const products = response.data.data;
+                        
+                        // Group products by category
+                        inventoryProductCatalog = {};
+                        products.forEach(product => {
+                            const category = product.category;
+                            const productName = product.product_name;
+                            
+                            if (!inventoryProductCatalog[category]) {
+                                inventoryProductCatalog[category] = [];
+                            }
+                            
+                            if (!inventoryProductCatalog[category].includes(productName)) {
+                                inventoryProductCatalog[category].push(productName);
+                            }
+                        });
+                        
+                        console.log('Product catalog loaded:', Object.keys(inventoryProductCatalog).length, 'categories');
+                    }
+                } catch (error) {
+                    console.error('Error loading product catalog:', error);
+                }
+            }
+            
+            // Load product catalog on page load
+            loadInventoryProductCatalog();
             
             let bulkInventoryRows = [];
             let rowCounter = 0;
             
             // Open Add Inventory Modal - Bulk Entry
-            function openAddInventoryModal() {
+            async function openAddInventoryModal() {
                 document.getElementById('addInventoryModal').classList.add('show');
                 bulkInventoryRows = [];
                 rowCounter = 0;
+                
+                // Reload product catalog to ensure latest products are available
+                await loadInventoryProductCatalog();
                 
                 // Add first row
                 addInventoryRow();
