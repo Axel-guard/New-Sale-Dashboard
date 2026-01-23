@@ -21258,6 +21258,7 @@ Prices are subject to change without prior notice.</textarea>
             // Load product catalog from database
             async function loadInventoryProductCatalog() {
                 try {
+                    console.log('📦 Loading product catalog from database...');
                     const response = await axios.get('/api/products');
                     if (response.data.success) {
                         const products = response.data.data;
@@ -21277,10 +21278,14 @@ Prices are subject to change without prior notice.</textarea>
                             }
                         });
                         
-                        console.log('Product catalog loaded:', Object.keys(inventoryProductCatalog).length, 'categories');
+                        console.log('✅ Product catalog loaded:', Object.keys(inventoryProductCatalog).length, 'categories');
+                        console.log('📷 Cameras category has', inventoryProductCatalog['Cameras']?.length || 0, 'products');
+                        if (inventoryProductCatalog['Cameras']) {
+                            console.log('🔍 Camera products:', inventoryProductCatalog['Cameras'].join(', '));
+                        }
                     }
                 } catch (error) {
-                    console.error('Error loading product catalog:', error);
+                    console.error('❌ Error loading product catalog:', error);
                 }
             }
             
