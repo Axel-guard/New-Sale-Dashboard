@@ -5305,43 +5305,58 @@ app.put('/api/inventory/:serialNo', async (c) => {
     const serialNo = c.req.param('serialNo');
     const body = await c.req.json();
     
+    console.log('[PUT /api/inventory] Serial:', serialNo, 'Body:', JSON.stringify(body));
+    
     // Check if device exists
     const device = await env.DB.prepare(`
       SELECT * FROM inventory WHERE device_serial_no = ?
     `).bind(serialNo).first();
     
     if (!device) {
+      console.error('[PUT /api/inventory] Device not found:', serialNo);
       return c.json({ success: false, error: 'Device not found' }, 404);
     }
     
+    console.log('[PUT /api/inventory] Current device:', JSON.stringify(device));
+    
+    // Helper to convert empty strings to null
+    const toNullIfEmpty = (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      return value;
+    };
+    
     // Update device (only editable fields)
-    await env.DB.prepare(`
+    const result = await env.DB.prepare(`
       UPDATE inventory 
       SET status = ?,
           qc_result = ?,
           in_date = ?,
           dispatch_date = ?,
           customer_name = ?,
-          cust_code = ?
+          cust_code = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE device_serial_no = ?
     `).bind(
       body.status || device.status,
-      body.qc_result,
-      body.in_date,
-      body.dispatch_date,
-      body.customer_name,
-      body.cust_code,
+      toNullIfEmpty(body.qc_result),
+      toNullIfEmpty(body.in_date),
+      toNullIfEmpty(body.dispatch_date),
+      toNullIfEmpty(body.customer_name),
+      toNullIfEmpty(body.cust_code),
       serialNo
     ).run();
+    
+    console.log('[PUT /api/inventory] Update result:', JSON.stringify(result));
     
     return c.json({ 
       success: true, 
       message: 'Device updated successfully',
-      serial_no: serialNo
+      serial_no: serialNo,
+      changes: result.meta?.changes || 0
     });
   } catch (error) {
-    console.error('Update inventory error:', error);
-    return c.json({ success: false, error: 'Failed to update device' }, 500);
+    console.error('[PUT /api/inventory] Error:', error);
+    return c.json({ success: false, error: 'Failed to update device: ' + error.message }, 500);
   }
 });
 
