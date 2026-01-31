@@ -8080,9 +8080,14 @@ app.get('/', (c) => {
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h2 class="card-title" style="margin: 0;">Balance Payments</h2>
-                        <button onclick="openBalancePaymentReportModal()" class="btn-primary" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
-                            <i class="fas fa-chart-pie"></i> View Balance Report
-                        </button>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="exportBalancePaymentsToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 10px 20px; font-size: 14px;">
+                                <i class="fas fa-file-excel"></i> Download Excel
+                            </button>
+                            <button onclick="openBalancePaymentReportModal()" class="btn-primary" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
+                                <i class="fas fa-chart-pie"></i> View Balance Report
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Tabs -->
@@ -8430,13 +8435,18 @@ app.get('/', (c) => {
                 <div id="trackingDetailsContent" style="display: none;">
                     <!-- Tracking Details Report - Full Screen -->
                     <div class="card">
-                        <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);">
-                            <h3 style="color: white; margin-bottom: 12px; font-size: 20px; font-weight: 700;">
-                                <i class="fas fa-chart-bar"></i> Tracking Records Report
-                            </h3>
-                            <p style="color: rgba(255,255,255,0.95); font-size: 14px; margin: 0; line-height: 1.5;">
-                                All tracking records with invoice pricing
-                            </p>
+                        <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="color: white; margin-bottom: 12px; font-size: 20px; font-weight: 700;">
+                                    <i class="fas fa-chart-bar"></i> Tracking Records Report
+                                </h3>
+                                <p style="color: rgba(255,255,255,0.95); font-size: 14px; margin: 0; line-height: 1.5;">
+                                    All tracking records with invoice pricing
+                                </p>
+                            </div>
+                            <button onclick="exportTrackingDetailsToExcel()" class="btn-primary" style="background: white; color: #047857; padding: 12px 20px; font-size: 14px; font-weight: 600; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'">
+                                <i class="fas fa-file-excel"></i> Download Excel
+                            </button>
                         </div>
 
                         <!-- Search Bar and Month Filter -->
@@ -22684,6 +22694,125 @@ Prices are subject to change without prior notice.</textarea>
                 } catch (error) {
                     console.error('Export error:', error);
                     alert('Failed to export reports: ' + error.message);
+                }
+            }
+            
+            // Export Tracking Details to Excel
+            async function exportTrackingDetailsToExcel() {
+                try {
+                    const tbody = document.getElementById('trackingReportBodyTab');
+                    if (!tbody) {
+                        alert('Tracking details table not found');
+                        return;
+                    }
+                    const rows = tbody.querySelectorAll('tr');
+                    if (rows.length === 0 || (rows.length === 1 && rows[0].textContent.includes('Loading'))) {
+                        alert('No tracking data available to download');
+                        return;
+                    }
+                    const excelData = [];
+                    rows.forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length > 1) {
+                            const typeCell = cells[0].textContent.trim();
+                            const orderIdCell = cells[1].textContent.trim();
+                            const courierCell = cells[2].textContent.trim();
+                            const modeCell = cells[3].textContent.trim();
+                            const trackingIdCell = cells[4].textContent.trim();
+                            const weightCell = cells[5].textContent.trim();
+                            const priceCell = cells[6].textContent.trim();
+                            excelData.push({
+                                'Type': typeCell,
+                                'Order ID': orderIdCell,
+                                'Courier Partner': courierCell,
+                                'Mode': modeCell,
+                                'Tracking ID': trackingIdCell,
+                                'Weight': weightCell,
+                                'Price': priceCell
+                            });
+                        }
+                    });
+                    if (excelData.length === 0) {
+                        alert('No tracking data to export');
+                        return;
+                    }
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.json_to_sheet(excelData);
+                    XLSX.utils.book_append_sheet(wb, ws, 'Tracking Details');
+                    const filename = 'Tracking_Details_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                    XLSX.writeFile(wb, filename);
+                    alert('✅ Tracking details exported successfully!');
+                } catch (error) {
+                    console.error('Error exporting tracking details:', error);
+                    alert('Failed to download tracking details');
+                }
+            }
+            
+            // Export Balance Payments to Excel
+            async function exportBalancePaymentsToExcel() {
+                try {
+                    const activeTab = document.querySelector('.tab-btn.active').id;
+                    const isPendingTab = activeTab === 'pending-balance-tab';
+                    const tbody = document.getElementById(isPendingTab ? 'balancePaymentTableBody' : 'balancePaymentHistoryTableBody');
+                    if (!tbody) {
+                        alert('Balance payments table not found');
+                        return;
+                    }
+                    const rows = tbody.querySelectorAll('tr');
+                    if (rows.length === 0 || (rows.length === 1 && rows[0].textContent.includes('Loading'))) {
+                        alert('No balance payment data available to download');
+                        return;
+                    }
+                    const excelData = [];
+                    if (isPendingTab) {
+                        rows.forEach(row => {
+                            const cells = row.querySelectorAll('td');
+                            if (cells.length >= 10) {
+                                excelData.push({
+                                    'Order ID': cells[0].textContent.trim(),
+                                    'Cust Code': cells[1].textContent.trim(),
+                                    'Date': cells[2].textContent.trim(),
+                                    'Customer Name': cells[3].textContent.trim(),
+                                    'Company Name': cells[4].textContent.trim(),
+                                    'Employee': cells[5].textContent.trim(),
+                                    'Contact': cells[6].textContent.trim(),
+                                    'Total Amount': cells[7].textContent.trim(),
+                                    'Received': cells[8].textContent.trim(),
+                                    'Balance': cells[9].textContent.trim()
+                                });
+                            }
+                        });
+                    } else {
+                        rows.forEach(row => {
+                            const cells = row.querySelectorAll('td');
+                            if (cells.length >= 8) {
+                                excelData.push({
+                                    'Order ID': cells[0].textContent.trim(),
+                                    'Cust Code': cells[1].textContent.trim(),
+                                    'Customer Name': cells[2].textContent.trim(),
+                                    'Company Name': cells[3].textContent.trim(),
+                                    'Payment Date': cells[4].textContent.trim(),
+                                    'Amount': cells[5].textContent.trim(),
+                                    'Account': cells[6].textContent.trim(),
+                                    'Payment Reference': cells[7].textContent.trim()
+                                });
+                            }
+                        });
+                    }
+                    if (excelData.length === 0) {
+                        alert('No balance payment data to export');
+                        return;
+                    }
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.json_to_sheet(excelData);
+                    const sheetName = isPendingTab ? 'Pending Payments' : 'Payment History';
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    const filename = (isPendingTab ? 'Pending_Payments_' : 'Payment_History_') + new Date().toISOString().split('T')[0] + '.xlsx';
+                    XLSX.writeFile(wb, filename);
+                    alert('✅ Balance payments exported successfully!');
+                } catch (error) {
+                    console.error('Error exporting balance payments:', error);
+                    alert('Failed to download balance payments');
                 }
             }
             
