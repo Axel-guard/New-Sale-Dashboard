@@ -7950,7 +7950,12 @@ app.get('/', (c) => {
 
             <div class="page-content" id="sale-database-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Complete Sales Database</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="card-title" style="margin: 0;">Complete Sales Database</h2>
+                        <button onclick="exportSalesToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                            <i class="fas fa-file-excel"></i> Download Excel
+                        </button>
+                    </div>
                     
                     <!-- Search Box with Autocomplete -->
                     <div style="margin-bottom: 20px; position: relative;">
@@ -8153,9 +8158,14 @@ app.get('/', (c) => {
                             </h2>
                             <p style="color: #6b7280; font-size: 14px; margin-top: 5px;">Set quantity-based pricing for all products</p>
                         </div>
-                        <button onclick="savePricing()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                            <i class="fas fa-save"></i> Save All Pricing
-                        </button>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="exportPricingToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                                <i class="fas fa-file-excel"></i> Download Excel
+                            </button>
+                            <button onclick="savePricing()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                <i class="fas fa-save"></i> Save All Pricing
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Search Box -->
@@ -8193,7 +8203,12 @@ app.get('/', (c) => {
 
             <div class="page-content" id="leads-page">
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">Leads Database</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="card-title" style="margin: 0;">Leads Database</h2>
+                        <button onclick="exportLeadsToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <i class="fas fa-file-excel"></i> Download Excel
+                        </button>
+                    </div>
                     
                     <!-- Search Box -->
                     <div style="margin-bottom: 20px;">
@@ -8239,9 +8254,14 @@ app.get('/', (c) => {
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h2 class="card-title" style="margin: 0;">Products Database</h2>
-                        <button onclick="openAddProductModal()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                            <i class="fas fa-plus-circle"></i> Add Product
-                        </button>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="exportProductsToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                                <i class="fas fa-file-excel"></i> Download Excel
+                            </button>
+                            <button onclick="openAddProductModal()" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                <i class="fas fa-plus-circle"></i> Add Product
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Search Box -->
@@ -9142,7 +9162,12 @@ app.get('/', (c) => {
             <!-- Inventory Reports Page -->
             <div class="page-content" id="inventory-reports-page">
                 <div class="card">
-                    <h2 class="card-title">Inventory Reports & Statistics</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="card-title" style="margin: 0;">Inventory Reports & Statistics</h2>
+                        <button onclick="exportInventoryReportsToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                            <i class="fas fa-file-excel"></i> Download Excel
+                        </button>
+                    </div>
                     
                     <!-- Summary Cards -->
                     <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; margin-bottom: 35px;">
@@ -22473,6 +22498,198 @@ Prices are subject to change without prior notice.</textarea>
             // END OF RENEWAL TRACKING FUNCTIONS
             // ===================================================================
             
+            // ===================================================================
+            // EXCEL EXPORT FUNCTIONS FOR ALL PAGES
+            // ===================================================================
+            
+            // Export Leads Database to Excel
+            async function exportLeadsToExcel() {
+                try {
+                    const response = await axios.get('/api/leads');
+                    if (response.data.success) {
+                        const leads = response.data.data;
+                        const excelData = leads.map(lead => ({
+                            'Customer Code': lead.customer_code || '',
+                            'Customer Name': lead.customer_name || '',
+                            'Mobile': lead.mobile_number || '',
+                            'Alternate Mobile': lead.alternate_mobile || '',
+                            'Location': lead.location || '',
+                            'Company Name': lead.company_name || '',
+                            'GST Number': lead.gst_number || '',
+                            'Email': lead.email || '',
+                            'Status': lead.status || '',
+                            'Created At': lead.created_at ? new Date(lead.created_at).toLocaleDateString() : ''
+                        }));
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(excelData);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+                        const filename = 'Leads_Database_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                        XLSX.writeFile(wb, filename);
+                        alert('✅ Leads database exported successfully!');
+                    }
+                } catch (error) {
+                    console.error('Export error:', error);
+                    alert('Failed to export leads: ' + error.message);
+                }
+            }
+            
+            // Export Products Database to Excel
+            async function exportProductsToExcel() {
+                try {
+                    const response = await axios.get('/api/products');
+                    if (response.data.success) {
+                        const products = response.data.data;
+                        const excelData = products.map(product => ({
+                            'Product Code': product.product_code || '',
+                            'Product Name': product.product_name || '',
+                            'Category': product.category || '',
+                            'Weight (kg)': product.weight || 0,
+                            'Created At': product.created_at ? new Date(product.created_at).toLocaleDateString() : ''
+                        }));
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(excelData);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Products');
+                        const filename = 'Products_Database_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                        XLSX.writeFile(wb, filename);
+                        alert('✅ Products database exported successfully!');
+                    }
+                } catch (error) {
+                    console.error('Export error:', error);
+                    alert('Failed to export products: ' + error.message);
+                }
+            }
+            
+            // Export Inventory to Excel
+            async function exportInventoryToExcel() {
+                try {
+                    const response = await axios.get('/api/inventory');
+                    if (response.data.success) {
+                        const inventory = response.data.data;
+                        const excelData = inventory.map(item => ({
+                            'Serial Number': item.device_serial_no || '',
+                            'Model Name': item.model_name || '',
+                            'Status': item.status || '',
+                            'QC Result': item.qc_result || '',
+                            'In Date': item.in_date || '',
+                            'Dispatch Date': item.dispatch_date || '',
+                            'Customer Code': item.cust_code || '',
+                            'Customer Name': item.customer_name || '',
+                            'Customer City': item.cust_city || '',
+                            'Order ID': item.order_id || ''
+                        }));
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(excelData);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
+                        const filename = 'Inventory_Database_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                        XLSX.writeFile(wb, filename);
+                        alert('✅ Inventory exported successfully!');
+                    }
+                } catch (error) {
+                    console.error('Export error:', error);
+                    alert('Failed to export inventory: ' + error.message);
+                }
+            }
+            
+            // Export Sales to Excel
+            async function exportSalesToExcel() {
+                try {
+                    const response = await axios.get('/api/sales');
+                    if (response.data.success) {
+                        const sales = response.data.data;
+                        const excelData = sales.map(sale => ({
+                            'Order ID': sale.order_id || '',
+                            'Sale Date': sale.sale_date || '',
+                            'Customer Code': sale.customer_code || '',
+                            'Customer Name': sale.customer_name || '',
+                            'Mobile': sale.mobile_number || '',
+                            'Location': sale.location || '',
+                            'Total Amount': sale.total_amount || 0,
+                            'Final Amount': sale.final_amount || 0
+                        }));
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(excelData);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+                        const filename = 'Sales_Database_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                        XLSX.writeFile(wb, filename);
+                        alert('✅ Sales database exported successfully!');
+                    }
+                } catch (error) {
+                    console.error('Export error:', error);
+                    alert('Failed to export sales: ' + error.message);
+                }
+            }
+            
+            // Export Pricing to Excel
+            async function exportPricingToExcel() {
+                try {
+                    const response = await axios.get('/api/pricing');
+                    if (response.data.success) {
+                        const pricing = response.data.data;
+                        const excelData = pricing.map(item => ({
+                            'Product Code': item.product_code || '',
+                            'Product Name': item.product_name || '',
+                            'Category': item.category || '',
+                            '0-10 Qty': item.qty_0_10 || '',
+                            '10-50 Qty': item.qty_10_50 || '',
+                            '50-100 Qty': item.qty_50_100 || '',
+                            '100+ Qty': item.qty_100_plus || ''
+                        }));
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(excelData);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Pricing');
+                        const filename = 'Pricing_Database_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                        XLSX.writeFile(wb, filename);
+                        alert('✅ Pricing database exported successfully!');
+                    }
+                } catch (error) {
+                    console.error('Export error:', error);
+                    alert('Failed to export pricing: ' + error.message);
+                }
+            }
+            
+            // Export Inventory Reports to Excel
+            async function exportInventoryReportsToExcel() {
+                try {
+                    const [statsRes, modelWiseRes] = await Promise.all([
+                        axios.get('/api/inventory/stats'),
+                        axios.get('/api/inventory/model-wise')
+                    ]);
+                    if (statsRes.data.success && modelWiseRes.data.success) {
+                        const wb = XLSX.utils.book_new();
+                        const stats = statsRes.data.data;
+                        const summaryData = [
+                            { 'Metric': 'Total Devices', 'Count': stats.total },
+                            ...stats.byStatus.map(s => ({ 'Metric': s.status, 'Count': s.count }))
+                        ];
+                        const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+                        XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+                        const modelData = [];
+                        modelWiseRes.data.data.forEach(category => {
+                            category.models.forEach(model => {
+                                modelData.push({
+                                    'Category': category.category,
+                                    'Model': model.model_name,
+                                    'In Stock': model.in_stock,
+                                    'Dispatched': model.dispatched,
+                                    'Total': model.total
+                                });
+                            });
+                        });
+                        const modelSheet = XLSX.utils.json_to_sheet(modelData);
+                        XLSX.utils.book_append_sheet(wb, modelSheet, 'Model-wise');
+                        const filename = 'Inventory_Reports_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                        XLSX.writeFile(wb, filename);
+                        alert('✅ Inventory reports exported successfully!');
+                    }
+                } catch (error) {
+                    console.error('Export error:', error);
+                    alert('Failed to export reports: ' + error.message);
+                }
+            }
+            
+            // ===================================================================
+            // END OF EXCEL EXPORT FUNCTIONS
+            // ===================================================================
 
             // ===================================================================
             // END OF INVENTORY MANAGEMENT FUNCTIONS

@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+dist/
+.git/objects/
+.git/logs/
+*.log
+.DS_Store
+.env
+.dev.vars
+package-lock.json
