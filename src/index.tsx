@@ -22222,39 +22222,82 @@ Prices are subject to change without prior notice.</textarea>
             // Export Dispatch to Excel
             async function exportDispatchToExcel() {
                 try {
-                    const response = await axios.get('/api/inventory/dispatches');
-                    if (!response.data.success || !response.data.data) {
-                        alert('No data to export');
+                    // Get the dispatch orders container
+                    const container = document.getElementById('groupedDispatchesContainer');
+                    if (!container) {
+                        alert('Dispatch orders table not found');
                         return;
                     }
+
+                    const excelData = [];
                     
-                    const data = response.data.data;
+                    // Find all order cards
+                    const orderCards = container.querySelectorAll('.card');
                     
-                    // Prepare data for Excel
-                    const excelData = data.map((item, index) => ({
-                        'S. No': index + 1,
-                        'Date': item.dispatch_date || 'N/A',
-                        'Serial Number': item.device_serial_no,
-                        'Model': item.model_name || 'N/A',
-                        'Customer': item.customer_name || 'N/A',
-                        'Code': item.customer_code || '-',
-                        'Mobile': item.customer_contact || '-',
-                        'City': item.customer_city || '-',
-                        'Courier': item.courier_name || '-',
-                        'Tracking': item.tracking_number || '-',
-                        'Order ID': item.order_id || '-',
-                        'Dispatched By': item.dispatched_by || 'N/A',
-                        'Notes': item.notes || '-'
-                    }));
-                    
+                    if (orderCards.length === 0) {
+                        alert('No dispatch orders available to download');
+                        return;
+                    }
+
+                    // Process each order card
+                    orderCards.forEach((card) => {
+                        // Extract order header info
+                        const headerText = card.querySelector('h3')?.textContent || '';
+                        const orderIdMatch = headerText.match(/Order ID:\s*(\S+)/);
+                        const orderId = orderIdMatch ? orderIdMatch[1] : '';
+                        
+                        const dateMatch = headerText.match(/Date:\s*([^|]+)/);
+                        const orderDate = dateMatch ? dateMatch[1].trim() : '';
+                        
+                        const customerMatch = headerText.match(/Customer:\s*(.+)/);
+                        const customerInfo = customerMatch ? customerMatch[1].trim() : '';
+                        
+                        // Get company from second line if exists
+                        const paragraphs = card.querySelectorAll('p');
+                        let company = '';
+                        if (paragraphs.length > 0) {
+                            const companyText = paragraphs[0].textContent;
+                            const companyMatch = companyText.match(/Company:\s*(.+)/);
+                            company = companyMatch ? companyMatch[1].trim() : '';
+                        }
+
+                        // Extract table data
+                        const table = card.querySelector('table');
+                        if (table) {
+                            const rows = table.querySelectorAll('tbody tr');
+                            rows.forEach((row) => {
+                                const cells = row.querySelectorAll('td');
+                                if (cells.length >= 3) {
+                                    excelData.push({
+                                        'Order ID': orderId,
+                                        'Order Date': orderDate,
+                                        'Customer': customerInfo,
+                                        'Company': company,
+                                        'Total Items': cells[0]?.textContent.trim() || '',
+                                        'Dispatched': cells[1]?.textContent.trim() || '',
+                                        'Remaining': cells[2]?.textContent.trim() || '',
+                                        'Status': cells[3]?.textContent.trim() || ''
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    if (excelData.length === 0) {
+                        alert('No dispatch data to export');
+                        return;
+                    }
+
                     // Create worksheet
                     const ws = XLSX.utils.json_to_sheet(excelData);
                     const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, 'Dispatch Records');
+                    XLSX.utils.book_append_sheet(wb, ws, 'Dispatch Orders');
                     
                     // Download
-                    const timestamp = new Date().toISOString().split('T')[0];
-                    XLSX.writeFile(wb, \`Dispatch_Records_\${timestamp}.xlsx\`);
+                    const filename = 'Dispatch_Orders_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                    XLSX.writeFile(wb, filename);
+                    
+                    alert('✅ Dispatch orders exported successfully!');
                     
                 } catch (error) {
                     console.error('Export error:', error);
