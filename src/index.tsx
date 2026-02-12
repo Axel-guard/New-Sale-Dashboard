@@ -1018,6 +1018,118 @@ app.get('/api/sales', async (c) => {
   }
 });
 
+// Export ALL sales data - NO LIMIT - for Excel export
+app.get('/api/sales/export-all', async (c) => {
+  const { env } = c;
+  
+  try {
+    // Fetch ALL sales with complete details - NO LIMIT
+    const sales = await env.DB.prepare(`
+      SELECT 
+        s.order_id,
+        s.sale_date,
+        s.invoice_number,
+        s.customer_name,
+        s.customer_contact as mobile_number,
+        s.customer_company,
+        s.customer_email,
+        s.location,
+        s.customer_address,
+        s.customer_gstin,
+        s.employee_name,
+        s.sale_type,
+        s.subtotal,
+        s.discount_percentage,
+        s.discount_amount,
+        s.tax_amount,
+        s.transport_charges,
+        s.total_amount,
+        s.final_amount,
+        s.amount_received,
+        s.balance_amount,
+        s.payment_status,
+        s.dispatch_status,
+        s.notes,
+        s.created_at,
+        s.updated_at,
+        COALESCE(s.customer_code, l.customer_code) as customer_code,
+        l.company_name as lead_company
+      FROM sales s
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
+      ORDER BY s.sale_date DESC, s.order_id DESC
+    `).all();
+    
+    // Fetch ALL sale items for product details
+    const saleItems = await env.DB.prepare(`
+      SELECT 
+        si.order_id,
+        si.product_code,
+        si.product_name,
+        si.quantity,
+        si.price_per_unit,
+        si.subtotal as item_subtotal,
+        p.category,
+        p.weight
+      FROM sale_items si
+      LEFT JOIN products p ON si.product_code = p.product_code
+      ORDER BY si.order_id, si.id
+    `).all();
+    
+    // Group items by order_id for easier lookup
+    const itemsByOrder = {};
+    saleItems.results.forEach(item => {
+      if (!itemsByOrder[item.order_id]) {
+        itemsByOrder[item.order_id] = [];
+      }
+      itemsByOrder[item.order_id].push(item);
+    });
+    
+    // Fetch payment history for each sale
+    const paymentHistory = await env.DB.prepare(`
+      SELECT 
+        order_id,
+        payment_date,
+        amount,
+        payment_method,
+        account,
+        reference_number
+      FROM payment_history
+      ORDER BY order_id, payment_date DESC
+    `).all();
+    
+    // Group payments by order_id
+    const paymentsByOrder = {};
+    paymentHistory.results.forEach(payment => {
+      if (!paymentsByOrder[payment.order_id]) {
+        paymentsByOrder[payment.order_id] = [];
+      }
+      paymentsByOrder[payment.order_id].push(payment);
+    });
+    
+    // Enrich sales data with items and payments
+    const enrichedSales = sales.results.map(sale => ({
+      ...sale,
+      items: itemsByOrder[sale.order_id] || [],
+      payments: paymentsByOrder[sale.order_id] || [],
+      total_items_count: (itemsByOrder[sale.order_id] || []).length,
+      total_quantity: (itemsByOrder[sale.order_id] || []).reduce((sum, item) => sum + (item.quantity || 0), 0)
+    }));
+    
+    return c.json({ 
+      success: true, 
+      data: enrichedSales,
+      total_records: enrichedSales.length,
+      message: `Exported ${enrichedSales.length} complete sales records`
+    });
+  } catch (error) {
+    console.error('Export all sales error:', error);
+    return c.json({ success: false, error: 'Failed to export all sales: ' + error.message }, 500);
+  }
+});
+
 // Get sale by order ID with full details
 app.get('/api/sales/order/:orderId', async (c) => {
   const { env } = c;
@@ -22646,29 +22758,230 @@ Prices are subject to change without prior notice.</textarea>
             // Export Sales to Excel
             async function exportSalesToExcel() {
                 try {
-                    const response = await axios.get('/api/sales');
-                    if (response.data.success) {
-                        const sales = response.data.data;
-                        const excelData = sales.map(sale => ({
+                    // Show loading indicator
+                    const originalButton = event.target.closest('button');
+                    const originalText = originalButton.innerHTML;
+                    originalButton.disabled = true;
+                    originalButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+                    
+                    // Fetch ALL sales data - no limits
+                    const response = await axios.get('/api/sales/export-all');
+                    
+                    if (!response.data.success) {
+                        alert('Failed to export sales data');
+                        return;
+                    }
+                    
+                    const sales = response.data.data;
+                    
+                    if (!sales || sales.length === 0) {
+                        alert('No sales data available to export');
+                        return;
+                    }
+                    
+                    // Create comprehensive Excel data with ALL fields
+                    const excelData = [];
+                    
+                    sales.forEach(sale => {
+                        // Calculate balance if not present
+                        const balance = sale.balance_amount !== null && sale.balance_amount !== undefined 
+                            ? sale.balance_amount 
+                            : (sale.final_amount || 0) - (sale.amount_received || 0);
+                        
+                        // Get product details from items
+                        const productNames = (sale.items || []).map(item => item.product_name).join(', ');
+                        const productCodes = (sale.items || []).map(item => item.product_code).join(', ');
+                        const categories = (sale.items || []).map(item => item.category).filter(c => c).join(', ');
+                        
+                        // Get payment details
+                        const lastPaymentDate = (sale.payments && sale.payments.length > 0) 
+                            ? sale.payments[0].payment_date 
+                            : '';
+                        const paymentMethods = (sale.payments || []).map(p => p.payment_method).filter(m => m).join(', ');
+                        
+                        // Main sale record
+                        excelData.push({
+                            // Order Information
                             'Order ID': sale.order_id || '',
+                            'Invoice Number': sale.invoice_number || '',
                             'Sale Date': sale.sale_date || '',
+                            'Created At': sale.created_at || '',
+                            
+                            // Customer Information
                             'Customer Code': sale.customer_code || '',
                             'Customer Name': sale.customer_name || '',
-                            'Mobile': sale.mobile_number || '',
+                            'Mobile Number': sale.mobile_number || '',
+                            'Email': sale.customer_email || '',
+                            'Company': sale.customer_company || sale.lead_company || '',
                             'Location': sale.location || '',
+                            'Address': sale.customer_address || '',
+                            'GSTIN': sale.customer_gstin || '',
+                            
+                            // Product Information
+                            'Products': productNames || '',
+                            'Product Codes': productCodes || '',
+                            'Categories': categories || '',
+                            'Total Items': sale.total_items_count || 0,
+                            'Total Quantity': sale.total_quantity || 0,
+                            
+                            // Employee & Type
+                            'Employee Name': sale.employee_name || '',
+                            'Sale Type': sale.sale_type || '',
+                            
+                            // Financial Details
+                            'Subtotal': sale.subtotal || 0,
+                            'Discount %': sale.discount_percentage || 0,
+                            'Discount Amount': sale.discount_amount || 0,
+                            'Tax Amount': sale.tax_amount || 0,
+                            'Transport Charges': sale.transport_charges || 0,
                             'Total Amount': sale.total_amount || 0,
-                            'Final Amount': sale.final_amount || 0
-                        }));
-                        const wb = XLSX.utils.book_new();
-                        const ws = XLSX.utils.json_to_sheet(excelData);
-                        XLSX.utils.book_append_sheet(wb, ws, 'Sales');
-                        const filename = 'Sales_Database_' + new Date().toISOString().split('T')[0] + '.xlsx';
-                        XLSX.writeFile(wb, filename);
-                        alert('✅ Sales database exported successfully!');
+                            'Final Amount': sale.final_amount || 0,
+                            'Amount Received': sale.amount_received || 0,
+                            'Balance Amount': balance,
+                            
+                            // Payment & Dispatch Status
+                            'Payment Status': sale.payment_status || '',
+                            'Dispatch Status': sale.dispatch_status || '',
+                            'Last Payment Date': lastPaymentDate,
+                            'Payment Methods Used': paymentMethods,
+                            
+                            // Notes & Additional
+                            'Notes': sale.notes || '',
+                            'Updated At': sale.updated_at || ''
+                        });
+                    });
+                    
+                    // Create workbook with comprehensive data
+                    const wb = XLSX.utils.book_new();
+                    
+                    // Main sales sheet
+                    const ws = XLSX.utils.json_to_sheet(excelData);
+                    
+                    // Set column widths for better readability
+                    const colWidths = [
+                        { wch: 12 }, // Order ID
+                        { wch: 15 }, // Invoice Number
+                        { wch: 12 }, // Sale Date
+                        { wch: 18 }, // Created At
+                        { wch: 12 }, // Customer Code
+                        { wch: 20 }, // Customer Name
+                        { wch: 15 }, // Mobile
+                        { wch: 25 }, // Email
+                        { wch: 25 }, // Company
+                        { wch: 15 }, // Location
+                        { wch: 30 }, // Address
+                        { wch: 18 }, // GSTIN
+                        { wch: 40 }, // Products
+                        { wch: 30 }, // Product Codes
+                        { wch: 20 }, // Categories
+                        { wch: 12 }, // Total Items
+                        { wch: 15 }, // Total Quantity
+                        { wch: 20 }, // Employee
+                        { wch: 12 }, // Sale Type
+                        { wch: 12 }, // Subtotal
+                        { wch: 12 }, // Discount %
+                        { wch: 15 }, // Discount Amount
+                        { wch: 12 }, // Tax Amount
+                        { wch: 15 }, // Transport Charges
+                        { wch: 15 }, // Total Amount
+                        { wch: 15 }, // Final Amount
+                        { wch: 15 }, // Amount Received
+                        { wch: 15 }, // Balance Amount
+                        { wch: 15 }, // Payment Status
+                        { wch: 15 }, // Dispatch Status
+                        { wch: 18 }, // Last Payment Date
+                        { wch: 25 }, // Payment Methods
+                        { wch: 30 }, // Notes
+                        { wch: 18 }  // Updated At
+                    ];
+                    ws['!cols'] = colWidths;
+                    
+                    XLSX.utils.book_append_sheet(wb, ws, 'Complete Sales Data');
+                    
+                    // Create detailed items sheet if there are products
+                    const allItems = [];
+                    sales.forEach(sale => {
+                        if (sale.items && sale.items.length > 0) {
+                            sale.items.forEach(item => {
+                                allItems.push({
+                                    'Order ID': sale.order_id,
+                                    'Invoice Number': sale.invoice_number,
+                                    'Sale Date': sale.sale_date,
+                                    'Customer': sale.customer_name,
+                                    'Product Code': item.product_code,
+                                    'Product Name': item.product_name,
+                                    'Category': item.category || '',
+                                    'Quantity': item.quantity,
+                                    'Price Per Unit': item.price_per_unit,
+                                    'Item Subtotal': item.item_subtotal,
+                                    'Weight': item.weight || ''
+                                });
+                            });
+                        }
+                    });
+                    
+                    if (allItems.length > 0) {
+                        const wsItems = XLSX.utils.json_to_sheet(allItems);
+                        wsItems['!cols'] = [
+                            { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 20 },
+                            { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 10 },
+                            { wch: 15 }, { wch: 15 }, { wch: 10 }
+                        ];
+                        XLSX.utils.book_append_sheet(wb, wsItems, 'Product Details');
                     }
+                    
+                    // Create payment history sheet
+                    const allPayments = [];
+                    sales.forEach(sale => {
+                        if (sale.payments && sale.payments.length > 0) {
+                            sale.payments.forEach(payment => {
+                                allPayments.push({
+                                    'Order ID': sale.order_id,
+                                    'Customer': sale.customer_name,
+                                    'Payment Date': payment.payment_date,
+                                    'Amount': payment.amount,
+                                    'Payment Method': payment.payment_method,
+                                    'Account': payment.account || '',
+                                    'Reference Number': payment.reference_number || ''
+                                });
+                            });
+                        }
+                    });
+                    
+                    if (allPayments.length > 0) {
+                        const wsPayments = XLSX.utils.json_to_sheet(allPayments);
+                        wsPayments['!cols'] = [
+                            { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 12 },
+                            { wch: 15 }, { wch: 15 }, { wch: 20 }
+                        ];
+                        XLSX.utils.book_append_sheet(wb, wsPayments, 'Payment History');
+                    }
+                    
+                    // Download file
+                    const filename = 'Complete_Sales_Database_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                    XLSX.writeFile(wb, filename);
+                    
+                    // Restore button
+                    originalButton.disabled = false;
+                    originalButton.innerHTML = originalText;
+                    
+                    // Success message with count
+                    const successMsg = '✅ Complete sales database exported successfully!\n\n' +
+                        'Total Records: ' + sales.length + '\n' +
+                        'Product Lines: ' + allItems.length + '\n' +
+                        'Payment Entries: ' + allPayments.length + '\n\n' +
+                        'File: ' + filename;
+                    alert(successMsg);
+                    
                 } catch (error) {
                     console.error('Export error:', error);
-                    alert('Failed to export sales: ' + error.message);
+                    alert('Failed to export sales: ' + (error.response?.data?.error || error.message));
+                    
+                    // Restore button on error
+                    if (originalButton) {
+                        originalButton.disabled = false;
+                        originalButton.innerHTML = originalText;
+                    }
                 }
             }
             
