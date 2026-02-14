@@ -1024,36 +1024,34 @@ app.get('/api/sales/export-all', async (c) => {
   
   try {
     // Fetch ALL sales with complete details - NO LIMIT
+    // Query only columns that exist in the actual database schema
     const sales = await env.DB.prepare(`
       SELECT 
+        s.id,
         s.order_id,
         s.sale_date,
-        s.invoice_number,
-        s.customer_name,
+        s.customer_code,
         s.customer_contact as mobile_number,
-        s.customer_company,
-        s.customer_email,
-        s.location,
-        s.customer_address,
-        s.customer_gstin,
         s.employee_name,
         s.sale_type,
-        s.subtotal,
-        s.discount_percentage,
-        s.discount_amount,
-        s.tax_amount,
-        s.transport_charges,
-        s.total_amount,
-        s.final_amount,
+        s.courier_cost,
         s.amount_received,
+        s.account_received,
+        s.payment_reference,
+        s.remarks,
+        s.subtotal,
+        s.gst_amount,
+        s.total_amount,
         s.balance_amount,
-        s.payment_status,
-        s.dispatch_status,
-        s.notes,
         s.created_at,
         s.updated_at,
-        COALESCE(s.customer_code, l.customer_code) as customer_code,
-        l.company_name as lead_company
+        l.customer_name,
+        l.company_name,
+        l.email,
+        l.location,
+        l.complete_address,
+        l.gst_number,
+        l.alternate_mobile
       FROM sales s
       LEFT JOIN leads l ON (
         s.customer_contact = l.mobile_number 
@@ -1063,18 +1061,20 @@ app.get('/api/sales/export-all', async (c) => {
     `).all();
     
     // Fetch ALL sale items for product details
+    // Using actual schema: product_code, product_name, quantity, unit_price, total_price, order_id
     const saleItems = await env.DB.prepare(`
       SELECT 
         si.order_id,
         si.product_code,
         si.product_name,
         si.quantity,
-        si.price_per_unit,
-        si.subtotal as item_subtotal,
+        si.unit_price as price_per_unit,
+        si.total_price as item_subtotal,
         p.category,
         p.weight
       FROM sale_items si
       LEFT JOIN products p ON si.product_code = p.product_code
+      WHERE si.order_id IS NOT NULL AND si.order_id != ''
       ORDER BY si.order_id, si.id
     `).all();
     
@@ -1088,15 +1088,15 @@ app.get('/api/sales/export-all', async (c) => {
     });
     
     // Fetch payment history for each sale
+    // Using actual schema: order_id, payment_date, amount, payment_reference
     const paymentHistory = await env.DB.prepare(`
       SELECT 
         order_id,
         payment_date,
         amount,
-        payment_method,
-        account,
-        reference_number
+        payment_reference
       FROM payment_history
+      WHERE order_id IS NOT NULL AND order_id != ''
       ORDER BY order_id, payment_date DESC
     `).all();
     
@@ -22783,27 +22783,24 @@ Prices are subject to change without prior notice.</textarea>
                     const excelData = [];
                     
                     sales.forEach(sale => {
-                        // Calculate balance if not present
-                        const balance = sale.balance_amount !== null && sale.balance_amount !== undefined 
-                            ? sale.balance_amount 
-                            : (sale.final_amount || 0) - (sale.amount_received || 0);
+                        // Calculate balance - already in database
+                        const balance = sale.balance_amount || 0;
                         
                         // Get product details from items
                         const productNames = (sale.items || []).map(item => item.product_name).join(', ');
-                        const productCodes = (sale.items || []).map(item => item.product_code).join(', ');
+                        const productCodes = (sale.items || []).map(item => item.product_code).filter(c => c).join(', ');
                         const categories = (sale.items || []).map(item => item.category).filter(c => c).join(', ');
                         
                         // Get payment details
                         const lastPaymentDate = (sale.payments && sale.payments.length > 0) 
                             ? sale.payments[0].payment_date 
                             : '';
-                        const paymentMethods = (sale.payments || []).map(p => p.payment_method).filter(m => m).join(', ');
+                        const paymentReferences = (sale.payments || []).map(p => p.payment_reference).filter(m => m).join(', ');
                         
-                        // Main sale record
+                        // Main sale record with actual database columns
                         excelData.push({
                             // Order Information
                             'Order ID': sale.order_id || '',
-                            'Invoice Number': sale.invoice_number || '',
                             'Sale Date': sale.sale_date || '',
                             'Created At': sale.created_at || '',
                             
@@ -22811,11 +22808,12 @@ Prices are subject to change without prior notice.</textarea>
                             'Customer Code': sale.customer_code || '',
                             'Customer Name': sale.customer_name || '',
                             'Mobile Number': sale.mobile_number || '',
-                            'Email': sale.customer_email || '',
-                            'Company': sale.customer_company || sale.lead_company || '',
+                            'Alternate Mobile': sale.alternate_mobile || '',
+                            'Email': sale.email || '',
+                            'Company': sale.company_name || '',
                             'Location': sale.location || '',
-                            'Address': sale.customer_address || '',
-                            'GSTIN': sale.customer_gstin || '',
+                            'Address': sale.complete_address || '',
+                            'GST Number': sale.gst_number || '',
                             
                             // Product Information
                             'Products': productNames || '',
@@ -22830,23 +22828,20 @@ Prices are subject to change without prior notice.</textarea>
                             
                             // Financial Details
                             'Subtotal': sale.subtotal || 0,
-                            'Discount %': sale.discount_percentage || 0,
-                            'Discount Amount': sale.discount_amount || 0,
-                            'Tax Amount': sale.tax_amount || 0,
-                            'Transport Charges': sale.transport_charges || 0,
+                            'GST Amount': sale.gst_amount || 0,
+                            'Courier Cost': sale.courier_cost || 0,
                             'Total Amount': sale.total_amount || 0,
-                            'Final Amount': sale.final_amount || 0,
                             'Amount Received': sale.amount_received || 0,
                             'Balance Amount': balance,
                             
-                            // Payment & Dispatch Status
-                            'Payment Status': sale.payment_status || '',
-                            'Dispatch Status': sale.dispatch_status || '',
+                            // Payment Details
+                            'Account Received': sale.account_received || '',
+                            'Payment Reference': sale.payment_reference || '',
                             'Last Payment Date': lastPaymentDate,
-                            'Payment Methods Used': paymentMethods,
+                            'All Payment References': paymentReferences,
                             
                             // Notes & Additional
-                            'Notes': sale.notes || '',
+                            'Remarks': sale.remarks || '',
                             'Updated At': sale.updated_at || ''
                         });
                     });
@@ -22860,17 +22855,17 @@ Prices are subject to change without prior notice.</textarea>
                     // Set column widths for better readability
                     const colWidths = [
                         { wch: 12 }, // Order ID
-                        { wch: 15 }, // Invoice Number
                         { wch: 12 }, // Sale Date
                         { wch: 18 }, // Created At
                         { wch: 12 }, // Customer Code
                         { wch: 20 }, // Customer Name
                         { wch: 15 }, // Mobile
+                        { wch: 15 }, // Alternate Mobile
                         { wch: 25 }, // Email
                         { wch: 25 }, // Company
                         { wch: 15 }, // Location
                         { wch: 30 }, // Address
-                        { wch: 18 }, // GSTIN
+                        { wch: 18 }, // GST Number
                         { wch: 40 }, // Products
                         { wch: 30 }, // Product Codes
                         { wch: 20 }, // Categories
@@ -22879,19 +22874,16 @@ Prices are subject to change without prior notice.</textarea>
                         { wch: 20 }, // Employee
                         { wch: 12 }, // Sale Type
                         { wch: 12 }, // Subtotal
-                        { wch: 12 }, // Discount %
-                        { wch: 15 }, // Discount Amount
-                        { wch: 12 }, // Tax Amount
-                        { wch: 15 }, // Transport Charges
+                        { wch: 12 }, // GST Amount
+                        { wch: 15 }, // Courier Cost
                         { wch: 15 }, // Total Amount
-                        { wch: 15 }, // Final Amount
                         { wch: 15 }, // Amount Received
                         { wch: 15 }, // Balance Amount
-                        { wch: 15 }, // Payment Status
-                        { wch: 15 }, // Dispatch Status
+                        { wch: 20 }, // Account Received
+                        { wch: 20 }, // Payment Reference
                         { wch: 18 }, // Last Payment Date
-                        { wch: 25 }, // Payment Methods
-                        { wch: 30 }, // Notes
+                        { wch: 25 }, // All Payment References
+                        { wch: 30 }, // Remarks
                         { wch: 18 }  // Updated At
                     ];
                     ws['!cols'] = colWidths;
@@ -22940,9 +22932,7 @@ Prices are subject to change without prior notice.</textarea>
                                     'Customer': sale.customer_name,
                                     'Payment Date': payment.payment_date,
                                     'Amount': payment.amount,
-                                    'Payment Method': payment.payment_method,
-                                    'Account': payment.account || '',
-                                    'Reference Number': payment.reference_number || ''
+                                    'Reference': payment.payment_reference || ''
                                 });
                             });
                         }
@@ -22951,8 +22941,7 @@ Prices are subject to change without prior notice.</textarea>
                     if (allPayments.length > 0) {
                         const wsPayments = XLSX.utils.json_to_sheet(allPayments);
                         wsPayments['!cols'] = [
-                            { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 12 },
-                            { wch: 15 }, { wch: 15 }, { wch: 20 }
+                            { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 20 }
                         ];
                         XLSX.utils.book_append_sheet(wb, wsPayments, 'Payment History');
                     }
@@ -23181,11 +23170,27 @@ Prices are subject to change without prior notice.</textarea>
             // ===================================================================
             
             // ===================================================================
-            // SIMPLE SESSION CHECK - NO COMPLEX LOGIC
+            // SESSION CHECK AND AUTO-LOGIN
             // ===================================================================
-            // This code only runs if user already passed server-side auth check
-            // Just log that we're in the app
+            // Check if user is already logged in (from sessionStorage)
             console.log('[APP] Main application loaded successfully');
+            console.log('[APP] Checking for existing session...');
+            
+            const savedUser = sessionStorage.getItem('user');
+            if (savedUser) {
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    console.log('[APP] Found existing session for user:', currentUser.username);
+                    console.log('[APP] Auto-login successful, showing dashboard...');
+                    showDashboard();
+                } catch (error) {
+                    console.error('[APP] Error parsing saved user session:', error);
+                    sessionStorage.removeItem('user');
+                    console.log('[APP] Cleared invalid session, showing login screen');
+                }
+            } else {
+                console.log('[APP] No existing session found, showing login screen');
+            }
             // ===================================================================
             // END OF SESSION CHECK
             // ===================================================================
