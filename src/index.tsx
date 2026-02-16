@@ -993,6 +993,125 @@ app.get('/api/sales/monthly-total', async (c) => {
   }
 });
 
+// Export current month sales with complete details
+app.get('/api/sales/export-current-month', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // Fetch current month sales with customer details from leads
+    const sales = await env.DB.prepare(`
+      SELECT 
+        s.id,
+        s.order_id,
+        s.sale_date,
+        s.customer_code,
+        s.customer_contact as mobile_number,
+        s.employee_name,
+        s.sale_type,
+        s.courier_cost,
+        s.amount_received,
+        s.account_received,
+        s.payment_reference,
+        s.remarks,
+        s.subtotal,
+        s.gst_amount,
+        s.total_amount,
+        s.balance_amount,
+        s.created_at,
+        s.updated_at,
+        l.customer_name,
+        l.company_name,
+        l.email,
+        l.location,
+        l.complete_address,
+        l.gst_number,
+        l.alternate_mobile
+      FROM sales s
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
+      WHERE DATE(s.sale_date) >= DATE(?)
+      ORDER BY s.sale_date DESC, s.order_id DESC
+    `).bind(firstDay.toISOString()).all();
+    
+    // Fetch ALL sale items for current month
+    const saleItems = await env.DB.prepare(`
+      SELECT 
+        si.order_id,
+        si.product_code,
+        si.product_name,
+        si.quantity,
+        si.unit_price as price_per_unit,
+        si.total_price as item_subtotal,
+        p.category,
+        p.weight
+      FROM sale_items si
+      LEFT JOIN products p ON si.product_code = p.product_code
+      WHERE si.order_id IN (
+        SELECT order_id FROM sales 
+        WHERE DATE(sale_date) >= DATE(?)
+      )
+      ORDER BY si.order_id, si.id
+    `).bind(firstDay.toISOString()).all();
+    
+    // Group items by order_id
+    const itemsByOrder = {};
+    saleItems.results.forEach(item => {
+      if (!itemsByOrder[item.order_id]) {
+        itemsByOrder[item.order_id] = [];
+      }
+      itemsByOrder[item.order_id].push(item);
+    });
+    
+    // Fetch payment history for current month
+    const paymentHistory = await env.DB.prepare(`
+      SELECT 
+        order_id,
+        payment_date,
+        amount,
+        payment_reference
+      FROM payment_history
+      WHERE order_id IN (
+        SELECT order_id FROM sales 
+        WHERE DATE(sale_date) >= DATE(?)
+      )
+      ORDER BY order_id, payment_date DESC
+    `).bind(firstDay.toISOString()).all();
+    
+    // Group payments by order_id
+    const paymentsByOrder = {};
+    paymentHistory.results.forEach(payment => {
+      if (!paymentsByOrder[payment.order_id]) {
+        paymentsByOrder[payment.order_id] = [];
+      }
+      paymentsByOrder[payment.order_id].push(payment);
+    });
+    
+    // Enrich sales data with items and payments
+    const enrichedSales = sales.results.map(sale => ({
+      ...sale,
+      items: itemsByOrder[sale.order_id] || [],
+      payments: paymentsByOrder[sale.order_id] || [],
+      total_items_count: (itemsByOrder[sale.order_id] || []).length,
+      total_quantity: (itemsByOrder[sale.order_id] || []).reduce((sum, item) => sum + (item.quantity || 0), 0)
+    }));
+    
+    return c.json({ 
+      success: true, 
+      data: enrichedSales,
+      total_records: enrichedSales.length,
+      message: `Exported ${enrichedSales.length} current month sales records`
+    });
+  } catch (error) {
+    console.error('Export current month sales error:', error);
+    return c.json({ success: false, error: 'Failed to export current month sales: ' + error.message }, 500);
+  }
+});
+
 // Get all sales (for sales database page)
 app.get('/api/sales', async (c) => {
   const { env } = c;
@@ -7793,6 +7912,9 @@ app.get('/', (c) => {
             <div class="page-content active" id="dashboard-page">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2 style="font-size: 24px; font-weight: 600; color: #1f2937;">Dashboard Overview</h2>
+                    <button onclick="exportCurrentMonthSalesToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 12px 24px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-file-excel"></i> Download Excel
+                    </button>
                 </div>
 
                 <!-- Monthly Total Sales Card -->
@@ -22968,6 +23090,178 @@ Prices are subject to change without prior notice.</textarea>
                     
                     // Restore button on error
                     if (originalButton) {
+                        originalButton.disabled = false;
+                        originalButton.innerHTML = originalText;
+                    }
+                }
+            }
+            
+            // Export Current Month Sales to Excel (Dashboard)
+            async function exportCurrentMonthSalesToExcel() {
+                try {
+                    // Show loading indicator
+                    const originalButton = event.target.closest('button');
+                    const originalText = originalButton.innerHTML;
+                    originalButton.disabled = true;
+                    originalButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+                    
+                    // Fetch current month sales data with complete details
+                    const response = await axios.get('/api/sales/export-current-month');
+                    
+                    if (!response.data.success) {
+                        alert('Failed to export current month sales');
+                        originalButton.disabled = false;
+                        originalButton.innerHTML = originalText;
+                        return;
+                    }
+                    
+                    const sales = response.data.data;
+                    
+                    if (!sales || sales.length === 0) {
+                        alert('No sales data available for current month');
+                        originalButton.disabled = false;
+                        originalButton.innerHTML = originalText;
+                        return;
+                    }
+                    
+                    // Create comprehensive Excel data with ALL requested fields
+                    const excelData = [];
+                    
+                    sales.forEach(sale => {
+                        // Get all product names and quantities
+                        const products = (sale.items || []).map(item => 
+                            item.product_name + ' (' + item.quantity + ')'
+                        ).join(', ');
+                        
+                        const productCodes = (sale.items || []).map(item => item.product_code).filter(c => c).join(', ');
+                        
+                        // Calculate total quantity
+                        const totalQuantity = (sale.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+                        
+                        // Get individual prices
+                        const prices = (sale.items || []).map(item => 
+                            item.product_name + ': ₹' + item.price_per_unit
+                        ).join(', ');
+                        
+                        excelData.push({
+                            // Order Information
+                            'Order ID': sale.order_id || '',
+                            'Sale Date': sale.sale_date || '',
+                            
+                            // Customer Information
+                            'Customer Code': sale.customer_code || '',
+                            'Customer Name': sale.customer_name || '',
+                            'Company Name': sale.company_name || '',
+                            'Mobile Number': sale.mobile_number || '',
+                            'Email': sale.email || '',
+                            'Location': sale.location || '',
+                            
+                            // Product Information (as requested)
+                            'All Products': products || '',
+                            'Product Codes': productCodes || '',
+                            'Total Quantity': totalQuantity,
+                            'Individual Prices': prices || '',
+                            
+                            // Employee
+                            'Employee Name': sale.employee_name || '',
+                            'Sale Type': sale.sale_type || '',
+                            
+                            // Financial Details (as requested)
+                            'Subtotal': sale.subtotal || 0,
+                            'GST Amount': sale.gst_amount || 0,
+                            'Courier Price': sale.courier_cost || 0,
+                            'Total Amount': sale.total_amount || 0,
+                            'Payment Received': sale.amount_received || 0,
+                            'Balance Payment': sale.balance_amount || 0,
+                            
+                            // Additional Details
+                            'Account Received': sale.account_received || '',
+                            'Payment Reference': sale.payment_reference || '',
+                            'Remarks': sale.remarks || ''
+                        });
+                    });
+                    
+                    // Create workbook
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.json_to_sheet(excelData);
+                    
+                    // Set column widths
+                    ws['!cols'] = [
+                        { wch: 12 },  // Order ID
+                        { wch: 12 },  // Sale Date
+                        { wch: 12 },  // Customer Code
+                        { wch: 20 },  // Customer Name
+                        { wch: 25 },  // Company Name
+                        { wch: 15 },  // Mobile Number
+                        { wch: 25 },  // Email
+                        { wch: 15 },  // Location
+                        { wch: 50 },  // All Products
+                        { wch: 30 },  // Product Codes
+                        { wch: 12 },  // Total Quantity
+                        { wch: 50 },  // Individual Prices
+                        { wch: 20 },  // Employee Name
+                        { wch: 12 },  // Sale Type
+                        { wch: 12 },  // Subtotal
+                        { wch: 12 },  // GST Amount
+                        { wch: 12 },  // Courier Price
+                        { wch: 15 },  // Total Amount
+                        { wch: 15 },  // Payment Received
+                        { wch: 15 },  // Balance Payment
+                        { wch: 20 },  // Account Received
+                        { wch: 20 },  // Payment Reference
+                        { wch: 30 }   // Remarks
+                    ];
+                    
+                    XLSX.utils.book_append_sheet(wb, ws, 'Current Month Sales');
+                    
+                    // Create detailed items sheet
+                    const allItems = [];
+                    sales.forEach(sale => {
+                        if (sale.items && sale.items.length > 0) {
+                            sale.items.forEach(item => {
+                                allItems.push({
+                                    'Order ID': sale.order_id,
+                                    'Customer': sale.customer_name,
+                                    'Company': sale.company_name,
+                                    'Product Code': item.product_code,
+                                    'Product Name': item.product_name,
+                                    'Category': item.category || '',
+                                    'Quantity': item.quantity,
+                                    'Price Per Unit': item.price_per_unit,
+                                    'Subtotal': item.item_subtotal
+                                });
+                            });
+                        }
+                    });
+                    
+                    if (allItems.length > 0) {
+                        const wsItems = XLSX.utils.json_to_sheet(allItems);
+                        wsItems['!cols'] = [
+                            { wch: 12 }, { wch: 20 }, { wch: 25 }, { wch: 15 }, 
+                            { wch: 30 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }
+                        ];
+                        XLSX.utils.book_append_sheet(wb, wsItems, 'Product Details');
+                    }
+                    
+                    // Download file with current month and year
+                    const now = new Date();
+                    const monthYear = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+                    const filename = 'Sales_' + monthYear.replace(' ', '_') + '_' + now.toISOString().split('T')[0] + '.xlsx';
+                    XLSX.writeFile(wb, filename);
+                    
+                    // Restore button
+                    originalButton.disabled = false;
+                    originalButton.innerHTML = originalText;
+                    
+                    // Success message
+                    alert('✅ Current month sales exported successfully!\n\nTotal Records: ' + sales.length + '\nProduct Lines: ' + allItems.length + '\n\nFile: ' + filename);
+                    
+                } catch (error) {
+                    console.error('Export error:', error);
+                    alert('Failed to export current month sales: ' + (error.response?.data?.error || error.message));
+                    
+                    // Restore button on error
+                    if (typeof originalButton !== 'undefined') {
                         originalButton.disabled = false;
                         originalButton.innerHTML = originalText;
                     }
