@@ -11729,6 +11729,16 @@ Prices are subject to change without prior notice.</textarea>
             // Load Dashboard
             async function loadDashboard() {
                 console.log('📊 [DASHBOARD] Starting dashboard load...');
+                
+                // Add timeout to prevent indefinite hanging
+                const timeout = setTimeout(() => {
+                    console.error('⏰ [DASHBOARD] Dashboard load timed out after 10 seconds');
+                    const grid = document.getElementById('employeeSalesGrid');
+                    if (grid && grid.innerHTML.includes('Loading')) {
+                        grid.innerHTML = '<div class="loading" style="color: #ef4444;">⏰ Dashboard load timed out. <button onclick="loadDashboard()" style="margin-left: 10px; padding: 5px 15px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">Retry</button></div>';
+                    }
+                }, 10000);
+                
                 try {
                     // Load monthly totals
                     console.log('📊 [DASHBOARD] Loading monthly totals...');
@@ -11737,6 +11747,8 @@ Prices are subject to change without prior notice.</textarea>
                     console.log('📊 [DASHBOARD] Fetching dashboard summary from API...');
                     const response = await axios.get('/api/dashboard/summary');
                     console.log('📊 [DASHBOARD] API response:', response.data);
+                    
+                    clearTimeout(timeout);
                     
                     const { employeeSales, paymentStatusData, monthlySummary } = response.data.data;
                     console.log('📊 [DASHBOARD] Employee sales:', employeeSales);
@@ -11770,13 +11782,14 @@ Prices are subject to change without prior notice.</textarea>
                     loadSalesTable();
                     console.log('✅ [DASHBOARD] Dashboard loaded successfully');
                 } catch (error) {
+                    clearTimeout(timeout);
                     console.error('❌ [DASHBOARD] Error loading dashboard:', error);
                     console.error('❌ [DASHBOARD] Error details:', error.message, error.stack);
                     
                     // Show error in UI
                     const grid = document.getElementById('employeeSalesGrid');
                     if (grid) {
-                        grid.innerHTML = '<div class="loading" style="color: #ef4444;">❌ Failed to load dashboard. Please refresh the page.</div>';
+                        grid.innerHTML = '<div class="loading" style="color: #ef4444;">❌ Failed to load dashboard: ' + error.message + '. <button onclick="loadDashboard()" style="margin-left: 10px; padding: 5px 15px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">Retry</button></div>';
                     }
                 }
             }
@@ -23467,6 +23480,7 @@ Prices are subject to change without prior notice.</textarea>
             // SESSION CHECK AND AUTO-LOGIN
             // ===================================================================
             // Check if user is already logged in (from sessionStorage)
+            console.log('[APP] Script execution started');
             console.log('[APP] Main application loaded successfully');
             console.log('[APP] Checking for existing session...');
             
