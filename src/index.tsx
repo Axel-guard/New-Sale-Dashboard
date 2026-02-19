@@ -11387,6 +11387,19 @@ Prices are subject to change without prior notice.</textarea>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+            // IMMEDIATE SCRIPT START INDICATOR
+            console.log('🚀 [INIT] JavaScript execution started - timestamp:', new Date().toISOString());
+            
+            // Add visible indicator that JS is running
+            window.addEventListener('DOMContentLoaded', () => {
+                console.log('📄 [INIT] DOM Content Loaded');
+                const indicator = document.createElement('div');
+                indicator.style.cssText = 'position: fixed; bottom: 10px; right: 10px; background: #10b981; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; z-index: 10000;';
+                indicator.textContent = 'JS ✓';
+                document.body.appendChild(indicator);
+                setTimeout(() => indicator.remove(), 3000);
+            });
+            
             let currentPage = 'dashboard'; // Track current page
             let paymentChart = null;
             let employeeChart = null;
@@ -16345,8 +16358,15 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             function showDashboard() {
-                console.log('showDashboard() called');
-                console.log('Current user:', currentUser);
+                console.log('🏠 [DASHBOARD] showDashboard() called');
+                console.log('🏠 [DASHBOARD] Current user:', currentUser);
+                
+                // Add visual indicator
+                const indicator = document.createElement('div');
+                indicator.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #3b82f6; color: white; padding: 8px 15px; border-radius: 4px; font-size: 13px; z-index: 10000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
+                indicator.textContent = '🏠 Loading Dashboard...';
+                document.body.appendChild(indicator);
+                setTimeout(() => indicator.remove(), 5000);
                 
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainDashboard').style.display = 'block';
@@ -16354,10 +16374,12 @@ Prices are subject to change without prior notice.</textarea>
                 const displayName = currentUser.employeeName || currentUser.fullName || currentUser.username;
                 document.getElementById('userDisplay').textContent = 'Hi ' + displayName;
                 
-                console.log('Dashboard should be visible now');
+                console.log('🏠 [DASHBOARD] Dashboard should be visible now');
                 
                 // Update UI based on role
                 updateUIForRole();
+                
+                console.log('🏠 [DASHBOARD] Calling loadDashboard()...');
                 loadDashboard();
             }
             
