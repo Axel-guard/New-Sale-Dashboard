@@ -968,6 +968,61 @@ app.get('/api/sales/current-month', async (c) => {
   }
 });
 
+// Export current month sales for Excel
+app.get('/api/sales/export-current-month', async (c) => {
+  const { env } = c;
+  
+  try {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // Fetch sales with full details
+    const sales = await env.DB.prepare(`
+      SELECT 
+        s.*,
+        COALESCE(s.customer_code, l.customer_code) as customer_code,
+        COALESCE(l.customer_name, s.customer_name) as customer_name,
+        l.company_name
+      FROM sales s
+      LEFT JOIN leads l ON (
+        s.customer_contact = l.mobile_number 
+        OR s.customer_contact = l.alternate_mobile
+      )
+      WHERE DATE(s.sale_date) >= DATE(?)
+      ORDER BY s.updated_at DESC, s.sale_date DESC
+    `).bind(firstDay.toISOString()).all();
+    
+    // Get items and payments for each sale
+    const salesWithDetails = await Promise.all(sales.results.map(async (sale: any) => {
+      const items = await env.DB.prepare(`
+        SELECT * FROM sale_items WHERE order_id = ?
+      `).bind(sale.order_id).all();
+      
+      const payments = await env.DB.prepare(`
+        SELECT * FROM payment_history WHERE order_id = ? ORDER BY payment_date DESC
+      `).bind(sale.order_id).all();
+      
+      return {
+        ...sale,
+        items: items.results || [],
+        payments: payments.results || [],
+        items_count: items.results?.length || 0,
+        payments_count: payments.results?.length || 0
+      };
+    }));
+    
+    return c.json({ 
+      success: true, 
+      data: salesWithDetails,
+      total_records: salesWithDetails.length,
+      message: 'Exported ' + salesWithDetails.length + ' current month sales records'
+    });
+  } catch (error) {
+    console.error('[API /api/sales/export-current-month] Error:', error);
+    return c.json({ success: false, error: 'Failed to export current month sales' }, 500);
+  }
+});
+
 // Get monthly sales totals
 app.get('/api/sales/monthly-total', async (c) => {
   const { env } = c;
@@ -7681,6 +7736,9 @@ app.get('/', (c) => {
             <div class="page-content active" id="dashboard-page">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2 style="font-size: 24px; font-weight: 600; color: #1f2937;">Dashboard Overview</h2>
+                    <button onclick="exportCurrentMonthSalesToExcel()" class="btn-primary" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 12px 24px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-file-excel"></i> Download Excel
+                    </button>
                 </div>
 
                 <!-- Monthly Total Sales Card -->
@@ -22640,6 +22698,160 @@ Prices are subject to change without prior notice.</textarea>
                 } catch (error) {
                     console.error('Export error:', error);
                     alert('Failed to export inventory: ' + error.message);
+                }
+            }
+            
+            // Export Current Month Sales to Excel (Dashboard)
+            async function exportCurrentMonthSalesToExcel() {
+                const downloadBtn = event.target;
+                const originalText = downloadBtn.innerHTML;
+                
+                try {
+                    // Show loading state
+                    downloadBtn.disabled = true;
+                    downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+                    
+                    // Fetch current month sales data
+                    const response = await axios.get('/api/sales/export-current-month');
+                    
+                    if (!response.data.success || !response.data.data || response.data.data.length === 0) {
+                        alert('No sales data available for export');
+                        return;
+                    }
+                    
+                    const sales = response.data.data;
+                    console.log('[EXPORT] Exporting ' + sales.length + ' sales records');
+                    
+                    // Calculate balance if missing
+                    sales.forEach(function(sale) {
+                        if (sale.balance_amount === null || sale.balance_amount === undefined) {
+                            sale.balance_amount = (sale.total_amount || 0) - (sale.amount_received || 0);
+                        }
+                    });
+                    
+                    // Prepare Complete Sales Data
+                    const salesData = sales.map(function(sale) {
+                        // Extract product names and codes
+                        const productNames = sale.items.map(function(item) {
+                            return item.product_name + ' (' + item.quantity + 'x)';
+                        }).join(', ');
+                        
+                        const productCodes = sale.items.map(function(item) {
+                            return item.product_code || '';
+                        }).join(', ');
+                        
+                        const categories = sale.items.map(function(item) {
+                            return item.category || '';
+                        }).join(', ');
+                        
+                        const totalQty = sale.items.reduce(function(sum, item) {
+                            return sum + (item.quantity || 0);
+                        }, 0);
+                        
+                        const itemPrices = sale.items.map(function(item) {
+                            return '₹' + (item.unit_price || 0);
+                        }).join(', ');
+                        
+                        // Payment details
+                        const lastPaymentDate = sale.payments.length > 0 ? sale.payments[0].payment_date : '';
+                        const allPaymentRefs = sale.payments.map(function(p) { 
+                            return p.payment_reference || '';
+                        }).join('; ');
+                        
+                        return {
+                            'Order ID': sale.order_id || '',
+                            'Sale Date': sale.sale_date || '',
+                            'Customer Code': sale.customer_code || '',
+                            'Customer Name': sale.customer_name || '',
+                            'Company Name': sale.company_name || '',
+                            'Customer Contact': sale.customer_contact || '',
+                            'Employee': sale.employee_name || '',
+                            'Products': productNames,
+                            'Product Codes': productCodes,
+                            'Categories': categories,
+                            'Total Items': sale.items_count || 0,
+                            'Total Quantity': totalQty,
+                            'Item Prices': itemPrices,
+                            'Sale Type': sale.sale_type || '',
+                            'Subtotal': sale.subtotal || 0,
+                            'GST Amount': sale.gst_amount || 0,
+                            'Courier Cost': sale.courier_cost || 0,
+                            'Total Amount': sale.total_amount || 0,
+                            'Amount Received': sale.amount_received || 0,
+                            'Balance Amount': sale.balance_amount || 0,
+                            'Account Received': sale.account_received || '',
+                            'Payment Reference': sale.payment_reference || '',
+                            'Last Payment Date': lastPaymentDate,
+                            'All Payment References': allPaymentRefs,
+                            'Remarks': sale.remarks || '',
+                            'Updated At': sale.updated_at || ''
+                        };
+                    });
+                    
+                    // Prepare Product Details Sheet
+                    const allItems = [];
+                    sales.forEach(function(sale) {
+                        sale.items.forEach(function(item) {
+                            allItems.push({
+                                'Order ID': sale.order_id || '',
+                                'Sale Date': sale.sale_date || '',
+                                'Customer Name': sale.customer_name || '',
+                                'Product Code': item.product_code || '',
+                                'Product Name': item.product_name || '',
+                                'Category': item.category || '',
+                                'Quantity': item.quantity || 0,
+                                'Unit Price': item.unit_price || 0,
+                                'Total Price': item.total_price || 0
+                            });
+                        });
+                    });
+                    
+                    // Create workbook
+                    const wb = XLSX.utils.book_new();
+                    
+                    // Add Complete Sales Data sheet
+                    const ws1 = XLSX.utils.json_to_sheet(salesData);
+                    ws1['!cols'] = [
+                        { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 25 }, { wch: 25 }, 
+                        { wch: 15 }, { wch: 20 }, { wch: 40 }, { wch: 30 }, { wch: 20 },
+                        { wch: 12 }, { wch: 15 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, 
+                        { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+                        { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 25 }, { wch: 30 }, { wch: 18 }
+                    ];
+                    XLSX.utils.book_append_sheet(wb, ws1, 'Complete Sales Data');
+                    
+                    // Add Product Details sheet if items exist
+                    if (allItems.length > 0) {
+                        const ws2 = XLSX.utils.json_to_sheet(allItems);
+                        ws2['!cols'] = [
+                            { wch: 15 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, 
+                            { wch: 30 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 12 }
+                        ];
+                        XLSX.utils.book_append_sheet(wb, ws2, 'Product Details');
+                    }
+                    
+                    // Generate filename with current month and date
+                    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                  'July', 'August', 'September', 'October', 'November', 'December'];
+                    const now = new Date();
+                    const monthName = months[now.getMonth()];
+                    const year = now.getFullYear();
+                    const dateStr = now.toISOString().split('T')[0];
+                    const filename = 'Sales_' + monthName + '_' + year + '_' + dateStr + '.xlsx';
+                    
+                    // Save file
+                    XLSX.writeFile(wb, filename);
+                    
+                    // Success message
+                    alert('✅ Export successful!\\n\\nTotal Records: ' + sales.length + '\\nProduct Lines: ' + allItems.length + '\\n\\nFile: ' + filename);
+                } catch (error) {
+                    console.error('[EXPORT] Error:', error);
+                    const errorMsg = error.response && error.response.data && error.response.data.error ? error.response.data.error : error.message;
+                    alert('❌ Export failed: ' + errorMsg);
+                } finally {
+                    // Restore button
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = originalText;
                 }
             }
             
