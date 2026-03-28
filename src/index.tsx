@@ -22948,7 +22948,7 @@ Prices are subject to change without prior notice.</textarea>
             }
             
             // Export Sales to Excel
-            // Export Complete Sales Database to Excel - FLATTENED with full details
+            // Export Complete Sales Database to Excel - ALL PRODUCTS IN COLUMNS
             async function exportSalesToExcel() {
                 try {
                     // Show loading state
@@ -22965,11 +22965,11 @@ Prices are subject to change without prior notice.</textarea>
                     const sales = response.data.data;
                     console.log('[EXPORT] Exporting ' + sales.length + ' sales records');
                     
-                    // FLATTEN DATA: Create one row per product per sale
-                    const flattenedData = [];
+                    // Prepare data with ALL products in columns
+                    const excelData = [];
                     
                     sales.forEach(function(sale) {
-                        // Calculate GST based on Sale Type (STRICT RULE)
+                        // Calculate GST based on Sale Type
                         var calculatedGST = 0;
                         if (sale.sale_type === 'With GST' || sale.sale_type === 'With') {
                             calculatedGST = Math.round((sale.subtotal || 0) * 0.18 * 100) / 100;
@@ -22981,22 +22981,21 @@ Prices are subject to change without prior notice.</textarea>
                         var courierCost = sale.courier_cost || 0;
                         var totalAmount = sale.total_amount || (subtotal + gstAmount + courierCost);
                         
-                        // Calculate Amount Received from payment history (STRICT RULE)
+                        // Calculate Amount Received from payment history
                         var amountReceived = 0;
                         if (sale.payments && sale.payments.length > 0) {
                             sale.payments.forEach(function(payment) {
                                 amountReceived += (payment.amount || 0);
                             });
                         }
-                        // Fallback to sale.amount_received if payments not available
                         if (amountReceived === 0 && sale.amount_received) {
                             amountReceived = sale.amount_received;
                         }
                         
-                        // Calculate Balance Amount (STRICT RULE)
+                        // Calculate Balance
                         var balanceAmount = totalAmount - amountReceived;
                         
-                        // Determine Payment Status (STRICT RULE)
+                        // Determine Payment Status
                         var paymentStatus = '';
                         if (balanceAmount <= 0) {
                             paymentStatus = 'PAID';
@@ -23006,81 +23005,84 @@ Prices are subject to change without prior notice.</textarea>
                             paymentStatus = 'UNPAID';
                         }
                         
-                        // Get first payment details (if exists)
-                        var firstPayment = sale.payments && sale.payments.length > 0 ? sale.payments[0] : null;
-                        var paymentDate = firstPayment ? firstPayment.payment_date : '';
-                        var paymentAmount = firstPayment ? firstPayment.amount : '';
-                        var paymentReference = firstPayment ? firstPayment.payment_reference : '';
-                        var paymentAccount = sale.account_received || '';
+                        // Build ALL PRODUCTS details in single columns
+                        var allProductNames = [];
+                        var allProductCodes = [];
+                        var allQuantities = [];
+                        var allRates = [];
+                        var allProductTotals = [];
                         
-                        // If no products, create one row with sale info only
-                        if (!sale.items || sale.items.length === 0) {
-                            flattenedData.push({
-                                'Order ID': sale.order_id || '',
-                                'Sale Date': sale.sale_date || '',
-                                'Customer Code': sale.customer_code || '',
-                                'Customer Name': sale.customer_name || '',
-                                'Company Name': sale.company_name || '',
-                                'Employee': sale.employee_name || '',
-                                'Contact': sale.customer_contact || '',
-                                'Sale Type': sale.sale_type || '',
-                                'Product Name': '',
-                                'Product Code': '',
-                                'Quantity': '',
-                                'Unit Price': '',
-                                'Product Total': '',
-                                'Subtotal': subtotal,
-                                'Courier Cost': courierCost,
-                                'GST Amount': gstAmount,
-                                'Total Amount': totalAmount,
-                                'Amount Received': amountReceived,
-                                'Balance Amount': balanceAmount,
-                                'Payment Status': paymentStatus,
-                                'Payment Date': paymentDate,
-                                'Payment Amount': paymentAmount,
-                                'Payment Reference': paymentReference,
-                                'Account': paymentAccount
-                            });
-                        } else {
-                            // Create one row for EACH product (FLATTEN)
+                        if (sale.items && sale.items.length > 0) {
                             sale.items.forEach(function(item) {
-                                flattenedData.push({
-                                    'Order ID': sale.order_id || '',
-                                    'Sale Date': sale.sale_date || '',
-                                    'Customer Code': sale.customer_code || '',
-                                    'Customer Name': sale.customer_name || '',
-                                    'Company Name': sale.company_name || '',
-                                    'Employee': sale.employee_name || '',
-                                    'Contact': sale.customer_contact || '',
-                                    'Sale Type': sale.sale_type || '',
-                                    'Product Name': item.product_name || '',
-                                    'Product Code': item.product_code || '',
-                                    'Quantity': item.quantity || 0,
-                                    'Unit Price': item.unit_price || 0,
-                                    'Product Total': item.total_price || (item.quantity * item.unit_price),
-                                    'Subtotal': subtotal,
-                                    'Courier Cost': courierCost,
-                                    'GST Amount': gstAmount,
-                                    'Total Amount': totalAmount,
-                                    'Amount Received': amountReceived,
-                                    'Balance Amount': balanceAmount,
-                                    'Payment Status': paymentStatus,
-                                    'Payment Date': paymentDate,
-                                    'Payment Amount': paymentAmount,
-                                    'Payment Reference': paymentReference,
-                                    'Account': paymentAccount
-                                });
+                                allProductNames.push(item.product_name || '');
+                                allProductCodes.push(item.product_code || '');
+                                allQuantities.push(item.quantity || 0);
+                                allRates.push(item.unit_price || 0);
+                                allProductTotals.push(item.total_price || (item.quantity * item.unit_price));
                             });
                         }
+                        
+                        // Join products with line breaks for better readability
+                        var productsText = allProductNames.join('\\n');
+                        var codesText = allProductCodes.join('\\n');
+                        var quantitiesText = allQuantities.join('\\n');
+                        var ratesText = allRates.join('\\n');
+                        var productTotalsText = allProductTotals.join('\\n');
+                        
+                        // Build payment history details
+                        var paymentDates = [];
+                        var paymentAmounts = [];
+                        var paymentReferences = [];
+                        
+                        if (sale.payments && sale.payments.length > 0) {
+                            sale.payments.forEach(function(payment) {
+                                paymentDates.push(payment.payment_date || '');
+                                paymentAmounts.push(payment.amount || 0);
+                                paymentReferences.push(payment.payment_reference || '');
+                            });
+                        }
+                        
+                        var paymentDatesText = paymentDates.join('\\n');
+                        var paymentAmountsText = paymentAmounts.join('\\n');
+                        var paymentReferencesText = paymentReferences.join('\\n');
+                        
+                        // Create ONE row per sale with ALL product details
+                        excelData.push({
+                            'Order ID': sale.order_id || '',
+                            'Sale Date': sale.sale_date || '',
+                            'Customer Code': sale.customer_code || '',
+                            'Customer Name': sale.customer_name || '',
+                            'Company Name': sale.company_name || '',
+                            'Employee': sale.employee_name || '',
+                            'Contact': sale.customer_contact || '',
+                            'Bill Type': sale.sale_type || '',
+                            'All Product Names': productsText,
+                            'All Product Codes': codesText,
+                            'All Quantities': quantitiesText,
+                            'All Rates': ratesText,
+                            'All Product Totals': productTotalsText,
+                            'Subtotal': subtotal,
+                            'Courier Cost': courierCost,
+                            'GST Amount': gstAmount,
+                            'Total Amount': totalAmount,
+                            'Amount Received': amountReceived,
+                            'Balance Amount': balanceAmount,
+                            'Payment Status': paymentStatus,
+                            'Payment Dates': paymentDatesText,
+                            'Payment Amounts': paymentAmountsText,
+                            'Payment References': paymentReferencesText,
+                            'Account': sale.account_received || '',
+                            'Remarks': sale.remarks || ''
+                        });
                     });
                     
-                    console.log('[EXPORT] Created ' + flattenedData.length + ' flattened rows from ' + sales.length + ' sales');
+                    console.log('[EXPORT] Created ' + excelData.length + ' sales records with complete product details');
                     
-                    // Create workbook with single comprehensive sheet
+                    // Create workbook
                     const wb = XLSX.utils.book_new();
-                    const ws = XLSX.utils.json_to_sheet(flattenedData);
+                    const ws = XLSX.utils.json_to_sheet(excelData);
                     
-                    // Set column widths for better readability (24 columns)
+                    // Set column widths for better readability
                     ws['!cols'] = [
                         { wch: 15 },  // Order ID
                         { wch: 12 },  // Sale Date
@@ -23089,12 +23091,12 @@ Prices are subject to change without prior notice.</textarea>
                         { wch: 25 },  // Company Name
                         { wch: 20 },  // Employee
                         { wch: 15 },  // Contact
-                        { wch: 12 },  // Sale Type
-                        { wch: 30 },  // Product Name
-                        { wch: 15 },  // Product Code
-                        { wch: 10 },  // Quantity
-                        { wch: 12 },  // Unit Price
-                        { wch: 12 },  // Product Total
+                        { wch: 12 },  // Bill Type
+                        { wch: 40 },  // All Product Names
+                        { wch: 30 },  // All Product Codes
+                        { wch: 15 },  // All Quantities
+                        { wch: 15 },  // All Rates
+                        { wch: 15 },  // All Product Totals
                         { wch: 12 },  // Subtotal
                         { wch: 12 },  // Courier Cost
                         { wch: 12 },  // GST Amount
@@ -23102,10 +23104,11 @@ Prices are subject to change without prior notice.</textarea>
                         { wch: 15 },  // Amount Received
                         { wch: 15 },  // Balance Amount
                         { wch: 15 },  // Payment Status
-                        { wch: 12 },  // Payment Date
-                        { wch: 12 },  // Payment Amount
-                        { wch: 20 },  // Payment Reference
-                        { wch: 20 }   // Account
+                        { wch: 15 },  // Payment Dates
+                        { wch: 15 },  // Payment Amounts
+                        { wch: 25 },  // Payment References
+                        { wch: 20 },  // Account
+                        { wch: 30 }   // Remarks
                     ];
                     
                     XLSX.utils.book_append_sheet(wb, ws, 'Complete Sales Data');
@@ -23117,7 +23120,7 @@ Prices are subject to change without prior notice.</textarea>
                     XLSX.writeFile(wb, filename);
                     
                     // Success message
-                    alert('✅ Sales database exported successfully!\\n\\nSales Orders: ' + sales.length + '\\nProduct Lines: ' + flattenedData.length + '\\n\\nFile: ' + filename);
+                    alert('✅ Sales database exported successfully!\\n\\nTotal Sales: ' + sales.length + '\\n\\nFile: ' + filename);
                 } catch (error) {
                     console.error('[EXPORT] Error:', error);
                     const errorMsg = error.response && error.response.data && error.response.data.error ? error.response.data.error : error.message;
