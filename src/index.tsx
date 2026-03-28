@@ -1030,7 +1030,9 @@ app.get('/api/sales/export-all', async (c) => {
   try {
     console.log('[API /api/sales/export-all] Starting export...');
     
-    // Fetch recent sales with full details (limit to 100 to avoid subrequest limits)
+    // Use efficient JOIN approach to get ALL data in just 3 queries total (no subrequest limits)
+    
+    // 1. Get all sales
     const sales = await env.DB.prepare(`
       SELECT 
         s.*,
@@ -1043,38 +1045,52 @@ app.get('/api/sales/export-all', async (c) => {
         OR s.customer_contact = l.alternate_mobile
       )
       ORDER BY s.updated_at DESC, s.sale_date DESC
-      LIMIT 100
     `).all();
     
     console.log('[API /api/sales/export-all] Fetched ' + sales.results.length + ' sales');
     
-    // Process in smaller batches to avoid subrequest limits
-    const batchSize = 50;
-    const salesWithDetails = [];
+    // 2. Get ALL sale items in one query
+    const allItems = await env.DB.prepare(`
+      SELECT * FROM sale_items ORDER BY order_id
+    `).all();
     
-    for (let i = 0; i < sales.results.length; i += batchSize) {
-      const batch = sales.results.slice(i, i + batchSize);
-      const batchResults = await Promise.all(batch.map(async (sale: any) => {
-        const items = await env.DB.prepare(`
-          SELECT * FROM sale_items WHERE order_id = ?
-        `).bind(sale.order_id).all();
-        
-        const payments = await env.DB.prepare(`
-          SELECT * FROM payment_history WHERE order_id = ? ORDER BY payment_date DESC
-        `).bind(sale.order_id).all();
-        
-        return {
-          ...sale,
-          items: items.results || [],
-          payments: payments.results || [],
-          items_count: items.results?.length || 0,
-          payments_count: payments.results?.length || 0
-        };
-      }));
-      salesWithDetails.push(...batchResults);
-    }
+    console.log('[API /api/sales/export-all] Fetched ' + allItems.results.length + ' sale items');
     
-    console.log('[API /api/sales/export-all] Processed ' + salesWithDetails.length + ' sales with details');
+    // 3. Get ALL payments in one query
+    const allPayments = await env.DB.prepare(`
+      SELECT * FROM payment_history ORDER BY order_id, payment_date DESC
+    `).all();
+    
+    console.log('[API /api/sales/export-all] Fetched ' + allPayments.results.length + ' payments');
+    
+    // Group items and payments by order_id (in-memory processing)
+    const itemsByOrder = {};
+    const paymentsByOrder = {};
+    
+    allItems.results.forEach((item: any) => {
+      if (!itemsByOrder[item.order_id]) {
+        itemsByOrder[item.order_id] = [];
+      }
+      itemsByOrder[item.order_id].push(item);
+    });
+    
+    allPayments.results.forEach((payment: any) => {
+      if (!paymentsByOrder[payment.order_id]) {
+        paymentsByOrder[payment.order_id] = [];
+      }
+      paymentsByOrder[payment.order_id].push(payment);
+    });
+    
+    // Combine data
+    const salesWithDetails = sales.results.map((sale: any) => ({
+      ...sale,
+      items: itemsByOrder[sale.order_id] || [],
+      payments: paymentsByOrder[sale.order_id] || [],
+      items_count: (itemsByOrder[sale.order_id] || []).length,
+      payments_count: (paymentsByOrder[sale.order_id] || []).length
+    }));
+    
+    console.log('[API /api/sales/export-all] Completed! Processed ' + salesWithDetails.length + ' sales with details');
     
     return c.json({ 
       success: true, 
